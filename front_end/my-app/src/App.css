@@ -1,0 +1,1236 @@
+/* CSS Variables */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+
+/* GENERAL */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  overflow-y: scroll;
+}
+
+.body {
+  margin-top: 120px;
+  margin-bottom: 180px;
+}
+/* ICONS */
+
+.ratingSVG,
+.ratingPATH {
+  cursor: pointer;
+  transition: ease .3s;
+}
+
+.ModuleHeader {
+  display: grid;
+  grid-template-columns: 1fr 5fr;
+  gap: 10px;
+  margin-right: auto;
+  margin-left: auto;
+  margin-top: 80px;
+  margin-bottom: 80px;
+  align-items: center;
+  justify-content: center;
+  
+}
+
+.openProgress, .processingProgress {
+  width: 80%;
+}
+
+.DragAndDropKeyItemContainer {
+  display: grid;
+  grid-template-columns: 1fr 8fr;
+  align-items: center;
+  margin-bottom: 10px;
+  justify-content: left;
+}
+
+
+.DragAndDropKeyContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  align-items: center;
+  margin-left: auto;
+  margin-right: auto;
+  justify-content: left;
+}
+
+svg.forwardArrow {
+  margin-left: auto;
+  margin-right: .5rem;
+}
+
+.checkBox {
+  margin-left: auto;
+  margin-right: auto;
+  border: 1px solid black;
+  height: 12px;
+  width: 12px;
+  border-radius: 2px;
+  box-shadow: inset -1.2px 1.2px black;
+  transition: ease .4s;
+}
+
+.keyBox {
+  border: 1px solid black;
+  height: 12px;
+  width: 12px;
+  border-radius: 2px;
+  box-shadow: inset -1.2px 1.2px black;
+}
+
+.dragElement {
+  margin-left: auto;
+  margin-right: auto;
+  border: 1px solid black;
+  height: 30px;
+  width: 30px;
+  border-radius: 7px;
+  box-shadow: inset -1.2px 1.2px black;
+  transition: ease .4s;
+}
+
+.dragElement:hover {
+  cursor: grabbing;
+}
+
+.checkBox:hover {
+  background-color: #D2A478;
+}
+
+svg.backArrow {
+  margin-left: auto;
+  margin-right: 1rem;
+  transform: rotateY(180deg);
+}
+
+progress {
+  border-radius: 15px;
+  width: 100%;
+  height: 10px;
+  margin: 0 auto;
+  border-radius: 15px;
+  appearance: none;
+  display: block;
+}
+
+.OpenResponse {
+  display: block;
+  height: 10∂rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  appearance: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  resize: none;
+  padding: 1rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: lighter;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+}
+
+.OpenResponse:hover {
+  box-shadow: -2px 2px black;
+}
+
+.OpenResponse:focus {
+  box-shadow: none;
+}
+
+.OpenResponse::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.ScriptSample,
+.ScriptSampleRate {
+  display: block;
+  height: 15rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  appearance: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  resize: none;
+  padding: 1rem;
+  overflow: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+}
+
+.ScriptSample::-webkit-scrollbar,
+.ScriptSampleRate::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.ScriptSampleText {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: normal;
+}
+
+progress.ModuleProgress {
+  width: 90%;
+  display: block;
+}
+
+progress.ModuleProgress::-webkit-progress-bar {
+  background-color: #D9D9D9; /* Background of the bar */
+  border-radius: 10px; /* Rounded corners */
+}
+
+progress.ModuleProgress::-webkit-progress-value {
+  background-color: #57A15E; /* Green progress */
+  border-radius: 10px; /* Rounded corners on the left */
+}
+
+progress.openProgress::-webkit-progress-bar {
+  background-color: #D9D9D9; /* Background of the bar */
+  border-radius: 10px; /* Rounded corners */
+  }
+
+progress.openProgress::-webkit-progress-value {
+  background-color: #57A15E; /* Green progress */
+  border-radius: 10px; /* Rounded corners on the left */
+  }
+
+progress.processingProgress::-webkit-progress-bar {
+  background-color: #D9D9D9; /* Background of the bar */
+  border-radius: 10px; /* Rounded corners */
+  }
+
+progress.processingProgress::-webkit-progress-value {
+  background-color: #D2A478; /* Green progress */
+  border-radius: 10px; /* Rounded corners on the left */
+  }
+
+div.progressContainer {
+  align-items: center;
+}
+
+/* TYPE */
+
+.MainNavCardTitle {
+  font-size: 2rem;
+}
+
+.workshopCardContainer {
+  display: grid;
+  grid-template-columns: 6fr 1fr;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.workshopCardContainer:hover {
+  color: white;
+  background-color: #000000;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .3s;
+}
+
+.workshopCardContainer:hover svg path {
+  stroke: white;
+}
+
+.linkNoUnderLine {
+  text-decoration: none;
+  color:#000000;
+}
+
+#workshopCardDescription {
+  font-size: .9rem;
+  display: block;
+  margin-top: 15px;
+  margin-left: 1rem;
+  text-align: left;
+  margin-right: auto;
+  width: 90%;
+}
+
+.workshopCardName {
+  display: block;
+  width: 80%;
+  font-size: 1.5rem;
+  margin-bottom: 30px; 
+  margin-right: auto;
+  font-family: sans-serif;
+  font-weight: lighter;
+  margin-left: 1rem;
+}
+
+.workshopCardText {
+  font-size: .9rem;
+  display: block;
+  margin-left: 1rem;
+  margin-bottom: 10px;
+  text-align: left;
+  margin-right: auto;
+  width: 90%;
+}
+
+.MainNavCardDesc {
+  font-size: 1rem;
+}
+
+#buttonText {
+  font-size: .9rem;
+  display: block;
+  margin-left: 1rem;
+  text-align: left;
+  margin-right: auto;
+  width: 90%;
+}
+
+#KeyItemText {
+  font-size: 1rem;
+}
+
+#multipleChoiceText {
+  font-size: .9rem;
+  margin-left: 1rem;
+  width:80%;
+}
+
+
+#buttonTimeText {
+  font-size: .9rem;
+  }
+
+.Heading1 {
+  margin-bottom: 40px;
+  margin-top: 60px;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: sans-serif;
+  font-weight: lighter;
+}
+
+.Heading2 {
+  display: block;
+  width: 80%;
+  font-size: 1.5rem;
+  margin-bottom: 10px; 
+  margin-left: auto;
+  margin-right: auto;
+  font-family: sans-serif;
+  font-weight: lighter;
+}
+
+.ModuleQuestion {
+  margin-bottom: 20px;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: sans-serif;
+  font-weight: lighter;
+}
+
+.OpenResponse:focus {
+  outline: none;
+}
+
+.OpenText {
+  font-weight: lighter;
+}
+
+.OpenText,
+.PendingText,
+.CompletedText,
+.ProcessingText {
+  font-family: sans-serif;
+  font-weight: lighter;
+}
+
+.CompletedHeading,
+.ProcessingHeading,
+.OpenHeading,
+.PendingHeading {
+  margin-bottom: 20px;
+  margin-top: 40px;
+  margin-left: auto;
+  margin-right: auto;
+  display: grid;
+  grid-template-columns: .2fr 5fr;
+  align-items: center;
+}
+
+/* BUTTONS */
+
+.MainNavCardContainer {
+  padding-left: 2rem;
+  padding-right: 2rem;
+  display: grid;
+  grid-template-rows: 2fr 1fr;
+  align-items: center;
+  justify-items: center;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: -4px 4px black;
+  border: black 1px solid;
+  height: 10rem;
+  margin-bottom: 20px;
+  border: 1px solid #000000;
+  box-shadow: -4px 4px 0px #000000;
+  border-radius: 16px;
+}
+
+.MainNavCardLabel {
+  width: 100%;
+  min-height: 3rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  background: #FFFFFF;
+  border: 1px solid #000000;
+  box-shadow: -4px 4px 0px #000000;
+  border-radius: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.DragAndDropContainer {
+  display: block;
+  position: relative;
+  width: 80%;
+  height: 15rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 40px;
+}
+
+.StarContainer {
+  display: flex;
+  margin-right: auto;
+  margin-left: auto;
+  margin-top: 40px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workshopcreatecomplete {
+  margin-top: 80px;
+}
+
+.multipleChoiceButton {
+  display: grid;
+  text-align: left;
+  align-items: center;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  height: 2.5rem;
+  border: black 1px solid;
+  color: black;
+  box-shadow: -4px 4px black;
+  border-radius: 15px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.multipleChoiceButton.selected {
+    background-color: #D2A478;
+    color: white;
+    box-shadow: none;
+    border: none;
+}
+
+.multipleChoiceButton:not(.selected):hover {
+    background-color: #D2A478;
+    color: white;
+    box-shadow: none;
+    border: none;
+    transition: ease .4s;
+}
+
+.checkBoxButton {
+  display: grid;
+  grid-template-columns: 1fr 10fr;
+  align-items: center;
+  justify-items: left;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  cursor: pointer;
+}
+
+.menuBarIconContainer {
+  position: fixed;
+  top: 0;
+  height: 7rem;
+  left: 50%;
+  transform: translateX(-50%); /* This centers it horizontally */
+  width: calc(var(--element-width) + 10px); /* Match the width of the other elements */
+  z-index: 1000;
+  background: white;
+  box-shadow: -5px 0px white;
+  overflow: visible;
+  }
+
+.navOptions {
+  margin-top: 60px;
+}
+
+.exitButtonContainer {
+  display: flex;
+  margin-top: 80px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ModuleProgressBarContainer {
+  width: 90%;
+  display: grid;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  align-items: center;
+}
+
+.previousButton {
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  width: 100%;
+  display: block;
+}
+
+.nextButton {
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  width: 100%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.nextButton:hover {
+  background-color: #57A15E;
+  box-shadow: none;
+  border: none;
+  cursor: pointer;
+  transition: ease .3s;
+}
+
+.previousButton:hover {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .3s;
+}
+
+.nextButton:hover svg path {
+  stroke: white;
+}
+
+.ForwardArrowIcon {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.ForwardArrowIcon:hover {
+  cursor: pointer;
+}
+
+.previousButton:hover svg path {
+  stroke: white;
+}
+
+rect:hover {
+  transition: ease .3s;
+}
+
+.moduleNavigatorContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  align-items: center;
+  /* margin-left: auto;
+  margin-right: auto;
+  margin-top: 80px;
+  margin-bottom: 20px; */
+  box-shadow: -5px 0px white;
+  position: fixed;
+  bottom: 0;
+  height: 5rem;
+  left: 50%;
+  transform: translateX(-50%); /* This centers it horizontally */
+  width: calc(var(--element-width) + 10px); /* Match the width of the other elements */
+  z-index: 1000;
+  background: white;
+}
+
+.MenuBarIcon {
+  display: flex;
+  height: 120px;
+  width: 55px;
+  cursor: pointer;
+}
+
+.completeButton {
+  display: grid;
+  grid-template-columns: 2fr 2fr .5fr .5fr;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+}
+
+.processingButton {
+  display: grid;
+  grid-template-columns: 2fr 2fr .5fr .5fr;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+}
+
+.openButton {
+  display: grid;
+  grid-template-columns: 2fr 2fr .5fr .5fr;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+}
+
+.emailInput {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 30px;
+  align-items: center;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  outline: none;
+  line-height: 1.5rem;
+  font-weight: lighter;
+  font-size: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.emailInput:hover {
+  box-shadow: -2px 2px black;
+}
+
+.emailInput:focus {
+  box-shadow: none;
+}
+
+.passwordInput {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  outline: none;
+  line-height: 1.5rem;
+  font-weight: lighter;
+  font-size: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.passwordInput:hover {
+  box-shadow: -2px 2px black;
+}
+
+.passwordInput:focus {
+  box-shadow: none;
+}
+
+.logInButtonContainer {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 40px;
+  margin-top: 40px;
+  width: 80%;
+}
+
+.logInButton {
+  display: block;
+  width: 20%;
+  margin-left: auto;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  background-color: white;
+  box-shadow: -4px 4px black;
+  font-size: .9rem;
+}
+
+.logInButton:hover {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .4s;
+}
+
+.logInButton:focus {
+  box-shadow: none;
+}
+
+.createButtonContainer {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 40px;
+  margin-top: 40px;
+  width: 80%;
+}
+
+.createButton {
+  display: block;
+  width: 46px;
+  margin-right: auto;
+  margin-left: auto;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  background-color: white;
+  box-shadow: -4px 4px black;
+  font-size: .9rem;
+}
+
+.createButton:hover {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .4s;
+}
+
+.createButton:focus {
+  box-shadow: none;
+}
+
+.logInForm {
+  margin-top: 80px;
+}
+
+
+.ShortResponseArea {
+  display: block;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 40px;
+  resize: none;
+  padding-left: 1rem;
+  padding-top: .5rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: lighter;
+}
+
+.ShortResponseArea:hover {
+  box-shadow: -2px 2px black;
+}
+
+.ShortResponseArea:focus {
+  box-shadow: none;
+}
+
+.ShortResponseArea:focus {
+  outline: none;
+}
+
+.pendingButton {
+  display: grid;
+  grid-template-columns: 2fr 2fr .5fr .5fr;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+}
+
+.completeButton:hover {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .4s;
+}
+
+.openButton:hover {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .4s;
+  }
+
+
+.openButton:hover svg path {
+  stroke: white;
+}
+
+.completeButton:hover svg path {
+  stroke: white;
+}
+
+select.dropDown {
+  display: grid;
+  grid-template-columns: 1fr 5fr;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 2.5rem;
+  border: black 1px solid;
+  border-radius: 15px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  appearance: none;
+}
+
+/* Responsive Width */
+
+:root {
+  --element-width: clamp(45%, calc(75% - 10vw), 75%);
+}
+
+.completeButton,
+.openButton,
+.pendingButton,
+.processingButton,
+.Heading1,
+.Heading2,
+.ModuleQuestion,
+.CompletedHeading,
+.ProcessingHeading,
+.OpenHeading,
+.PendingHeading,
+.ModuleHeader,
+.OpenResponse,
+.checkBoxButton,
+.moduleNavigatorContainer,
+.menuBarIconContainer,
+.multipleChoiceButton,
+.ScriptSample,
+.ScriptSampleRate,
+.exitButtonContainer,
+.ShortResponseArea,
+.DragAndDropContainer,
+.DragAndDropContainer,
+.DragAndDropKeyContainer,
+.MainNavCardContainer,
+.logInButtonContainer,
+.passwordInput,
+.emailInput,
+.StarContainer,
+.workshopCardContainer,
+.createButtonContainer {
+  width: var(--element-width);
+  transition: width .5s ease;
+}
+
+@media (max-width: 700px) {
+  :root {
+    --element-width: 80%;
+  }
+}
+@media (max-width: 550px) {
+  #buttonText {
+    font-size: .75rem;
+    margin-left: 1rem;
+    text-align: left;
+  }
+
+  #buttonTimeText{
+    font-size: .75rem;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 800px) {
+  :root {
+    --element-width: clamp(25%, calc(80% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 801px) and (max-width: 900px) {
+  :root {
+    --element-width: clamp(25%, calc(75% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1000px) {
+  :root {
+    --element-width: clamp(25%, calc(70% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 1001px) and (max-width: 1100px) {
+  :root {
+    --element-width: clamp(25%, calc(65% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 1101px) and (max-width: 1200px) {
+  :root {
+    --element-width: clamp(25%, calc(60% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 1201px) and (max-width: 1300px) {
+  :root {
+    --element-width: clamp(25%, calc(55% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 1301px) and (max-width: 1400px) {
+  :root {
+    --element-width: clamp(25%, calc(50% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 1401px) and (max-width: 1500px) {
+  :root {
+    --element-width: clamp(25%, calc(45% - 10vw), 80%);
+  }
+}
+
+@media (min-width: 1501px) {
+  :root {
+    --element-width: clamp(25%, calc(40% - 10vw), 80%);
+  }
+}
+
+/* /* Workshop Card Current */
+
+position: absolute;
+width: 321px;
+height: 321px;
+left: 36px;
+top: 277px;
+
+background: #FFFFFF;
+
+
+/* Rectangle 25 */
+
+box-sizing: border-box;
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+/* Accent 3 */
+background: #57A15E;
+border: 1px solid #000000;
+box-shadow: -4px 4px 0px #000000;
+border-radius: 16px;
+
+
+/* RSVP Button */
+
+position: absolute;
+left: 69.16%;
+right: 6.23%;
+top: 81.62%;
+bottom: 6.23%;
+
+
+
+/* Rectangle 25 */
+
+box-sizing: border-box;
+
+position: absolute;
+visibility: hidden;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+background: #FFFFFF;
+border: 1px solid #000000;
+border-radius: 16px;
+
+
+/* Open Label */
+
+position: absolute;
+left: 24.05%;
+right: nan%;
+top: 25.64%;
+bottom: nan%;
+
+
+
+/* RSVP */
+
+position: absolute;
+visibility: hidden;
+left: 24.05%;
+right: 22.78%;
+top: 25.64%;
+bottom: 25.64%;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+
+color: #000000;
+
+
+
+/* H2 */
+
+position: absolute;
+left: 45.17%;
+right: 47.98%;
+top: 58.88%;
+bottom: 35.2%;
+
+
+
+/* H3 */
+
+position: absolute;
+left: 6.23%;
+right: 86.6%;
+top: 38.01%;
+bottom: 56.07%;
+
+
+
+/* Body H3 */
+
+position: absolute;
+visibility: hidden;
+left: 0%;
+right: 100%;
+top: 0%;
+bottom: 0%;
+
+
+
+
+/* Exit */
+
+position: absolute;
+width: 39px;
+left: calc(50% - 39px/2);
+top: 81.62%;
+bottom: 6.23%;
+
+
+
+/* Rectangle 47 */
+
+box-sizing: border-box;
+
+position: absolute;
+visibility: hidden;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+background: #FFFFFF;
+border: 1px solid #000000;
+border-radius: 16px;
+
+
+/* Vector 17 */
+
+position: absolute;
+visibility: hidden;
+left: 21.79%;
+right: 21.79%;
+top: 21.79%;
+bottom: 21.79%;
+
+border: 1px solid #000000;
+
+
+/* Rectangle 28 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 281px;
+left: calc(50% - 281px/2);
+top: 6.23%;
+bottom: 24.61%;
+
+background: #FFFFFF;
+border: 1px solid #000000;
+box-shadow: -4px 4px 0px #000000;
+border-radius: 16px;
+
+
+/* H3 */
+
+position: absolute;
+left: 12.46%;
+right: 80.06%;
+top: 24.61%;
+bottom: 69.47%;
+
+
+
+/* Body H3 */
+
+position: absolute;
+left: 0%;
+right: -245.83%;
+top: 0%;
+bottom: 0%;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 16px;
+line-height: 19px;
+
+color: #000000;
+
+
+
+/* H1 */
+
+position: absolute;
+left: 12.46%;
+right: 75.08%;
+top: 12.46%;
+bottom: 75.39%;
+
+
+
+/* Head Title H1 */
+
+position: absolute;
+left: 0%;
+right: -360%;
+top: 0%;
+bottom: 0%;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 400;
+font-size: 32px;
+line-height: 39px;
+
+
+
+/* Rectangle 47 */
+
+box-sizing: border-box;
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+background: #FFFFFF;
+border: 1px solid #000000;
+box-shadow: -4px 4px 0px #000000;
+border-radius: 16px;
+
+
+/* Vector 2 */
+
+position: absolute;
+left: 76.92%;
+right: -30.77%;
+top: 76.92%;
+bottom: -30.77%;
+
+background: #FFFFFF;
+border: 1px solid #000000;
+border-radius: 16px;
+transform: rotate(-180deg);
+/* Workshop Card Current */
