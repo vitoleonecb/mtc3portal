@@ -41,7 +41,7 @@ export function WorkshopsPage() {
     useEffect(() => {
         const fetchWorkshops = async () => {
             try {
-                const workshopsResponse = await axios.get('http://localhost:3036/workshops', {
+                const workshopsResponse = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops`, {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization' : `BEARER ${accessToken}`
@@ -103,7 +103,7 @@ export function LogInPage() {
         event.preventDefault();
         
         try {
-            const response = await axios.post('http://localhost:3036/users/login',
+            const response = await axios.post(`${process.env.REACT_APP_API_BASE}/users/login`,
             { email: email, password: password },
             { headers: {'Content-Type': 'application/json'}});
             console.log(`Log In Response: ${JSON.stringify(response.data)}`);
@@ -162,7 +162,7 @@ export function WorkshopCreateForm() {
 
             console.log(workshopForm);
             
-            const response = await axios.post('http://localhost:3036/workshops',
+            const response = await axios.post(`${process.env.REACT_APP_API_BASE}/workshops`,
             { 
                 workshop_name: workshopForm['workshopName'], 
                 workshop_description: workshopForm['workshopDescription'], 
@@ -253,7 +253,7 @@ export function RegistrationPage() {
 
     const handleSubmit = async () => {
         try {
-            const response = await axios.post('http://localhost:3036/users/registration',
+            const response = await axios.post(`${process.env.REACT_APP_API_BASE}/users/registration`,
             { username: formData['userName'], email: formData['email'], first_name: formData['firstName'], last_name: formData['lastName'], user_password: formData['userPassword1'], user_type: formData['userType'], user_phone: formData['userPhone'] },
             { headers: {'Content-Type': 'application/json'} });
             console.log(`User Created: ${formData['userName']}`);
@@ -326,7 +326,7 @@ export function WorkshopModules() {
     const handleSubmit = async (event) => {
         try {
 
-            const response = await axios.post(`http://localhost:3036/workshops/${workshopId}/modules`,
+            const response = await axios.post(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`,
             {workshop_module_name : moduleCreateFormData.moduleName},
             { headers: {'Content-Type': 'application/json', 'Authorization':`BEARER ${accessToken}`}});
 
@@ -359,7 +359,7 @@ export function WorkshopModules() {
         const fetchModules = async () => {
             try {
                 
-                const response = await axios.get(`http://localhost:3036/workshops/${workshopId}/modules`, {
+                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`, {
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `BEARER ${accessToken}`
@@ -367,7 +367,7 @@ export function WorkshopModules() {
                     signal: controller.signal
                 });
 
-                const workshopResponse = await axios.get(`http://localhost:3036/workshops/${workshopId}`, {
+                const workshopResponse = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}`, {
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `BEARER ${accessToken}`
@@ -500,7 +500,7 @@ export function WorkshopPromptsPage() {
     useEffect(() => {
         const fetchPromptInformation = async () => {
             try {
-                const response = await axios.get(`http://localhost:3036/workshops/${workshopId}/modules/${moduleId}/prompts`, { 
+                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts`, { 
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `BEARER ${accessToken}`
@@ -660,7 +660,7 @@ export function OpenResponseTemplate() {
 
         const fetchDataTest = async () => {
             try {
-                const response = await axios.get('http://localhost:3036/workshops/4/modules/3/prompts', {
+                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/4/modules/3/prompts`, {
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `BEARER ${accessToken}`
