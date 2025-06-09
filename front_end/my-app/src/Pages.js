@@ -550,7 +550,7 @@ export function WorkshopPromptsPage() {
         // switch case to render different templates based on prompt_template_id
         switch (prompt.prompt_template_id) {
             case 1:
-                return <MultipleChoiceTemplate multipleChoiceOptions={prompt.workshop_prompt_options} question={prompt.workshop_prompt_instruction}/>;
+                return <MultipleChoiceTemplate multipleChoiceOptions={prompt.workshop_prompt_options}/>;
             case 3:
                 return <CheckListTemplate checkListOptions={prompt.workshop_prompt_options} />;
             case 4:
@@ -705,7 +705,7 @@ export function OpenResponseTemplate() {
     );
 }
 
-export function MultipleChoiceTemplate({ multipleChoiceOptions, question }) {
+export function MultipleChoiceTemplate({ multipleChoiceOptions }) {
     
 
 

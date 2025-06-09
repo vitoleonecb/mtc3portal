@@ -1,5 +1,5 @@
 
-import React, { useState, useRef }from 'react';
+import React, { useState, useRef, useEffect }from 'react';
 import { DragElement, ArrowSVG, Star, BackArrowSVG, CheckBox, ForwardArrowIcon } from './Icons';
 import classNames from 'classnames';
 import { motion } from 'framer-motion';
@@ -50,8 +50,35 @@ export function OpenButton({ moduleName, progressValue }) {
 }
 
 export function OpenResponse() {
+    
+    const textareaRef = useRef(null);
+    const [value, setValue] = useState('');
+
+    const handleChange = (e) => {
+        setValue(e.target.value);
+
+        const textarea = textareaRef.current;
+        if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+        }
+    };
+
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+        }
+    }, []);
+    
     return (
-        <textarea className="OpenResponse" placeholder='Enter your response here'/>
+        <textarea 
+        ref={textareaRef}
+        value={value}
+        onChange={handleChange}
+        className="OpenResponse" 
+        placeholder='Enter your response here'/>
     )
 }
 
@@ -228,9 +255,37 @@ export function StarRater() {
 }
 
 export function ShortResponseArea() {
+    
+    const textareaRef = useRef(null);
+    const [value, setValue] = useState('');
+
+    const handleChange = (e) => {
+        setValue(e.target.value);
+
+        const textarea = textareaRef.current;
+        if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+        }
+    };
+
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+        }
+    }, []);
+    
     return (
         <>
-            <textarea placeholder="Enter your response here:" className="ShortResponseArea"></textarea>
+            <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange} 
+            placeholder="Enter your response here:" 
+            className="ShortResponseArea">
+            </textarea>
         </>
     )
 }

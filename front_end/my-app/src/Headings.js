@@ -16,7 +16,7 @@ export function Heading2({text = "No Text Provided"}) {
 export function PromptInstruction(props) {
     return (
         <>
-            <h2 className="ModuleQuestion">{props.question}</h2>
+            <h1 className="Heading1">{props.question}</h1>
         </>
     )
 }
