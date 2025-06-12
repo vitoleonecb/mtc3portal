@@ -841,6 +841,50 @@ rect:hover {
   transition: ease .4s;
 }
 
+.dropDownButton:hover {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .4s;
+}
+
+.dropDownOption {
+  font-size: .9rem;
+  display: block;
+  margin-left: 1rem;
+  text-align: left;
+  margin-right: auto;
+  width: 90%;
+  list-style-type: none;
+}
+
+.dropDownOptionsBox {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 10rem;
+  border: black 1px solid;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+}
+
+.dropDownButton {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 3rem;
+  border: black 1px solid;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+}
+
 .openButton:hover {
   background-color: rgb(0, 0, 0);
   color: white;

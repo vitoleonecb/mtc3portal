@@ -21,6 +21,7 @@ import {
         NavPage,
         DocumentationPage,
         HomePage,
+        WorkshopPromptsEditor,
         Root
       } from './Pages';
 
@@ -31,6 +32,7 @@ function App() {
       <Route path="/" element={<Root/>}>
         <Route path="workshops/:workshopId/modules" element={ <WorkshopModules /> } />
         <Route path="workshops/:workshopId/modules/:moduleId/prompts" element={ <WorkshopPromptsPage /> } />
+        <Route path="workshops/:workshopId/modules/:moduleId/prompts/edit" element={ <WorkshopPromptsEditor /> } />
         <Route path="login" element={ <LogInPage /> } />
         <Route path="register" element={ <RegistrationPage /> } />
         <Route path="workshops/create" element={ <WorkshopCreateForm /> } />

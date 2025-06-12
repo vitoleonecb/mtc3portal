@@ -204,10 +204,10 @@ export function MultipleChoiceGroup({options}) {
     )
 }
 
-export function ScriptSampleNotate(props) {
+export function ScriptSampleNotate({sample}) {
     return (
         <div className="ScriptSample">
-            <h3 className="ScriptSampleText">{props.sample}</h3>
+            <h3 className="ScriptSampleText">{sample}</h3>
         </div>
     )
 }
@@ -366,5 +366,37 @@ export function MainNavCard({color, text, link}) {
             </div>
             <Link to={link}><ForwardArrowIcon /></Link>
         </div>
+    )
+}
+
+export function DropDown({dropDownLabel, options}) {
+    
+    const [isClicked, setIsClicked] = useState(false);
+    const [selectedOption, setSelectedOption] = useState(null);
+    
+    const handleMainClick = () => {
+        setIsClicked(prevStatus => !prevStatus);
+    }
+
+    const handleOptionClick = (e) => {
+        setSelectedOption()
+    }
+
+    return (
+        <>
+            <div className="dropDownButton" onClick={handleMainClick()}>
+                <span id="buttonText">{dropDownLabel}</span>
+                <div></div>
+                <div></div>
+                <ArrowSVG />
+            </div>
+            
+            <div className="dropDownOptionsBox">
+                {options.map((option) => {
+                    <li className="dropDownOption" onClick={handleOptionClick()}>{option}</li>
+                })}
+            </div>
+            
+        </>
     )
 }

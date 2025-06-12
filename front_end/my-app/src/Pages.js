@@ -536,7 +536,7 @@ export function WorkshopPromptsPage() {
     }
 
     const prompt = promptsList[promptIndex];
-    const instructionNeeded = prompt?.prompt_template_id !== 4 && prompt?.prompt_template_id !== 7;
+    const instructionNeeded = prompt?.prompt_template_id !== 4 && prompt?.prompt_template_id !== 7 && prompt?.prompt_template_id !== 8;
 
     const renderPrompt = () => {
         const prompt = promptsList[promptIndex];
@@ -559,6 +559,8 @@ export function WorkshopPromptsPage() {
                 return <DragAndDropTemplate dragOptions={prompt.workshop_prompt_options}/>
             case 7:
                 return <SampleRaterTemplate reference={prompt.workshop_prompt_reference}/>
+            case 8:
+                return <ScriptNotationTemplate reference={prompt.workshop_prompt_reference}/>
             default:
                 return <div>Unknown Template</div>;
         }
@@ -727,11 +729,11 @@ export function CheckListTemplate({ checkListOptions }) {
     )
 };
 
-export function ScriptNotationTemplate() {
+export function ScriptNotationTemplate({reference}) {
     return (
         <>
             <PromptInstruction question="Annotate the following script"/>
-            <ScriptSampleNotate sample="This is an example text. We will later fill it with the response from a DB query. It's going to be really cool when we have an administratot portal that allows us to share our work and then get feedback on it.This is an example text. We will later fill it with the response from a DB query. It's going to be really cool when we have an administratot portal that allows us to share our work and then get feedback on it." />
+            <ScriptSampleNotate sample={reference} />
             <OpenResponse />
             <ModuleNavigator />  
         </>
@@ -776,4 +778,15 @@ export function DragAndDropTemplate({dragOptions}) {
     )
 }
 
+export function WorkshopPromptsEditor({nameOfModule}) {
+    
+    const { workshopId, moduleId } = useParams();
+    const accessToken = localStorage.getItem('accessToken');
 
+    return(
+        <>
+            <PromptInstruction question={`Edit Mode: ${nameOfModule}`}/>
+            
+        </>
+    )
+}
