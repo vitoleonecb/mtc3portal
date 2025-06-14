@@ -28,11 +28,20 @@ export function ProcessingButton() {
     );
 }
 
-export function PendingButton({ moduleName }) {
+export function PendingButton({ moduleName, isAdmin }) {
+
     return (
-    <button className="pendingButton">
-        <span id="buttonText">{moduleName}</span>
-    </button>
+        <button className={isAdmin ? "adminPendingButton" : "pendingButton"}>
+            <span id="buttonText">{moduleName}</span>
+            <div></div>
+            <div></div>
+            { isAdmin && (
+                <svg className="pencilIconContainer" width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path className="pencilIcon" d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383" stroke="black"/>
+                </svg>
+            )}
+        </button>
+
     );
 }
 
@@ -369,34 +378,42 @@ export function MainNavCard({color, text, link}) {
     )
 }
 
-export function DropDown({dropDownLabel, options}) {
+export function DropDown({ options }) {
     
     const [isClicked, setIsClicked] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
+    const [dropDownLabel, setDropDownLabel] = useState('Select an option');
     
     const handleMainClick = () => {
         setIsClicked(prevStatus => !prevStatus);
     }
 
-    const handleOptionClick = (e) => {
-        setSelectedOption()
+    const handleOptionClick = (option) => {
+        setSelectedOption(option);
+        setDropDownLabel(option);
+        setIsClicked(false);
     }
 
     return (
         <>
-            <div className="dropDownButton" onClick={handleMainClick()}>
-                <span id="buttonText">{dropDownLabel}</span>
-                <div></div>
-                <div></div>
-                <ArrowSVG />
+            <div className="dropDownButton" onClick={handleMainClick}>
+                <h2 id="dropDownText">{dropDownLabel}</h2>
+                <div className="dropDownArrowContainer">
+                    <svg className="dropDownArrow" style={{ transform: isClicked ? 'rotate(180deg)' : 'rotate(0deg)' }} width="23" height="11" viewBox="0 0 23 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0.727539 0.727251L10.8387 10.2727L21.7275 0.72725" className="dropDownArrowPath" stroke="black" stroke-linecap="round"/>
+                    </svg>
+                </div>
             </div>
             
-            <div className="dropDownOptionsBox">
-                {options.map((option) => {
-                    <li className="dropDownOption" onClick={handleOptionClick()}>{option}</li>
-                })}
-            </div>
-            
+            { isClicked && (
+                <ul className="dropDownOptionsBox">
+                    {options.map((option) => (
+                        <li className="dropDownOption" onClick={() => handleOptionClick(option)}>
+                            {option}
+                        </li>
+                    ))}
+                </ul>
+            )}
         </>
     )
 }

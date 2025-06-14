@@ -25,6 +25,8 @@ import {
         Root
       } from './Pages';
 
+import { DropDown } from './Buttons';
+
 function App() {
 
   const router = createBrowserRouter(createRoutesFromElements(
@@ -45,6 +47,7 @@ function App() {
         <Route path="scriptnotation" element={ <ScriptNotationTemplate /> } />
         <Route path="shortresponse" element={ <ShortResponseTemplate /> } />
         <Route path="openresponse" element={ <OpenResponseTemplate /> } />
+        <Route path="dropdown" element={ <DropDown options={['drag and drop','multiple choice','checkbox','annotation']} /> } />
       </Route>
     </>
   ));

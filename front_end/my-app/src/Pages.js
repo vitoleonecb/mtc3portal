@@ -464,9 +464,12 @@ export function WorkshopModules() {
             {pendingModulesExists && (<PendingHeading />)}
                 {modules.map((module) => (
                     module.workshop_module_status === 'pending' && (
-                        <PendingButton 
-                            moduleName={module.workshop_module_name}
-                        />
+                        <Link to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/edit`} className="linkNoUnderLine">
+                            <PendingButton 
+                                moduleName={module.workshop_module_name}
+                                isAdmin={true}
+                            />
+                        </Link>
                     )
                 ))}
 

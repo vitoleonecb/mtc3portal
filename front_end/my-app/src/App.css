@@ -343,10 +343,6 @@ div.progressContainer {
   font-weight: lighter;
 }
 
-.Heading2:hover {
-  cursor: 
-}
-
 .ModuleQuestion {
   margin-bottom: 20px;
   margin-left: auto;
@@ -359,16 +355,20 @@ div.progressContainer {
   outline: none;
 }
 
-.OpenText {
-  font-weight: lighter;
-}
-
 .OpenText,
 .PendingText,
 .CompletedText,
+#dropDownText,
 .ProcessingText {
   font-family: sans-serif;
   font-weight: lighter;
+}
+
+#dropDownText {
+  grid-column: span 3;
+  font-size: 1.5em;
+  display: flex;
+  align-items: center;
 }
 
 .CompletedHeading,
@@ -833,6 +833,38 @@ rect:hover {
   background-color: white;
 }
 
+.adminPendingButton {
+  display: grid;
+  grid-template-columns: 2fr 2fr .5fr .5fr;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 20px;
+  align-items: center;
+  width: 80%;
+  height: 3rem;
+  border: black 1px solid;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+}
+
+.adminPendingButton:hover {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  box-shadow: none;
+  cursor: pointer;
+  transition: ease .4s;
+}
+
+.pendingButton:hover svg path {
+  stroke: white;
+}
+
+.pencilIconContainer {
+  margin-left: auto;
+  margin-right: .5rem;
+}
+
 .completeButton:hover {
   background-color: rgb(0, 0, 0);
   color: white;
@@ -850,32 +882,47 @@ rect:hover {
 }
 
 .dropDownOption {
-  font-size: .9rem;
+  font-size: 1.5em;
+  border-radius: 20px;
+  margin-bottom: .5rem;
   display: block;
-  margin-left: 1rem;
-  text-align: left;
+  text-align: center;
+  font-weight: lighter;
   margin-right: auto;
-  width: 90%;
+  width: 100%;
   list-style-type: none;
+}
+
+.dropDownOption:hover {
+  background-color: #D2A478;
+  cursor: pointer;
 }
 
 .dropDownOptionsBox {
   margin-left: auto;
   margin-right: auto;
+  padding: 1rem;
   margin-bottom: 20px;
   align-items: center;
   width: 80%;
-  height: 10rem;
   border: black 1px solid;
   border-radius: 20px;
-  box-shadow: -4px 4px black;
   background-color: white;
+}
+
+.dropDownArrowContainer {
+  display: flex;
+  justify-content: right;
+  margin-right: 1rem;
 }
 
 .dropDownButton {
   margin-left: auto;
   margin-right: auto;
+  padding-left: 1rem;
   margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   align-items: center;
   width: 80%;
   height: 3rem;
@@ -883,6 +930,10 @@ rect:hover {
   border-radius: 20px;
   box-shadow: -4px 4px black;
   background-color: white;
+}
+
+.dropDownButton:hover .dropDownArrowPath {
+  stroke: white;
 }
 
 .openButton:hover {
@@ -954,6 +1005,8 @@ select.dropDown {
 .emailInput,
 .StarContainer,
 .workshopCardContainer,
+.dropDownButton,
+.dropDownOptionsBox,
 .createButtonContainer {
   width: var(--element-width);
   transition: width .5s ease;
