@@ -18,7 +18,8 @@ import { OpenResponse,
     NextButton,
     YesNoButton,
     WorkshopCard,
-    CreateButton } from './Buttons.js';
+    CreateButton,
+    DropDown } from './Buttons.js';
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -539,7 +540,7 @@ export function WorkshopPromptsPage() {
     }
 
     const prompt = promptsList[promptIndex];
-    const instructionNeeded = prompt?.prompt_template_id !== 4 && prompt?.prompt_template_id !== 7 && prompt?.prompt_template_id !== 8;
+    const instructionNeeded = prompt?.prompt_template_id !== 9 && prompt?.prompt_template_id !== 4 && prompt?.prompt_template_id !== 7 && prompt?.prompt_template_id !== 8;
 
     const renderPrompt = () => {
         const prompt = promptsList[promptIndex];
@@ -564,6 +565,8 @@ export function WorkshopPromptsPage() {
                 return <SampleRaterTemplate reference={prompt.workshop_prompt_reference}/>
             case 8:
                 return <ScriptNotationTemplate reference={prompt.workshop_prompt_reference}/>
+            case 9:
+                return <DropDownTemplate dropDownOptions={prompt.workshop_prompt_options}/>
             default:
                 return <div>Unknown Template</div>;
         }
@@ -712,11 +715,22 @@ export function OpenResponseTemplate() {
 
 export function MultipleChoiceTemplate({ multipleChoiceOptions }) {
     
-
-
     return (
         <>
             <MultipleChoiceGroup options={multipleChoiceOptions}/>
+        </>
+    )
+}
+
+export function DropDownTemplate({ dropDownOptions }) {
+    return (
+        <>
+            {dropDownOptions.map((item, i) => (
+                <div className="DropdownPromptContainer" key={i}>
+                    <h1 class="Heading1" style={{ marginBottom: '20px' }}>{item.question}</h1>
+                    <DropDown options={item.options}/>
+                </div>
+            ))}
         </>
     )
 }
@@ -783,13 +797,63 @@ export function DragAndDropTemplate({dragOptions}) {
 
 export function WorkshopPromptsEditor({nameOfModule}) {
     
-    const { workshopId, moduleId } = useParams();
-    const accessToken = localStorage.getItem('accessToken');
+    // const { workshopId, moduleId } = useParams();
 
-    return(
-        <>
-            <PromptInstruction question={`Edit Mode: ${nameOfModule}`}/>
-            
-        </>
-    )
+    // const accessToken = localStorage.getItem('accessToken');
+    
+    // const [promptIndex, setPromptIndex] = useState(0);
+    // const [promptsList, setPromptsList] = useState([]);
+    // const [selectedTemplate, setSelectedTemplate] = useState(null);
+    // const [formData, setFormData] = useState();
+
+    // const handleNext = () => {
+    //     if (promptIndex < promptsList.length - 1) {
+    //         setPromptIndex((prevIndex) => prevIndex + 1);
+    //     } else {
+    //         handleSubmit();
+    //     }
+    // }
+
+    // const handleBack = () => {
+    //     setPromptIndex((prevIndex) => prevIndex - 1);
+    // }
+
+    // const isFirst = promptIndex === 0;
+    
+    // const renderPromptTemplate = () => {
+    //     const prompt = promptsList[promptIndex];
+
+    //     if (!prompt) {
+    //         return <div>Loading...</div>; // Safe fallback while data is still loading
+    //     }
+
+    //     console.log(prompt);
+
+    //     // switch case to render different templates based on prompt_template_id
+    //     switch (prompt.prompt_template_id) {
+    //         case 1:
+    //             return <CreateMultipleChoiceTemplate />;
+    //         case 3:
+    //             return <CreateCheckListTemplate />;
+    //         case 4:
+    //             return <CreateShortResponseTemplate />
+    //         case 6:
+    //             return <CreateDragAndDropTemplate />
+    //         case 7:
+    //             return <CreateSampleRaterTemplate />
+    //         case 8:
+    //             return <CreateScriptNotationTemplate />
+    //         default:
+    //             return <div>Unknown Template</div>;
+    //     }
+    // }
+
+    // return (
+    //     <>
+    //         <PromptInstruction question={`Editing Module: ${nameOfModule}`}/>
+    //         <DropDown options={['','','','','','']}/>
+    //         { selectedTemplate && renderPromptTemplate() }
+    //         <ModuleNavigator backActive={isFirst} backClick={handleBack} nextClick={handleNext}/>
+    //     </>
+    // )
 }
