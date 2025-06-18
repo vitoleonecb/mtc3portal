@@ -105,3 +105,57 @@ export function CreateCheckListTemplate() {
         </>
     );
 }
+
+export function CreateMultipleChoiceTemplate() {
+    
+    return (
+        <>
+        
+        </>
+    )
+}
+
+export function CreateShortResponseTemplate() {
+    
+    return (
+        <>
+        
+        </>
+    )
+}
+
+export function CreateDragAndDropTemplate() {
+    
+    return (
+        <>
+        
+        </>
+    )
+}
+
+export function CreateSampleRaterTemplate() {
+    
+    return (
+        <>
+        
+        </>
+    )
+}
+
+export function CreateScriptNotationTemplate() {
+    
+    return (
+        <>
+        
+        </>
+    )
+}
+
+export function CreateDropDownTemplate() {
+    
+    return (
+        <>
+        
+        </>
+    )
+}
