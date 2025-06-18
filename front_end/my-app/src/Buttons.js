@@ -341,7 +341,12 @@ export function LogInButton() {
 export function CreateButton({ handleClick }) {
     return (
         <div className="createButtonContainer">
-            <input onClick={ handleClick } className="createButton" type="button"/>
+            <button onClick={handleClick} className="createButton" type="button">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <line x1="9.5" y1="0" x2="9.5" y2="18" stroke="black" />
+                    <line y1="8.5" x2="18" y2="8.5" stroke="black" />
+                </svg>
+            </button>
         </div>
     );
 }

@@ -23,7 +23,7 @@ import { OpenResponse,
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link, useParams, useNavigate, Outlet } from 'react-router-dom';
+import { Link, useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 
 export function DocumentationPage() {
@@ -303,7 +303,7 @@ export function RegistrationPage() {
                                 value={formData[steps[stepIndex].key]} 
                                 type={steps[stepIndex].type || "text"} 
                                 onKeyDown={(event) => event.key === "Enter" && handleNext()}
-                                className="emailInput"
+                                className="textInput"
                             />
                             <NextButton onClick={handleNext}></NextButton>
                         </>
@@ -443,8 +443,11 @@ export function WorkshopModules() {
             {openModulesExists && (<OpenHeading />)}
                 {modules.map((module) => (
                     module.workshop_module_status === 'open' && (
-                        <Link to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts`} className="linkNoUnderLine">
-                            <OpenButton 
+                        <Link 
+                        to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts`} 
+                        className="linkNoUnderLine"
+                        >
+                            <OpenButton
                                 progressValue={module.workshop_module_progress} 
                                 moduleName={module.workshop_module_name}
                             />
@@ -465,11 +468,16 @@ export function WorkshopModules() {
             {pendingModulesExists && (<PendingHeading />)}
                 {modules.map((module) => (
                     module.workshop_module_status === 'pending' && (
-                        <Link to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/edit`} className="linkNoUnderLine">
+                        <Link 
+                        to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/edit`} 
+                        className="linkNoUnderLine"
+                        state={{moduleName: module.workshop_module_name, moduleId: module.workshop_module_id}}>
+
                             <PendingButton 
                                 moduleName={module.workshop_module_name}
                                 isAdmin={true}
                             />
+
                         </Link>
                     )
                 ))}
@@ -484,7 +492,7 @@ export function WorkshopModules() {
                         onChange={handleChange}
                         value={moduleCreateFormData.moduleName}
                         onKeyDown={(event) => {event.key === 'Enter' && handleSubmit()}}
-                        className='emailInput'
+                        className='textInput'
                         maxLength={20}
                     />
                 </>
@@ -795,7 +803,7 @@ export function DragAndDropTemplate({dragOptions}) {
     )
 }
 
-export function WorkshopPromptsEditor({nameOfModule}) {
+export function WorkshopPromptsEditor() {
     
     // const { workshopId, moduleId } = useParams();
 
@@ -805,6 +813,8 @@ export function WorkshopPromptsEditor({nameOfModule}) {
     // const [promptsList, setPromptsList] = useState([]);
     // const [selectedTemplate, setSelectedTemplate] = useState(null);
     // const [formData, setFormData] = useState();
+    // const location = useLocation();
+    // const { moduleName } = location.state || {};
 
     // const handleNext = () => {
     //     if (promptIndex < promptsList.length - 1) {
@@ -843,6 +853,8 @@ export function WorkshopPromptsEditor({nameOfModule}) {
     //             return <CreateSampleRaterTemplate />
     //         case 8:
     //             return <CreateScriptNotationTemplate />
+    //         case 9:
+    //             return <CreateDropDownTemplate/>
     //         default:
     //             return <div>Unknown Template</div>;
     //     }
@@ -850,8 +862,8 @@ export function WorkshopPromptsEditor({nameOfModule}) {
 
     // return (
     //     <>
-    //         <PromptInstruction question={`Editing Module: ${nameOfModule}`}/>
-    //         <DropDown options={['','','','','','']}/>
+    //         <PromptInstruction question={`Editing Module: ${moduleName}`}/>
+    //         <DropDown options={['Multiple Choice','Checklist','Short Response','Drag and Drop','Sample Rater','Notation','DropDown']}/>
     //         { selectedTemplate && renderPromptTemplate() }
     //         <ModuleNavigator backActive={isFirst} backClick={handleBack} nextClick={handleNext}/>
     //     </>

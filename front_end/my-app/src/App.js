@@ -27,6 +27,8 @@ import {
 
 import { DropDown } from './Buttons';
 
+import { CreateCheckListTemplate } from './CreateForms';
+
 function App() {
 
   const router = createBrowserRouter(createRoutesFromElements(
@@ -48,6 +50,7 @@ function App() {
         <Route path="shortresponse" element={ <ShortResponseTemplate /> } />
         <Route path="openresponse" element={ <OpenResponseTemplate /> } />
         <Route path="dropdown" element={ <DropDown options={['drag and drop','multiple choice','checkbox','annotation']} /> } />
+        <Route path="createChecklist" element={ <CreateCheckListTemplate /> } />
       </Route>
     </>
   ));
