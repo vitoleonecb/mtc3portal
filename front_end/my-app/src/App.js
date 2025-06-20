@@ -3,31 +3,29 @@ import './App.css';
 import { RouterProvider, createBrowserRouter, createRoutesFromElements, Route } from "react-router-dom";
 
 import { 
-        WorkshopModules,
-        WorkshopPromptsPage,
-        OpenResponseTemplate, 
-        CheckListTemplate, 
-        MultipleChoiceTemplate,
-        ScriptNotationTemplate,
-        SampleRaterTemplate,
-        ShortResponseTemplate,
-        DragAndDropTemplate,
-        LogInPage,
-        RegistrationPage,
-        WorkshopCreateForm,
-        WorkshopsPage,
-        Settings,
-        Analytics,
-        NavPage,
-        DocumentationPage,
-        HomePage,
-        WorkshopPromptsEditor,
-        Root
-      } from './Pages';
+  WorkshopModules,
+  WorkshopPromptsPage,
+  OpenResponseTemplate, 
+  CheckListTemplate, 
+  MultipleChoiceTemplate,
+  ScriptNotationTemplate,
+  SampleRaterTemplate,
+  ShortResponseTemplate,
+  DragAndDropTemplate,
+  LogInPage,
+  RegistrationPage,
+  WorkshopCreateForm,
+  WorkshopsPage,
+  Settings,
+  Analytics,
+  NavPage,
+  DocumentationPage,
+  HomePage,
+  WorkshopPromptsEditor,
+  Root
+} from './Pages';
 
 import { DropDown } from './Buttons';
-
-import { CreateCheckListTemplate } from './CreateForms';
 
 function App() {
 
@@ -50,7 +48,6 @@ function App() {
         <Route path="shortresponse" element={ <ShortResponseTemplate /> } />
         <Route path="openresponse" element={ <OpenResponseTemplate /> } />
         <Route path="dropdown" element={ <DropDown options={['drag and drop','multiple choice','checkbox','annotation']} /> } />
-        <Route path="createChecklist" element={ <CreateCheckListTemplate /> } />
       </Route>
     </>
   ));

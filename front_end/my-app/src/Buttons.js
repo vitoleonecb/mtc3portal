@@ -383,7 +383,7 @@ export function MainNavCard({color, text, link}) {
     )
 }
 
-export function DropDown({ options }) {
+export function DropDown({ options, onSelect }) {
     
     const [isClicked, setIsClicked] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
@@ -397,6 +397,7 @@ export function DropDown({ options }) {
         setSelectedOption(option);
         setDropDownLabel(option);
         setIsClicked(false);
+        onSelect(option);
     }
 
     return (

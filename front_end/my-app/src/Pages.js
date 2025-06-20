@@ -26,6 +26,16 @@ import axios from 'axios';
 import { Link, useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 
+import {
+    CreateCheckListTemplate,
+    CreateMultipleChoiceTemplate,
+    CreateShortResponseTemplate,
+    CreateDragAndDropTemplate,
+    CreateSampleRaterTemplate,
+    CreateScriptNotationTemplate,
+    CreateDropDownTemplate
+  } from './CreateForms';
+
 export function DocumentationPage() {
     return (
         <>
@@ -805,67 +815,163 @@ export function DragAndDropTemplate({dragOptions}) {
 
 export function WorkshopPromptsEditor() {
     
-    // const { workshopId, moduleId } = useParams();
+    const { workshopId, moduleId } = useParams();
 
-    // const accessToken = localStorage.getItem('accessToken');
+    const accessToken = localStorage.getItem('accessToken');
     
-    // const [promptIndex, setPromptIndex] = useState(0);
-    // const [promptsList, setPromptsList] = useState([]);
-    // const [selectedTemplate, setSelectedTemplate] = useState(null);
-    // const [formData, setFormData] = useState();
-    // const location = useLocation();
-    // const { moduleName } = location.state || {};
+    const [promptIndex, setPromptIndex] = useState(0);
+    const [promptsList, setPromptsList] = useState([]);
+    const [formData, setFormData] = useState();
+    const location = useLocation();
+    const { moduleName } = location.state || {};
 
-    // const handleNext = () => {
-    //     if (promptIndex < promptsList.length - 1) {
-    //         setPromptIndex((prevIndex) => prevIndex + 1);
-    //     } else {
-    //         handleSubmit();
-    //     }
-    // }
+    const handleTemplateSelect = (templateName) => {
+        const templateMap = {
+            'Multiple Choice': 1,
+            'Checklist': 3,
+            'Short Response': 4,
+            'Drag and Drop': 6,
+            'Sample Rater': 7,
+            'Notation': 8,
+            'DropDown': 9,
+        };
 
-    // const handleBack = () => {
-    //     setPromptIndex((prevIndex) => prevIndex - 1);
-    // }
+        const templateId = templateMap[templateName];
+        if (!templateId) return;
 
-    // const isFirst = promptIndex === 0;
+        const updatedList = [...promptsList];
+        updatedList[promptIndex] = {
+            prompt_template_id: templateId,
+            formData: templateId === 3 ? [{ questionText: '', options: [''] }] : {}
+        };
+        setPromptsList(updatedList);
+    }
+
+    const handleNext = () => {
+        if (!promptsList[promptIndex]) {
+            alert("Please select a template before proceeding.");
+            return;
+        }
+        setPromptIndex((prevIndex) => prevIndex + 1);
+    };
+
+    const handleBack = () => {
+        setPromptIndex((prevIndex) => prevIndex - 1);
+    }
+
+    const isFirst = promptIndex === 0;
     
-    // const renderPromptTemplate = () => {
-    //     const prompt = promptsList[promptIndex];
+    const renderPromptTemplate = () => {
+        const prompt = promptsList[promptIndex];
 
-    //     if (!prompt) {
-    //         return <div>Loading...</div>; // Safe fallback while data is still loading
-    //     }
+        if (!prompt) {
+            return <div>Please choose a template to begin.</div>;
+        }
 
-    //     console.log(prompt);
+        // switch case to render different templates based on prompt_template_id
+        switch (prompt.prompt_template_id) {
+            case 1:
+                return <CreateMultipleChoiceTemplate 
+                    onChange={(updated) => {
+                        const updatedList = [...promptsList];
+                        updatedList[promptIndex] = {
+                            ...updatedList[promptIndex],
+                            prompt_template_id: 1,
+                            formData: updated
+                        };
+                        setPromptsList(updatedList);
+                    }}
+                    savedData={promptsList[promptIndex]?.formData}
+                />;
+            case 3:
+                return <CreateCheckListTemplate
+                    onChange={(updated) => {
+                        const updatedList = [...promptsList];
+                        updatedList[promptIndex] = {
+                            ...updatedList[promptIndex],
+                            prompt_template_id: 3,
+                            formData: updated
+                        };
+                        setPromptsList(updatedList);
+                    }}
+                    savedData={promptsList[promptIndex]?.formData}
+                />;
+            case 4:
+                return <CreateShortResponseTemplate 
+                    onChange={(updated) => {
+                        const updatedList = [...promptsList];
+                        updatedList[promptIndex] = {
+                            ...updatedList[promptIndex],
+                            prompt_template_id: 4,
+                            formData: updated
+                        };
+                        setPromptsList(updatedList);
+                    }}
+                    savedData={promptsList[promptIndex]?.formData}
+                />;
+            case 6:
+                return <CreateDragAndDropTemplate 
+                    onChange={(updated) => {
+                        const updatedList = [...promptsList];
+                        updatedList[promptIndex] = {
+                            ...updatedList[promptIndex],
+                            prompt_template_id: 6,
+                            formData: updated
+                        };
+                        setPromptsList(updatedList);
+                    }}
+                    savedData={promptsList[promptIndex]?.formData}
+                />;
+            case 7:
+                return <CreateSampleRaterTemplate  
+                    onChange={(updated) => {
+                        const updatedList = [...promptsList];
+                        updatedList[promptIndex] = {
+                            ...updatedList[promptIndex],
+                            prompt_template_id: 7,
+                            formData: updated
+                        };
+                        setPromptsList(updatedList);
+                    }}
+                    savedData={promptsList[promptIndex]?.formData}
+                />;
+            case 8:
+                return <CreateScriptNotationTemplate  
+                    onChange={(updated) => {
+                        const updatedList = [...promptsList];
+                        updatedList[promptIndex] = {
+                            ...updatedList[promptIndex],
+                            prompt_template_id: 8,
+                            formData: updated
+                        };
+                        setPromptsList(updatedList);
+                    }}
+                    savedData={promptsList[promptIndex]?.formData}
+                />;
+            case 9:
+                return <CreateDropDownTemplate  
+                    onChange={(updated) => {
+                        const updatedList = [...promptsList];
+                        updatedList[promptIndex] = {
+                            ...updatedList[promptIndex],
+                            prompt_template_id: 9,
+                            formData: updated
+                        };
+                        setPromptsList(updatedList);
+                    }}
+                    savedData={promptsList[promptIndex]?.formData}
+                />;
+            default:
+                return <div>Unknown Template</div>;
+        }
+    }
 
-    //     // switch case to render different templates based on prompt_template_id
-    //     switch (prompt.prompt_template_id) {
-    //         case 1:
-    //             return <CreateMultipleChoiceTemplate />;
-    //         case 3:
-    //             return <CreateCheckListTemplate />;
-    //         case 4:
-    //             return <CreateShortResponseTemplate />
-    //         case 6:
-    //             return <CreateDragAndDropTemplate />
-    //         case 7:
-    //             return <CreateSampleRaterTemplate />
-    //         case 8:
-    //             return <CreateScriptNotationTemplate />
-    //         case 9:
-    //             return <CreateDropDownTemplate/>
-    //         default:
-    //             return <div>Unknown Template</div>;
-    //     }
-    // }
-
-    // return (
-    //     <>
-    //         <PromptInstruction question={`Editing Module: ${moduleName}`}/>
-    //         <DropDown options={['Multiple Choice','Checklist','Short Response','Drag and Drop','Sample Rater','Notation','DropDown']}/>
-    //         { selectedTemplate && renderPromptTemplate() }
-    //         <ModuleNavigator backActive={isFirst} backClick={handleBack} nextClick={handleNext}/>
-    //     </>
-    // )
+    return (
+        <>
+            <PromptInstruction question={`Editing Module: ${moduleName}`}/>
+            <DropDown onSelect={handleTemplateSelect} options={['Multiple Choice','Checklist','Short Response','Drag and Drop','Sample Rater','Notation','DropDown']}/>
+            { promptsList[promptIndex] && renderPromptTemplate() }
+            <ModuleNavigator backActive={isFirst} backClick={handleBack} nextClick={handleNext}/>
+        </>
+    )
 }
