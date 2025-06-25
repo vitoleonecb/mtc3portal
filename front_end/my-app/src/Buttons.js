@@ -213,7 +213,7 @@ export function MultipleChoiceGroup({options}) {
     )
 }
 
-export function ScriptSampleNotate({sample}) {
+export function ScriptSampleNotate({ sample }) {
     return (
         <div className="ScriptSample">
             <h3 className="ScriptSampleText">{sample}</h3>
@@ -221,10 +221,10 @@ export function ScriptSampleNotate({sample}) {
     )
 }
 
-export function ScriptSampleRate(props) {
+export function ScriptSampleRate({ sample }) {
     return (
         <div className="ScriptSampleRate">
-            <h3 className="ScriptSampleText">{props.sample}</h3>
+            <h3 className="ScriptSampleText">{sample}</h3>
         </div>
     )
 }
@@ -383,12 +383,12 @@ export function MainNavCard({color, text, link}) {
     )
 }
 
-export function DropDown({ options, onSelect }) {
+export function DropDown({ options, onSelect, reset }) {
     
     const [isClicked, setIsClicked] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
     const [dropDownLabel, setDropDownLabel] = useState('Select an option');
-    
+
     const handleMainClick = () => {
         setIsClicked(prevStatus => !prevStatus);
     }
@@ -400,26 +400,33 @@ export function DropDown({ options, onSelect }) {
         onSelect(option);
     }
 
+    useEffect(() => {
+	setSelectedOption(null);
+	setDropDownLabel('Select an option');
+    }, [reset]);
+
     return (
         <>
-            <div className="dropDownButton" onClick={handleMainClick}>
-                <h2 id="dropDownText">{dropDownLabel}</h2>
-                <div className="dropDownArrowContainer">
+            <div className="dropDownContainer">
+ 		 <div className="dropDownButton" onClick={handleMainClick}>
+               		 <h2 id="dropDownText">{dropDownLabel}</h2>
+               	 <div className="dropDownArrowContainer">
                     <svg className="dropDownArrow" style={{ transform: isClicked ? 'rotate(180deg)' : 'rotate(0deg)' }} width="23" height="11" viewBox="0 0 23 11" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M0.727539 0.727251L10.8387 10.2727L21.7275 0.72725" className="dropDownArrowPath" stroke="black" stroke-linecap="round"/>
+                        <path d="M0.727539 0.727251L10.8387 10.2727L21.7275 0.72725" className="dropDownArrowPath" stroke="black" strokeLinecap="round"/>
                     </svg>
-                </div>
-            </div>
+               	 </div>
+           	 </div>
             
-            { isClicked && (
-                <ul className="dropDownOptionsBox">
-                    {options.map((option) => (
-                        <li className="dropDownOption" onClick={() => handleOptionClick(option)}>
-                            {option}
-                        </li>
-                    ))}
-                </ul>
-            )}
+           	 { isClicked && (
+               		 <ul className="dropDownOptionsBox">
+                    		{options.map((option) => (
+                        		<li className="dropDownOption" onClick={() => handleOptionClick(option)}>
+                            			{option}
+                        		</li>
+                    		))}
+                	 </ul>
+            	 )}
+	    </div>
         </>
     )
 }

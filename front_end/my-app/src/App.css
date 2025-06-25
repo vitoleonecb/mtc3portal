@@ -46,6 +46,10 @@ html {
   width: 80%;
 }
 
+.dropDownContainer {
+  margin-bottom: 60px;
+}
+
 .DragAndDropKeyItemContainer {
   display: grid;
   grid-template-columns: 1fr 8fr;
@@ -71,7 +75,7 @@ svg.forwardArrow {
 }
 
 .checkBox {
-  margin-left: auto;
+  margin-left: 1rem;
   margin-right: auto;
   border: 1px solid black;
   height: 12px;
@@ -139,6 +143,7 @@ progress {
   font-size: 1rem;
   line-height: 1.5rem;
   font-weight: lighter;
+  overflow: hidden;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none;  /* Internet Explorer 10+ */
 }
@@ -912,7 +917,7 @@ rect:hover {
 
 .pencilIconContainer {
   margin-left: auto;
-  margin-right: .5rem;
+  margin-right: .5rem
 }
 
 .completeButton:hover {

@@ -21,7 +21,7 @@ import { OpenResponse,
     CreateButton,
     DropDown } from './Buttons.js';
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
-import React, { useRef, useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -615,7 +615,7 @@ export function Root() {
         <>
             <div className='menuBarIconContainer' style={{ display: 'grid', gridTemplateColumns: isEditor ? '1fr 1fr' : 'auto' }}>
                 <MenuBarIcon/>
-		{isEditor && <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />}
+		{isEditor && <NextButton onClick={() => submitHandler && submitHandler()} />}
             </div>
             <div className="body">
 	    	<EditorSubmitContext.Provider value={setSubmitHandler}>
@@ -827,24 +827,23 @@ export function WorkshopPromptsEditor() {
     const { workshopId, moduleId } = useParams();
 
     const accessToken = localStorage.getItem('accessToken');
+    const setSubmitHandler = useContext(EditorSubmitContext);
     
-    const promptsRef = useRef([]);
+    useEffect(() => {
+	setSubmitHandler(() => handleSubmit);
+	return () => setSubmitHandler(null);
+    }, []);
+
+    const handleSubmit = () => {
+		
+	};
+
     const [promptIndex, setPromptIndex] = useState(0);
     const [promptsList, setPromptsList] = useState([]);
-    const [formData, setFormData] = useState({});
+    const [formData, setFormData] = useState();
     const [dropDownReset, setDropDownReset] = useState(false);
     const location = useLocation();
     const { moduleName } = location.state || {};
-    const setSubmitHandler = useContext(EditorSubmitContext);
-
-    useEffect(() => {
-    	setSubmitHandler(() => handleSubmit);
-    	return () => setSubmitHandler(null);
-    },[]);    
-
-    const handleSubmit = () => {
-	console.log(promptsRef.current);
-    }
 
     const handleTemplateSelect = (templateName) => {
         const templateMap = {
@@ -883,7 +882,6 @@ export function WorkshopPromptsEditor() {
         };
     
         setPromptsList(updatedList);
-	promptsRef.current = updatedList;
     };
 
         const handleNext = () => {
@@ -920,7 +918,6 @@ export function WorkshopPromptsEditor() {
                                 formData: updated
                             };
                             setPromptsList(updatedList);
-        		    promptsRef.current = updatedList;
                         }}
                         savedData={promptsList[promptIndex]?.formData}
                     />;
@@ -934,7 +931,6 @@ export function WorkshopPromptsEditor() {
                                 formData: updated
                             };
                             setPromptsList(updatedList);
-                            promptsRef.current = updatedList;
                         }}
                         savedData={promptsList[promptIndex]?.formData}
                     />;
@@ -948,7 +944,6 @@ export function WorkshopPromptsEditor() {
                                 formData: updated
                             };
                             setPromptsList(updatedList);
-                            promptsRef.current = updatedList;
                         }}
                         savedData={promptsList[promptIndex]?.formData}
                     />;
@@ -962,7 +957,6 @@ export function WorkshopPromptsEditor() {
                                 formData: updated
                             };
                             setPromptsList(updatedList);
-                            promptsRef.current = updatedList;
                         }}
                         savedData={promptsList[promptIndex]?.formData}
                     />;
@@ -976,7 +970,6 @@ export function WorkshopPromptsEditor() {
                                 formData: updated
                             };
                             setPromptsList(updatedList);
-                            promptsRef.current = updatedList;
                         }}
                         savedData={promptsList[promptIndex]?.formData}
                     />;
@@ -990,7 +983,6 @@ export function WorkshopPromptsEditor() {
                                 formData: updated
                             };
                             setPromptsList(updatedList);
-                            promptsRef.current = updatedList;
                         }}
                         savedData={promptsList[promptIndex]?.formData}
                     />;
@@ -1004,7 +996,6 @@ export function WorkshopPromptsEditor() {
                                 formData: updated
                             };
                             setPromptsList(updatedList);
-                            promptsRef.current = updatedList;
                         }}
                         savedData={promptsList[promptIndex]?.formData}
                     />;
