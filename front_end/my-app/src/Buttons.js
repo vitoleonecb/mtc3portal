@@ -201,7 +201,7 @@ export function MultipleChoiceGroup({options}) {
     
     return (
         <>
-            {Object.values(options).map((option, index) => (
+            {options.map((option, index) => (
                 <MultipleChoiceButton 
                     key={index}
                     label={option}

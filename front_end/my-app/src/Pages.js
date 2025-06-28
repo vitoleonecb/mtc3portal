@@ -529,10 +529,16 @@ export function WorkshopPromptsPage() {
                         'Authorization': `BEARER ${accessToken}`
                     }
                 });
-
-                console.log(JSON.stringify(response.data));
-                setPromptsList(response.data);
-
+        
+                const parsedData = response.data.map(p => ({
+                    ...p,
+                    workshop_prompt_options:
+                        typeof p.workshop_prompt_options === 'string'
+                            ? JSON.parse(p.workshop_prompt_options)
+                            : p.workshop_prompt_options
+                }));
+        
+                setPromptsList(parsedData);
             } catch (error) {
                 console.log(`Front End Fetch Error: ${error}`);
             }
@@ -559,17 +565,17 @@ export function WorkshopPromptsPage() {
     }
 
     const prompt = promptsList[promptIndex];
-    const instructionNeeded = prompt?.prompt_template_id !== 9 && prompt?.prompt_template_id !== 4 && prompt?.prompt_template_id !== 7 && prompt?.prompt_template_id !== 8;
+    // Only render instruction for drag and drop and short response
+    const instructionNeeded = [4,6].includes(prompt?.prompt_template_id)
 
     const renderPrompt = () => {
         const prompt = promptsList[promptIndex];
 
         if (!prompt) {
-            return <div>Loading...</div>; // Safe fallback while data is still loading
+            return <div>Loading...</div>; // Safe text while data is still loading
         }
 
         console.log(prompt);
-
         // switch case to render different templates based on prompt_template_id
         switch (prompt.prompt_template_id) {
             case 1:
@@ -577,15 +583,15 @@ export function WorkshopPromptsPage() {
             case 3:
                 return <CheckListTemplate checkListOptions={prompt.workshop_prompt_options} />;
             case 4:
-                return <ShortResponseTemplate shortResponseOptions={prompt.workshop_prompt_options}/>
+                return <ShortResponseTemplate shortResponseOptions={prompt.workshop_prompt_options}/>;
             case 6:
-                return <DragAndDropTemplate dragOptions={prompt.workshop_prompt_options}/>
+                return <DragAndDropTemplate dragOptions={prompt.workshop_prompt_options}/>;
             case 7:
-                return <SampleRaterTemplate reference={prompt.workshop_prompt_reference}/>
+                return <SampleRaterTemplate reference={prompt.workshop_prompt_reference}/>;
             case 8:
-                return <ScriptNotationTemplate reference={prompt.workshop_prompt_reference}/>
+                return <ScriptNotationTemplate reference={prompt.workshop_prompt_reference}/>;
             case 9:
-                return <DropDownTemplate dropDownOptions={prompt.workshop_prompt_options}/>
+                return <DropDownTemplate dropDownOptions={prompt.workshop_prompt_options}/>;
             default:
                 return <div>Unknown Template</div>;
         }
@@ -595,9 +601,10 @@ export function WorkshopPromptsPage() {
 
     return (
         <>
-            {/* Ensure prompt data exists before trying to display */}
-            {instructionNeeded && <Heading1 text={promptsList[promptIndex]?.workshop_prompt_instruction || 'Loading...'} />}
-
+            {instructionNeeded && (
+                <Heading1 text={prompt?.prompt_template_id === 4 ? 'Free Response' : 'Drag and Drop'} />
+            )}
+            
             {renderPrompt()}
 
             <ModuleNavigator backActive={isFirst} backClick={handleBack} nextClick={handleNext}/>
@@ -620,7 +627,7 @@ export function Root() {
             <div className="body">
 	    	<EditorSubmitContext.Provider value={setSubmitHandler}>
                 	<Outlet/>
-		</EditorSubmitContext.Provider>
+		    </EditorSubmitContext.Provider>
             </div>
         </>
     )
@@ -682,80 +689,26 @@ export function HomePage() {
     )
 }
 
-
-export function OpenResponseTemplate() {
-    const [question, setQuestion] = useState('');
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const accessToken = localStorage.getItem('accessToken');
-
-
-    useEffect(() => {
-        const controller = new AbortController();
-
-        const fetchDataTest = async () => {
-            try {
-                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/4/modules/3/prompts`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `BEARER ${accessToken}`
-                    },
-                    signal: controller.signal
-                });
-
-                console.log('Axios Response:', response.data);
-
-                if (!response.data || !response.data[0].workshop_prompt_instruction) {
-                    throw new Error('workshop_prompt_instruction is missing in response');
-                }
-
-                setQuestion(response.data[0].workshop_prompt_instruction);
-                setLoading(false);
-            } catch (error) {
-                if (axios.isCancel(error)) {
-                    console.log('Axios request was aborted');
-                    return;
-                }
-                console.error(`Front End Error Fetching Data: ${error}`);
-                setError('Failed to load question. Please try again.');
-                setLoading(false);
-            }
-        };
-
-        fetchDataTest();
-
-        return () => {
-            console.log('Cleanup: Aborting Axios request');
-            controller.abort();
-        };
-    }, []);
-
-    console.log('Final question state before render:', question);
-
+export function MultipleChoiceTemplate({ multipleChoiceOptions }) {
     return (
         <>
-            <PromptInstruction question={error || question} />
-            <OpenResponse />
+            {multipleChoiceOptions.multipleChoicePrompts.map((promptData, index) => (
+                <div key={index}>
+                    <Heading1 text={promptData.questionText} />
+                    <MultipleChoiceGroup options={promptData.options} />
+                </div>
+            ))}
         </>
     );
-}
-
-export function MultipleChoiceTemplate({ multipleChoiceOptions }) {
-    
-    return (
-        <>
-            <MultipleChoiceGroup options={multipleChoiceOptions}/>
-        </>
-    )
 }
 
 export function DropDownTemplate({ dropDownOptions }) {
     return (
         <>
-            {dropDownOptions.map((item, i) => (
-                <div className="DropdownPromptContainer" key={i}>
-                    <h1 class="Heading1" style={{ marginBottom: '20px' }}>{item.question}</h1>
-                    <DropDown options={item.options}/>
+            {dropDownOptions.dropDownPrompts.map((promptData, index) => (
+                <div className="DropdownPromptContainer" key={index}>
+                    <h1 class="Heading1" style={{ marginBottom: '20px' }}>{promptData.questionText}</h1>
+                    <DropDown options={promptData.options}/>
                 </div>
             ))}
         </>
@@ -764,14 +717,21 @@ export function DropDownTemplate({ dropDownOptions }) {
 
 export function CheckListTemplate({ checkListOptions }) {
     
+    console.log(checkListOptions)
+
     return (
         <>
-            {Object.values(checkListOptions).map((option) => {
-                return <CheckBoxButton optionText={option} />
-            })}
+            {checkListOptions.checkListPrompts.map((promptData, index) => (
+                <div key={index}>
+                    <Heading1 text={promptData.questionText} />
+                    {promptData.options.map((option, optIndex) => (
+                        <CheckBoxButton key={optIndex} optionText={option} />
+                    ))}
+                </div>
+            ))}
         </>
-    )
-};
+    );
+}
 
 export function ScriptNotationTemplate({reference}) {
     return (
@@ -799,17 +759,13 @@ export function ShortResponseTemplate({shortResponseOptions}) {
     
     return (
         <>
-            {Object.values(shortResponseOptions).map((option) => {
-                return (
-                    <>
-                        <Heading2 text={option}/>
-                        <ShortResponseArea/>
-                    </>
-                )
-            })}
-            
+            {shortResponseOptions.questions.map((option, index) => (
+                <div key={index}>
+                    <Heading2 text={option.questionText}/>
+                    <ShortResponseArea/>
+                </div>
+            ))}
         </>
-            
     )
 }
 
@@ -842,9 +798,35 @@ export function WorkshopPromptsEditor() {
     	return () => setSubmitHandler(null);
     },[]);    
 
-    const handleSubmit = () => {
-	console.log(promptsRef.current);
+    const handleSubmit = async () => {
+        console.log(promptsRef.current);
+        try {
+            const response = await axios.post(
+                `${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts`,
+                { promptDataList: promptsRef.current },
+                {headers: {'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`}}
+            )
+        } catch (error) {
+            console.log(`Axios Error: ${error}`)
+        }
     }
+
+    // const handleSubmit = async (event) => {
+    //     event.preventDefault();
+        
+    //     try {
+    //         const response = await axios.post(`${process.env.REACT_APP_API_BASE}/users/login`,
+    //         { email: email, password: password },
+    //         { headers: {'Content-Type': 'application/json'}});
+    //         console.log(`Log In Response: ${JSON.stringify(response.data)}`);
+    //         localStorage.setItem('accessToken', response.data.accessToken);
+    //     } catch (error) {
+    //         console.log(`Server Error: ${error}`);
+    //     }
+        
+    //     console.log(`Email: ${email}`);
+    //     console.log(`Password: ${password}`);
+    // }
 
     const handleTemplateSelect = (templateName) => {
         const templateMap = {
@@ -863,16 +845,19 @@ export function WorkshopPromptsEditor() {
         const newPromptStructure = (() => {
             switch (templateId) {
                 case 1:
+                    return { multipleChoicePrompts: [{ questionText: '', options: [''] }]}
                 case 3:
+                    return { checkListPrompts: [{ questionText: '', options: [''] }]}
                 case 9:
-                    return [{ questionText: '', options: [''] }];
+                    return { dropDownPrompts: [{ questionText: '', options: [''] }]};
                 case 4:
-                    return [{ questionText: '' }];
+                    return { questions: [{ questionText: '' }]};
                 case 7:
+                    return { referenceText: '' };
                 case 8:
                     return { referenceText: '' };
                 case 6:
-                    return [''];
+                    return { options: [{ optionName: '' }]};
             }
         })();
     
@@ -883,7 +868,8 @@ export function WorkshopPromptsEditor() {
         };
     
         setPromptsList(updatedList);
-	promptsRef.current = updatedList;
+
+	    promptsRef.current = updatedList;
     };
 
         const handleNext = () => {

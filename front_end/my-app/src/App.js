@@ -5,7 +5,6 @@ import { RouterProvider, createBrowserRouter, createRoutesFromElements, Route } 
 import { 
   WorkshopModules,
   WorkshopPromptsPage,
-  OpenResponseTemplate, 
   CheckListTemplate, 
   MultipleChoiceTemplate,
   ScriptNotationTemplate,
@@ -44,9 +43,6 @@ function App() {
         <Route path="analytics" element={ <Analytics /> } />
         <Route path="nav" element={ <NavPage /> } />
         <Route path="documentation" element={ <DocumentationPage /> } />
-        <Route path="scriptnotation" element={ <ScriptNotationTemplate /> } />
-        <Route path="shortresponse" element={ <ShortResponseTemplate /> } />
-        <Route path="openresponse" element={ <OpenResponseTemplate /> } />
         <Route path="dropdown" element={ <DropDown options={['drag and drop','multiple choice','checkbox','annotation']} /> } />
       </Route>
     </>

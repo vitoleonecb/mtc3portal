@@ -227,9 +227,55 @@ workshopsRouter.delete('/:workshopid/modules/:moduleid', authenticateTokenAdmin,
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts', authenticateTokenAdmin, async (req, res, next) => {
     try {
         const { moduleid } = req.params;
-        const { prompt_template_id, workshop_prompt_instruction, workshop_prompt_reference, workshop_prompt_options } = req.body;
-        const [response] = await connection.query('INSERT INTO workshop_prompts (workshop_module_id, prompt_template_id, workshop_prompt_instruction, workshop_prompt_reference, workshop_prompt_options) VALUES (?,?,?,?,?)', [moduleid, prompt_template_id, workshop_prompt_instruction, workshop_prompt_reference, JSON.stringify(workshop_prompt_options)]);
-        res.status(204).send(`New prompt created: ${workshop_prompt_instruction}`)
+        const { promptDataList } = req.body;
+
+        const templateMap = {
+            1 :'Multiple Choice',
+            3 :'Checklist',
+            4 :'Short Response',
+            6 :'Drag and Drop',
+            7 :'Sample Rater',
+            8 :'Notation',
+            9 :'DropDown',
+        };
+
+        try {
+            for (const prompt of promptDataList) {
+                const {
+                    prompt_template_id,
+                    formData
+                } = prompt;
+
+                if ([4, 6].includes(prompt_template_id)) {
+                    const [response] = await connection.query('INSERT INTO workshop_prompts (workshop_module_id, prompt_template_id, workshop_prompt_options) VALUES (?,?,?)', [moduleid, prompt_template_id, JSON.stringify(formData)]);
+                    console.log(`Successfully Inserted ${templateMap[prompt_template_id]} Prompt`);
+                }
+
+                else if ([7, 8].includes(prompt_template_id)) {
+                    const referenceText = formData.referenceText;
+                    const [response] = await connection.query(
+                        'INSERT INTO workshop_prompts (workshop_module_id, prompt_template_id, workshop_prompt_reference) VALUES (?,?,?)',
+                        [moduleid, prompt_template_id, referenceText]
+                    );
+                    console.log(`Successfully Inserted ${templateMap[prompt_template_id]} Prompt`);
+                }
+
+                else if ([1,3,9].includes(prompt_template_id)) {
+                    const [response] = await connection.query(
+                        'INSERT INTO workshop_prompts (workshop_module_id, prompt_template_id, workshop_prompt_options) VALUES (?,?,?)', 
+                        [moduleid, prompt_template_id, JSON.stringify(formData)]
+                    );
+                }
+
+                else {
+                    console.warn(`Unhandled template ID: ${prompt_template_id}`);
+                }
+
+            }
+        } catch (error) {
+            return res.status(400).send(`Error Looping Through Prompt Data: ${error}`)
+        }
+        return res.status(201).send('Prompts Inserted Successfully')
     } catch (error) {
         res.status(500).send(`Server Error: ${error}`);
     }

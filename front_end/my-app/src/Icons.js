@@ -285,8 +285,8 @@ export function DragAndDropKey({dragOptions}) {
 
     return (
         <div className="DragAndDropKeyContainer" >
-            {Object.values(dragOptions).map((option, index) => (
-                <DragAndDropKeyItem characterName={option} color={colors[index]}/>
+            {dragOptions.options.map((option, index) => (
+                <DragAndDropKeyItem characterName={option.optionName} color={colors[index]}/>
             ))}
         </div>
     )

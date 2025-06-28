@@ -30,14 +30,14 @@ import { format } from 'date-fns';
 export function CreateCheckListTemplate({ savedData, onChange }) {
     
     const [questions, setQuestions] = useState(
-        Array.isArray(savedData) && savedData.length > 0
-          ? savedData
+        Array.isArray(savedData.checkListPrompts) && savedData.checkListPrompts.length > 0
+          ? savedData.checkListPrompts
           : [{ questionText: '', options: [''] }]
       );
       
       useEffect(() => {
-        if (Array.isArray(savedData) && savedData.length > 0) {
-          setQuestions(savedData);
+        if (Array.isArray(savedData.checkListPrompts) && savedData.checkListPrompts.length > 0) {
+          setQuestions(savedData.checkListPrompts);
         }
       }, [savedData]);
 
@@ -46,7 +46,7 @@ export function CreateCheckListTemplate({ savedData, onChange }) {
             const updated = prev.map((q, i) =>
                 i === index ? {...q, questionText: value} : q
             );
-            onChange(updated);
+            onChange({checkListPrompts: updated});
             return updated;
         });    
     };
@@ -59,7 +59,7 @@ export function CreateCheckListTemplate({ savedData, onChange }) {
                 updatedOptions[optIndex] = value;
                 return { ...q, options: updatedOptions };
             });
-            onChange(updated);
+            onChange({checkListPrompts: updated});
             return updated;
         });
     };
@@ -67,7 +67,7 @@ export function CreateCheckListTemplate({ savedData, onChange }) {
     const addQuestion = () => {
         setQuestions(prev => {
             const updated = [...prev, { questionText: '', options: [''] }];
-            onChange(updated);
+            onChange({checkListPrompts: updated});
             return updated;
         });
     };
@@ -77,7 +77,7 @@ export function CreateCheckListTemplate({ savedData, onChange }) {
             const updated = prev.map((q, i) =>
                 i === qIndex ? { ...q, options: [...q.options, ''] } : q
             );
-            onChange(updated);
+            onChange({checkListPrompts: updated});
             return updated;
         });
     };
@@ -124,14 +124,14 @@ export function CreateCheckListTemplate({ savedData, onChange }) {
 export function CreateMultipleChoiceTemplate({ savedData, onChange }) {
     
     const [questions, setQuestions] = useState(
-        Array.isArray(savedData) && savedData.length > 0
-          ? savedData
+        Array.isArray(savedData.multipleChoicePrompts) && savedData.multipleChoicePrompts.length > 0
+          ? savedData.multipleChoicePrompts
           : [{ questionText: '', options: [''] }]
       );
       
       useEffect(() => {
-        if (Array.isArray(savedData) && savedData.length > 0) {
-          setQuestions(savedData);
+        if (Array.isArray(savedData.multipleChoicePrompts) && savedData.multipleChoicePrompts.length > 0) {
+          setQuestions(savedData.multipleChoicePrompts);
         }
       }, [savedData]);
 
@@ -140,7 +140,7 @@ export function CreateMultipleChoiceTemplate({ savedData, onChange }) {
             const updated = prev.map((q, i) =>
                 i === index ? {...q, questionText: value} : q
             );
-            onChange(updated);
+            onChange({multipleChoicePrompts: updated});
             return updated;
         });    
     };
@@ -153,7 +153,7 @@ export function CreateMultipleChoiceTemplate({ savedData, onChange }) {
                 updatedOptions[optIndex] = value;
                 return { ...q, options: updatedOptions };
             });
-            onChange(updated);
+            onChange({multipleChoicePrompts: updated});
             return updated;
         });
     };
@@ -161,7 +161,7 @@ export function CreateMultipleChoiceTemplate({ savedData, onChange }) {
     const addQuestion = () => {
         setQuestions(prev => {
             const updated = [...prev, { questionText: '', options: [''] }];
-            onChange(updated);
+            onChange({multipleChoicePrompts: updated});
             return updated;
         });
     };
@@ -171,7 +171,7 @@ export function CreateMultipleChoiceTemplate({ savedData, onChange }) {
             const updated = prev.map((q, i) =>
                 i === qIndex ? { ...q, options: [...q.options, ''] } : q
             );
-            onChange(updated);
+            onChange({multipleChoicePrompts: updated});
             return updated;
         });
     };
@@ -218,15 +218,15 @@ export function CreateMultipleChoiceTemplate({ savedData, onChange }) {
 export function CreateShortResponseTemplate({ savedData, onChange }) {
     
     const [questions, setQuestions] = useState(
-        Array.isArray(savedData) && savedData.length > 0
-          ? savedData
+        Array.isArray(savedData?.questions) && savedData.questions.length > 0
+          ? savedData.questions
           : [{ questionText: '' }]
       );
 
     useEffect(() => {
-    if (Array.isArray(savedData) && savedData.length > 0) {
-        setQuestions(savedData);
-    }
+        if (Array.isArray(savedData?.questions) && savedData.questions.length > 0) {
+            setQuestions(savedData.questions);
+        }
     }, [savedData]);
 
     const handleQuestionChange = (index, value) => {
@@ -234,7 +234,7 @@ export function CreateShortResponseTemplate({ savedData, onChange }) {
             const updated = prev.map((q, i) =>
                 i === index ? {...q, questionText: value} : q
             );
-            onChange(updated);
+            onChange({ questions: updated });
             return updated;
         }); 
     }
@@ -242,7 +242,7 @@ export function CreateShortResponseTemplate({ savedData, onChange }) {
     const addQuestion = () => {
         setQuestions((prev) => {
             const updated = [...prev, { questionText: '' }];
-            onChange(updated);
+            onChange({ questions: updated });
             return updated;
         })
     }
@@ -267,24 +267,28 @@ export function CreateShortResponseTemplate({ savedData, onChange }) {
 export function CreateDragAndDropTemplate({ savedData, onChange }) {
     
     const [options, setOptions] = useState(
-        Array.isArray(savedData) && savedData.length > 0
-          ? savedData
-          : ['']
+        Array.isArray(savedData?.options) && savedData.options.length > 0
+          ? savedData.options
+          : [{optionName: ''}]
       );
     
     const handleOptionChange = (index, value) => {
         setOptions((prev) => {
             const updated = prev.map((o, i) =>
-                i === index ? value : o
+                i === index ? { optionName: value } : o
             );
-            onChange(updated);
+            onChange({options: updated});
             return updated;
         });
     }
 
     const addName = () => {
-	setOptions((prev) => [...prev, '']);
-    }
+        setOptions((prev) => {
+            const updated = [...prev, { optionName: '' }];
+            onChange({ options: updated });
+            return updated;
+        });
+    };
 
     return (
         <>
@@ -297,7 +301,7 @@ export function CreateDragAndDropTemplate({ savedData, onChange }) {
                     type='text'
                 />
             ))}
-	    <CreateButton handleClick={addName}/>
+	        <CreateButton handleClick={addName}/>
         </>
     )
 }
@@ -381,14 +385,14 @@ export function CreateScriptNotationTemplate({ savedData, onChange }) {
 export function CreateDropDownTemplate({ savedData, onChange }) {
     
     const [questions, setQuestions] = useState(
-        Array.isArray(savedData) && savedData.length > 0
-          ? savedData
+        Array.isArray(savedData.dropDownPrompts) && savedData.dropDownPrompts.length > 0
+          ? savedData.dropDownPrompts
           : [{ questionText: '', options: [''] }]
       );
       
       useEffect(() => {
-        if (Array.isArray(savedData) && savedData.length > 0) {
-          setQuestions(savedData);
+        if (Array.isArray(savedData.dropDownPrompts) && savedData.dropDownPrompts.length > 0) {
+          setQuestions(savedData.dropDownPrompts);
         }
       }, [savedData]);
 
@@ -397,7 +401,7 @@ export function CreateDropDownTemplate({ savedData, onChange }) {
             const updated = prev.map((q, i) =>
                 i === index ? {...q, questionText: value} : q
             );
-            onChange(updated);
+            onChange({dropDownPrompts: updated});
             return updated;
         });    
     };
@@ -410,7 +414,7 @@ export function CreateDropDownTemplate({ savedData, onChange }) {
                 updatedOptions[optIndex] = value;
                 return { ...q, options: updatedOptions };
             });
-            onChange(updated);
+            onChange({dropDownPrompts: updated});
             return updated;
         });
     };
@@ -418,7 +422,7 @@ export function CreateDropDownTemplate({ savedData, onChange }) {
     const addQuestion = () => {
         setQuestions(prev => {
             const updated = [...prev, { questionText: '', options: [''] }];
-            onChange(updated);
+            onChange({dropDownPrompts: updated});
             return updated;
         });
     };
@@ -428,7 +432,7 @@ export function CreateDropDownTemplate({ savedData, onChange }) {
             const updated = prev.map((q, i) =>
                 i === qIndex ? { ...q, options: [...q.options, ''] } : q
             );
-            onChange(updated);
+            onChange({dropDownPrompts: updated});
             return updated;
         });
     };
@@ -459,6 +463,7 @@ export function CreateDropDownTemplate({ savedData, onChange }) {
                             />
                             
                         ))}
+                        
                     </div>
 
                     <CreateButton handleClick={() => addOption(qIndex)} />
