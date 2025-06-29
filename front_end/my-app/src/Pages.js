@@ -601,8 +601,10 @@ export function WorkshopPromptsPage() {
 
     return (
         <>
-            {instructionNeeded && (
-                <Heading1 text={prompt?.prompt_template_id === 4 ? 'Free Response' : 'Drag and Drop'} />
+            {prompt && [4, 6].includes(prompt.prompt_template_id) && (
+                <Heading1 text={
+                    prompt.prompt_template_id === 4 ? 'Free Response' : 'Drag and Drop'
+                } />
             )}
             
             {renderPrompt()}
@@ -622,7 +624,7 @@ export function Root() {
         <>
             <div className='menuBarIconContainer' style={{ display: 'grid', gridTemplateColumns: isEditor ? '1fr 1fr' : 'auto' }}>
                 <MenuBarIcon/>
-		{isEditor && <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />}
+		        {isEditor && <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />}
             </div>
             <div className="body">
 	    	<EditorSubmitContext.Provider value={setSubmitHandler}>
@@ -801,11 +803,16 @@ export function WorkshopPromptsEditor() {
     const handleSubmit = async () => {
         console.log(promptsRef.current);
         try {
-            const response = await axios.post(
+            const responseAddPrompts = await axios.post(
                 `${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts`,
                 { promptDataList: promptsRef.current },
                 {headers: {'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`}}
-            )
+            );
+            const responseUpdateStatus = await axios.put(
+                `${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}`,
+                { newStatus: 'open' },
+                {headers: {'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`}}
+            );
         } catch (error) {
             console.log(`Axios Error: ${error}`)
         }
