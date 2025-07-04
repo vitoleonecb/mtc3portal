@@ -1,4 +1,4 @@
-import { MenuBarIcon, DragAndDropKey, ProgressBar } from './Icons.js';
+import { MenuBarIcon, DragAndDropKey } from './Icons.js';
 import { ModuleHeader } from './ModuleHeader.js'
 import { OpenResponse, 
     ScriptSampleNotate, 
@@ -23,7 +23,7 @@ import { OpenResponse,
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
 import React, { useRef, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
-import { Link, useParams, useNavigate, Outlet, useLocation, useMatch } from 'react-router-dom';
+import { Link, useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EditorSubmitContext } from './EditorSubmitContext';
 
@@ -519,7 +519,7 @@ export function WorkshopPromptsPage() {
     const [promptIndex, setPromptIndex] = useState(0);
     const [progress, setProgress] = useState(0);
     const [endOfPrompts, setEndOfPrompts] = useState(false);
-    const [currentResponse, setCurrentResponse] = useState(null);
+    const [currentResponse, setCurrentResponse] = useState(() => []);
     const [maxProgress, setMaxProgress] = useState(0);
     const [formData, setFormData] = useState();
     const navigate = useNavigate();
@@ -559,116 +559,21 @@ export function WorkshopPromptsPage() {
         setPromptIndex(index >= 0 ? index : 0);
     }, [promptId, promptsList]);
 
-    useEffect(() => {
-        const prompt = promptsList[promptIndex];
-        if (!prompt) return;
-      
-        switch (prompt.prompt_template_id) {
-          case 1:
-          case 3:
-          case 4:
-          case 6:
-          case 9:
-            setCurrentResponse([]);
-            break;
-          case 7:
-            setCurrentResponse({ rating: '' });
-            break;
-          case 8:
-            setCurrentResponse({ notationResponse: '' });
-            break;
-          default:
-            setCurrentResponse([]);
-        }
-      }, [promptsList, promptIndex]);
-
-    useEffect(() => {
-        if (promptsList[promptIndex]?.prompt_template_id === 3) {
-            const checkListPrompts = promptsList[promptIndex].workshop_prompt_options.checkListPrompts;
-    
-            const initialResponse = checkListPrompts.map(q => ({
-                questionText: q.questionText,
-                options: q.options.map(opt => ({
-                    optionText: opt,
-                    selected: false
-                }))
-            }));
-    
-            setCurrentResponse(initialResponse);
-        }
-    }, [promptsList, promptIndex]);
-
-    const handleResponseChange = (index = 0, questionText = '', value = '', selected=false, keyName = '') => {
-        switch (promptsList[promptIndex].prompt_template_id) {
-            case 1:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { questionText, answer: value};
-                    return updated;
-                });
-                break;
-            case 3:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-
-                    const optionList = updated[index].options;
-
-                    const optionIndex = optionList.findIndex(opt => opt.optionText === value);
-
-                    if (optionIndex > -1) {
-                        optionList[optionIndex].selected = selected;
-                    }
-                    
-                    return updated;
-                });
-                break;
-            case 4:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { questionText, answer: value};
-                    return updated;
-                });
-                break;
-            case 6:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { keyName, answer: value};
-                    return updated;
-                });
-                break;
-            case 7:
-                setCurrentResponse(prev => {
-                    const updated = {...prev};
-                    updated.rating = value;
-                    return updated;
-                });
-                break;
-            case 8:
-                setCurrentResponse(prev => {
-                    const updated = {...prev};
-                    updated.notationResponse = value;
-                    return updated;
-                });
-                break;          
-            case 9:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { questionText, answer: value};
-                    return updated;
-                });
-                break;
-            default:
-                console.warn('Unknown Template ID')
-        }
+    const handleResponseChange = (index, value) => {
+        setCurrentResponse(prev => {
+            const updated = [...(prev || [])]; // handle null case
+            updated[index] = value;
+            return updated;
+        });
     };
 
     const handleSubmit = async () => {
-        if (!currentResponse || currentResponse.length === 0) {
+        if (!currentResponse || currentResponse.length === 0 || !currentResponse.some(r => r)) {
             console.log('Nothing to submit');
             return;
         }
 
-	console.log(`Current Response: ${JSON.stringify(currentResponse)}`);
+	console.log('Response ')
 
         // Uncomment when ready
         // await axios.post(
@@ -707,19 +612,19 @@ export function WorkshopPromptsPage() {
 
         switch (prompt.prompt_template_id) {
             case 1:
-                return <MultipleChoiceTemplate onUpdateResponse={handleResponseChange} multipleChoiceOptions={prompt.workshop_prompt_options} />;
+                return <MultipleChoiceTemplate multipleChoiceOptions={prompt.workshop_prompt_options} />;
             case 3:
-                return <CheckListTemplate onUpdateResponse={handleResponseChange} checkListOptions={prompt.workshop_prompt_options} />;
+                return <CheckListTemplate checkListOptions={prompt.workshop_prompt_options} />;
             case 4:
                 return <ShortResponseTemplate onUpdateResponse={handleResponseChange} shortResponseOptions={prompt.workshop_prompt_options} />;
             case 6:
-                return <DragAndDropTemplate onInitialPositions={setCurrentResponse} onUpdateResponse={handleResponseChange} dragOptions={prompt.workshop_prompt_options} />;
+                return <DragAndDropTemplate dragOptions={prompt.workshop_prompt_options} />;
             case 7:
-                return <SampleRaterTemplate onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
+                return <SampleRaterTemplate reference={prompt.workshop_prompt_reference} />;
             case 8:
-                return <ScriptNotationTemplate onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
+                return <ScriptNotationTemplate reference={prompt.workshop_prompt_reference} />;
             case 9:
-                return <DropDownTemplate onUpdateResponse={handleResponseChange} dropDownOptions={prompt.workshop_prompt_options} />;
+                return <DropDownTemplate dropDownOptions={prompt.workshop_prompt_options} />;
             default:
                 return <div>Unknown Template</div>;
         }
@@ -752,20 +657,19 @@ export function WorkshopPromptsPage() {
             />
         </>
     );
-};
+}
+
 export function Root() {
     const [submitHandler, setSubmitHandler] = useState(null);
     const { pathname } = useLocation();
 
     const isEditor = pathname.includes('prompts/edit');
-    const isPromptReader = useMatch('workshops/:workshopId/modules/:moduleId/prompts/:promptId');
 
     return (
         <>
-            <div className='menuBarIconContainer' style={{ display: 'grid', gridTemplateColumns: isEditor ? '1fr 1fr' : isPromptReader ? '1fr 5fr' : 'auto' }}>
+            <div className='menuBarIconContainer' style={{ display: 'grid', gridTemplateColumns: isEditor ? '1fr 1fr' : 'auto' }}>
                 <MenuBarIcon/>
 		        {isEditor && <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />}
-                {isPromptReader && <ProgressBar/>}
             </div>
             <div className="body">
 	    	<EditorSubmitContext.Provider value={setSubmitHandler}>
@@ -832,33 +736,35 @@ export function HomePage() {
     )
 }
 
-export function MultipleChoiceTemplate({ multipleChoiceOptions, onUpdateResponse }) {
+export function MultipleChoiceTemplate({ multipleChoiceOptions }) {
     return (
         <>
             {multipleChoiceOptions.multipleChoicePrompts.map((promptData, index) => (
                 <div key={index}>
                     <Heading1 text={promptData.questionText} />
-                    <MultipleChoiceGroup onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options} />
+                    <MultipleChoiceGroup options={promptData.options} />
                 </div>
             ))}
         </>
     );
 }
 
-export function DropDownTemplate({ dropDownOptions, onUpdateResponse}) {
+export function DropDownTemplate({ dropDownOptions }) {
     return (
         <>
             {dropDownOptions.dropDownPrompts.map((promptData, index) => (
                 <div className="DropdownPromptContainer" key={index}>
                     <h1 class="Heading1" style={{ marginBottom: '20px' }}>{promptData.questionText}</h1>
-                    <DropDown onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options}/>
+                    <DropDown options={promptData.options}/>
                 </div>
             ))}
         </>
     )
 }
 
-export function CheckListTemplate({ checkListOptions, onUpdateResponse }) {
+export function CheckListTemplate({ checkListOptions }) {
+    
+    console.log(checkListOptions)
 
     return (
         <>
@@ -866,7 +772,7 @@ export function CheckListTemplate({ checkListOptions, onUpdateResponse }) {
                 <div key={index}>
                     <Heading1 text={promptData.questionText} />
                     {promptData.options.map((option, optIndex) => (
-                        <CheckBoxButton onChange={(selected) => onUpdateResponse(index, promptData.questionText, option, selected)} key={optIndex} optionText={option} />
+                        <CheckBoxButton key={optIndex} optionText={option} />
                     ))}
                 </div>
             ))}
@@ -874,24 +780,24 @@ export function CheckListTemplate({ checkListOptions, onUpdateResponse }) {
     );
 }
 
-export function ScriptNotationTemplate({reference, onUpdateResponse}) {
+export function ScriptNotationTemplate({reference}) {
     return (
         <>
             <PromptInstruction question="Annotate the following script"/>
             <ScriptSampleNotate sample={reference} />
-            <OpenResponse onChange={(value) => onUpdateResponse(undefined, undefined, value)} />
+            <OpenResponse />
             <ModuleNavigator />  
         </>
     )
 }
 
-export function SampleRaterTemplate({reference, onUpdateResponse}) {
+export function SampleRaterTemplate({reference}) {
     
     return (
         <>
             <PromptInstruction question="Rate the following"/>
             <ScriptSampleRate sample={reference} />
-            <StarRater onChange={(value) => onUpdateResponse(undefined, undefined, String(value))}/>
+            <StarRater/>
         </>
     )
 }
@@ -903,20 +809,20 @@ export function ShortResponseTemplate({shortResponseOptions, onUpdateResponse}) 
             {shortResponseOptions.questions.map((option, index) => (
                 <div key={index}>
                     <Heading2 text={option.questionText}/>
-                    <ShortResponseArea onChange={(value) => onUpdateResponse(index, option.questionText, value)}/>
+                    <ShortResponseArea onChange={(value) => onUpdateResponse(index, value)}/>
                 </div>
             ))}
         </>
     )
 }
 
-export function DragAndDropTemplate({ dragOptions, onUpdateResponse, onInitialPositions }) {
+export function DragAndDropTemplate({dragOptions}) {
     return (
         <>
-            <DragAndDropArea dragOptions={dragOptions} onInitialPositions={onInitialPositions} />
-            <DragAndDropKey dragOptions={dragOptions} />
+            <DragAndDropArea />
+            <DragAndDropKey dragOptions={dragOptions}/>
         </>
-    );
+    )
 }
 
 export function WorkshopPromptsEditor() {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 
@@ -25,150 +25,78 @@ export function BackArrowSVG() {
     )
 }
 
-export function MenuBarIcon(props) {
-
-    // // MenuBar Animation
-
+export function MenuBarIcon() {
     const location = useLocation();
     const navigate = useNavigate();
     const isMenuOpen = location.pathname === '/nav';
 
     const [rectFill, setRectFill] = useState('white');
     const [lineColor, setLineColor] = useState('black');
-    const [dropShadow, setDropShadow] = useState('url(#filter0_d_178_2013)');
-    
+
     const handleMouseEnter = () => {
         setRectFill('black');
         setLineColor('white');
-        setDropShadow('none');
     };
 
     const handleMouseLeave = () => {
         setRectFill('white');
         setLineColor('black');
-        setDropShadow('url(#filter0_d_178_2013)');
     };
 
     const handleClick = () => {
-        if (isMenuOpen) {
-            navigate(-1);
-        } else {
-            navigate('/nav');
-        }
-    }
+        isMenuOpen ? navigate(-1) : navigate('/nav');
+    };
 
     const topLineVariants = {
-        closed: {
-            rotate: 0,
-            y: 0
-        },
-        open: {
-            rotate: 45,
-            y: 7,
-            x: 2
-        }
+        closed: { rotate: 0, y: 0 },
+        open: { rotate: 45, y: 6, x: 2 },
     };
 
     const middleLineVariants = {
-        closed: {
-            opacity: 1
-        },
-        open: {
-            opacity: 0
-        }
+        closed: { opacity: 1 },
+        open: { opacity: 0 },
     };
 
     const bottomLineVariants = {
-        closed: {
-            rotate: 0,
-            y: 0
-        },
-        open: {
-            rotate: -45,
-            y: -5,
-            x: -3
-        }
+        closed: { rotate: 0, y: 0 },
+        open: { rotate: -45, y: -6, x: -2 },
     };
 
     return (
-            <svg onClick={handleClick} style={{tansition: 'ease .3s'}} className="MenuBarIcon" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <filter id="filter0_d_178_2013" x="0" y="0" width="43" height="43" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-                        <feDropShadow 
-                        dx="-4"
-                        dy="4"
-                        stdDeviation="0"
-                        floodColor="#000"
-                        floodOpacity="1"
-                        />
-                    </filter>
-                </defs>
-                <g onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-                    <motion.rect
-                        filter={dropShadow} 
-                        x="5" 
-                        y="1" 
-                        width="36" 
-                        height="36" 
-                        strokeWidth="1" 
-                        stroke="black" 
-                        fill={rectFill} 
-                        ry="10" 
-                        rx="10"
-                        animate={{ fill: rectFill }}
-                        transition={{ fill: { duration: 5 } }}
-                    />
-                    <motion.line 
-                        variants={middleLineVariants}
-                        animate={isMenuOpen ? 'open' : 'closed'}
-                        transition={{ duration: 0.3 }} 
-                        className="top1Menu" 
-                        x1="12" 
-                        y1="16" 
-                        x2="35" 
-                        y2="16" 
-                        stroke={lineColor} 
-                        strokeWidth="1"
-                    />
-                    <motion.line 
-                        variants={middleLineVariants}
-                        animate={isMenuOpen ? 'open' : 'closed'}
-                        transition={{ duration: 0.3 }} 
-                        className="top2Menu" 
-                        x1="12" 
-                        y1="22" 
-                        x2="35" 
-                        y2="22" 
-                        stroke={lineColor} 
-                        strokeWidth="1"
-                    />
-                    <motion.line 
-                        variants={topLineVariants}
-                        animate={isMenuOpen ? 'open' : 'closed'}
-                        transition={{ duration: 0.3 }} 
-                        className="top3Menu" 
-                        x1="12" 
-                        y1="10" 
-                        x2="35" 
-                        y2="10" 
-                        stroke={lineColor} 
-                        strokeWidth="1"
-                    />
-                    <motion.line 
-                        variants={bottomLineVariants}
-                        animate={isMenuOpen ? 'open' : 'closed'}
-                        transition={{ duration: 0.3 }} 
-                        className="top4Menu" 
-                        x1="12" 
-                        y1="28" 
-                        x2="35" 
-                        y2="28" 
-                        stroke={lineColor} 
-                        strokeWidth="1"
-                    />
-                </g>
-                </svg>
-    )
+        <svg
+            onClick={handleClick}
+            className="MenuBarIcon"
+            viewBox="0 0 52 52" // More breathing room
+            width="3rem" height="3rem"
+            xmlns="http://www.w3.org/2000/svg"
+            preserveAspectRatio="xMidYMid meet"
+        >
+        <defs>
+            <filter id="menuShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="-2" dy="2" stdDeviation="1" floodColor="#000" floodOpacity="1"/>
+            </filter>
+        </defs>
+            <g onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+                <motion.rect
+                    x="2"
+                    y="2"
+                    width="36"
+                    height="36"
+                    rx="8"
+                    fill={rectFill}
+                    stroke="black"
+                    strokeWidth="1"
+                    filter="url(#menuShadow)"
+                />
+                <motion.line x1="10" y1="14" x2="30" y2="14" stroke={lineColor} strokeWidth="1"
+                variants={topLineVariants} animate={isMenuOpen ? 'open' : 'closed'} />
+                <motion.line x1="10" y1="20" x2="30" y2="20" stroke={lineColor} strokeWidth="1"
+                variants={middleLineVariants} animate={isMenuOpen ? 'open' : 'closed'} />
+                <motion.line x1="10" y1="26" x2="30" y2="26" stroke={lineColor} strokeWidth="1"
+                variants={bottomLineVariants} animate={isMenuOpen ? 'open' : 'closed'} />
+            </g>
+        </svg>
+    );
 }
 
 export function ForwardArrowIcon() {
@@ -253,20 +181,58 @@ export function Star({selected, onMouseEnter, onMouseLeave, onClick}) {
     )
 }
 
-export function DragElement({color, dragConstraints}) {
+export function ProgressBar() {
     return (
         <>
-            <motion.div
-                className="dragElement" 
-                style={{ backgroundColor: color}} 
-                drag={true}
-                dragMomentum={false}
-                inertia={false}
-                dragElastic={1}
-                dragConstraints={dragConstraints}
-                whileDrag={{ scale: 1.5, cursor: "grabbing" }}/>
+            <div className="promptProgressContainer">
+                <progress className="promptProgress" value={20} max="100"></progress>
+            </div>
         </>
     )
+}
+
+export function DragElement({ id, color, dragConstraints, onPositionChange }) {
+    const ref = useRef(null);
+
+    // Get initial position once mounted
+    useEffect(() => {
+        const el = ref.current;
+        if (el && onPositionChange) {
+            const rect = el.getBoundingClientRect();
+            const containerRect = el.offsetParent.getBoundingClientRect();
+            onPositionChange(id, {
+                x: rect.left - containerRect.left,
+                y: rect.top - containerRect.top,
+            });
+        }
+    }, []);
+
+    const handleDragEnd = () => {
+        const el = ref.current;
+        if (el && onPositionChange) {
+            const rect = el.getBoundingClientRect();
+            const containerRect = el.offsetParent.getBoundingClientRect();
+            onPositionChange(id, {
+                x: Math.round(rect.left - containerRect.left),
+                y: Math.round(rect.top - containerRect.top),
+            });
+        }
+    };
+
+    return (
+        <motion.div
+            ref={ref}
+            className="dragElement"
+            style={{ backgroundColor: color }}
+            drag
+            dragMomentum={false}
+            inertia={false}
+            dragElastic={1}
+            dragConstraints={dragConstraints}
+            whileDrag={{ scale: 1.5, cursor: "grabbing" }}
+            onDragEnd={handleDragEnd}
+        />
+    );
 }
 
 function DragAndDropKeyItem({color, characterName}) {

@@ -42,7 +42,7 @@ html {
   
 }
 
-.openProgress, .processingProgress {
+.promptProgress, .openProgress, .processingProgress {
   width: 80%;
 }
 
@@ -215,6 +215,16 @@ progress.openProgress::-webkit-progress-value {
   border-radius: 10px; /* Rounded corners on the left */
   }
 
+  progress.promptProgress::-webkit-progress-bar {
+    background-color: #D9D9D9; /* Background of the bar */
+    border-radius: 10px; /* Rounded corners */
+    }
+  
+  progress.promptProgress::-webkit-progress-value {
+    background-color: #57A15E; /* Green progress */
+    border-radius: 10px; /* Rounded corners on the left */
+    }
+
 progress.processingProgress::-webkit-progress-bar {
   background-color: #D9D9D9; /* Background of the bar */
   border-radius: 10px; /* Rounded corners */
@@ -233,6 +243,19 @@ div.progressContainer {
 
 .MainNavCardTitle {
   font-size: 2rem;
+}
+
+.promptProgressContainer {
+  width: 100%;
+  border: black 1px solid;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  padding-top: 1rem;
+  /* padding-bottom: 1rem; */
+  height: 3rem;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .workshopCardContainer {
@@ -513,13 +536,15 @@ div.progressContainer {
   top: 0;
   height: 7rem;
   left: 50%;
-  transform: translateX(-50%); /* This centers it horizontally */
-  width: calc(var(--element-width) + 10px); /* Match the width of the other elements */
+  transform: translateX(-50%);
+  width: calc(var(--element-width) + 10px);
   z-index: 1000;
   background: white;
-  box-shadow: -5px 0px white;
-  overflow: visible;
-  }
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-left: 1rem;
+}
 
 .navOptions {
   margin-top: 60px;
@@ -556,6 +581,7 @@ div.progressContainer {
 .nextButton {
   height: 3rem;
   border: black 1px solid;
+  font-size: .9rem;
   border-radius: 20px;
   box-shadow: -4px 4px black;
   background-color: white;
@@ -623,9 +649,9 @@ rect:hover {
 }
 
 .MenuBarIcon {
-  display: flex;
-  height: 120px;
-  width: 55px;
+  width: 3rem;
+  height: 3rem;
+  display: block;
   cursor: pointer;
 }
 

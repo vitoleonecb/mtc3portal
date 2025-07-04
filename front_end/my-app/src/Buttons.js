@@ -58,13 +58,18 @@ export function OpenButton({ moduleName, progressValue }) {
     );
 }
 
-export function OpenResponse() {
+export function OpenResponse({ onChange }) {
     
     const textareaRef = useRef(null);
     const [value, setValue] = useState('');
 
     const handleChange = (e) => {
-        setValue(e.target.value);
+        const newValue = e.target.value
+        setValue(newValue);
+
+        if (onChange) {
+            onChange(newValue);
+        }
 
         const textarea = textareaRef.current;
         if (textarea) {
@@ -91,7 +96,8 @@ export function OpenResponse() {
     )
 }
 
-export function ModuleNavigator({backActive, backClick, nextClick}) {
+export function ModuleNavigator({submitHandler, backActive, backClick, nextClick, isReader=false}) {
+
     return (
         <>
             <div className='moduleNavigatorContainer'>
@@ -100,18 +106,23 @@ export function ModuleNavigator({backActive, backClick, nextClick}) {
                         <BackArrowSVG />
                     </button>
                 </div>
-                <button className='nextButton' onClick={nextClick}>
-                    <ArrowSVG />
+                <button className='nextButton' onClick={() => {
+                    console.log('Next Button Clicked');
+                    isReader ? submitHandler() : nextClick();
+                }}>
+                    {isReader ? 'Submit' : <ArrowSVG/>}
                 </button>
             </div>
         </>
     )
 }
 
-export function CheckBoxButton({optionText = 'Not Available'}) {
+export function CheckBoxButton({optionText = 'Not Available', onChange}) {
     
     const [color, setColor] = useState('white')
     const [isLocked, setIsLocked] = useState(false)
+
+    
 
     function handleMouseEnter() {
         if (!isLocked) {
@@ -126,14 +137,10 @@ export function CheckBoxButton({optionText = 'Not Available'}) {
     }
 
     function handleClick() {
-        if (!isLocked) {
-            setIsLocked(true);
-            setColor('#D2A478');
-        }
-        else {
-            setIsLocked(false)
-            setColor('white')
-        }
+    	const newLockedState = !isLocked;
+    	setIsLocked(newLockedState);
+    	setColor(newLockedState ? '#D2A478' : 'white');
+    	onChange(newLockedState);
     }
     
     return (
@@ -192,11 +199,12 @@ export function MultipleChoiceButton({isSelected, onSelect, label}) {
     )
 };
 
-export function MultipleChoiceGroup({options}) {
+export function MultipleChoiceGroup({options, onChange}) {
     const [selectedOption, setSelectedOption] = useState(null);
 
     const handleSelect = (option) => {
         setSelectedOption(option);
+        onChange(option);
     }
     
     return (
@@ -229,10 +237,14 @@ export function ScriptSampleRate({ sample }) {
     )
 }
 
-export function StarRater() {
+export function StarRater({ onChange }) {
     
     const [hoveredRating, setHoveredRating] = useState(0);
     const [selectedRating, setSelectedRating] = useState(0);
+
+    useEffect(() => {
+        onChange(selectedRating);
+    },[selectedRating])
 
     const handleMouseEnter = (index) => {
         setHoveredRating(index);
@@ -263,14 +275,17 @@ export function StarRater() {
     )
 }
 
-export function ShortResponseArea() {
+export function ShortResponseArea({ onChange }) {
     
     const textareaRef = useRef(null);
     const [value, setValue] = useState('');
 
     const handleChange = (e) => {
-        setValue(e.target.value);
-
+        const newValue = e.target.value
+        setValue(newValue);
+        if (onChange) {
+            onChange(newValue);
+        } 
         const textarea = textareaRef.current;
         if (textarea) {
         textarea.style.height = 'auto';
@@ -299,17 +314,43 @@ export function ShortResponseArea() {
     )
 }
 
-export function DragAndDropArea() {
-    const constraintRef = useRef(null)
-    return (
-        <div className="DragAndDropContainer" ref={constraintRef}>            
-            {
-                ['#994242','#D2A478','#57A15E','#FFFFFF','#000000','#D9D9D9'].map((color, index) => (
-                    <DragElement key={index} color={color} dragConstraints={constraintRef}/>
-                ))
+export function DragAndDropArea({ dragOptions, onInitialPositions }) {
+    const constraintRef = useRef(null);
+    const [positions, setPositions] = useState({});
+    const total = dragOptions.options.length;
+
+    const handlePositionChange = (id, position) => {
+        setPositions(prev => {
+            const updated = { ...prev, [id]: position };
+
+            if (Object.keys(updated).length === total) {
+                const responseArray = Object.entries(updated).map(([keyName, position]) => ({
+                    keyName,
+                    position
+                }));
+                onInitialPositions(responseArray); // notify parent
             }
+
+            return updated;
+        });
+    };
+
+    const colors = ['#994242', '#D2A478', '#57A15E', '#FFFFFF', '#000000', '#D9D9D9'];
+    const limitedColors = colors.slice(0, Math.min(total, colors.length));
+
+    return (
+        <div className="DragAndDropContainer" ref={constraintRef}>
+            {dragOptions.options.map((opt, index) => (
+                <DragElement
+                    key={index}
+                    id={opt.optionName}
+                    color={limitedColors[index]}
+                    dragConstraints={constraintRef}
+                    onPositionChange={handlePositionChange}
+                />
+            ))}
         </div>
-    )
+    );
 }
 
 export function NextButton({ onClick, text = "Next" }) {
@@ -383,7 +424,7 @@ export function MainNavCard({color, text, link}) {
     )
 }
 
-export function DropDown({ options, onSelect, reset }) {
+export function DropDown({ options, onSelect, reset, onChange}) {
     
     const [isClicked, setIsClicked] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
@@ -397,7 +438,8 @@ export function DropDown({ options, onSelect, reset }) {
         setSelectedOption(option);
         setDropDownLabel(option);
         setIsClicked(false);
-        onSelect(option);
+        onSelect?.(option);
+        onChange?.(option);
     }
 
     useEffect(() => {

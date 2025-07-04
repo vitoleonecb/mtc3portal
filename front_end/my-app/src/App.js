@@ -32,13 +32,13 @@ function App() {
     <>
       <Route path="/" element={<Root/>}>
         <Route path="workshops/:workshopId/modules" element={ <WorkshopModules /> } />
-        <Route path="workshops/:workshopId/modules/:moduleId/prompts" element={ <WorkshopPromptsPage /> } />
+        <Route path="workshops/:workshopId/modules/:moduleId/prompts/:promptId" element={ <WorkshopPromptsPage /> } />
         <Route path="workshops/:workshopId/modules/:moduleId/prompts/edit" element={ <WorkshopPromptsEditor /> } />
         <Route path="login" element={ <LogInPage /> } />
         <Route path="register" element={ <RegistrationPage /> } />
         <Route path="workshops/create" element={ <WorkshopCreateForm /> } />
         <Route path="workshops" element={ <WorkshopsPage /> } />
-        <Route path="/" element={ <HomePage /> } />
+        <Route index element={<HomePage />} />
         <Route path="profile" element={ <Settings /> } />
         <Route path="analytics" element={ <Analytics /> } />
         <Route path="nav" element={ <NavPage /> } />

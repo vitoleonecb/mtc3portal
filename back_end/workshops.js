@@ -25,9 +25,21 @@ workshopsRouter.get('/:workshopId', authenticateToken, async (req, res, next) =>
 workshopsRouter.get('/:workshopid/modules', authenticateToken, async (req, res, next) => {
     const { workshopid } = req.params;
     try {
-        const [rows] = await connection.query('SELECT * FROM workshop_modules WHERE workshop_id = ?', [workshopid]);
+        const [rows] = await connection.query(`
+            SELECT 
+                wm.*, 
+                (
+                    SELECT wp.workshop_prompt_id 
+                    FROM workshop_prompts wp 
+                    WHERE wp.workshop_module_id = wm.workshop_module_id 
+                    ORDER BY wp.workshop_prompt_id ASC 
+                    LIMIT 1
+                ) AS first_prompt_id
+            FROM workshop_modules wm
+            WHERE wm.workshop_id = ?
+        `, [workshopid]);
         res.status(200).send(rows);
-    } catch(error) {
+    } catch (error) {
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -303,6 +315,18 @@ workshopsRouter.put('/:workshopid/modules/:moduleid', authenticateTokenAdmin, as
         const { newStatus } = req.body;
         const [response] = await connection.query('UPDATE workshop_modules SET workshop_module_status = ? WHERE workshop_module_id = ?', [newStatus, moduleid]);
         res.status(201).send(`Workshop with id of ${workshopid} status changed to: ${newStatus}`);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`);
+    }
+});
+
+// POST Response to Module
+workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/response', authenticateToken, async (req, res, next) => {
+    try {
+        const { promptid } = req.params;
+        const { workshop_response_content } = req.body;
+        const  user_id = req.user.user_id;
+        const response = await connection.query('INSERT INTO workshop_responses (user_id, workshop_prompt_id, workshop_response_content) VALUES (?, ?, ?)',[user_id,promptid,workshop_response_content])
     } catch (error) {
         res.status(500).send(`Server Error: ${error}`);
     }
