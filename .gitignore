@@ -18,5 +18,6 @@ Thumbs.db
 # Editor/IDE
 .vscode/
 .idea/
+*.save.*
 
 front_end/my-app/.env.production

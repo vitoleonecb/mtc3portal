@@ -7,6 +7,56 @@
 
 /* GENERAL */
 
+.menuIcon {
+  width: 3rem;
+  height: 3rem;
+  background: white;
+  box-shadow: -4px 4px 0px black;
+  border: black 1px solid;
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  transition-property: background-color, transform;
+  transition-duration: 0.3s;
+  transition-timing-function: ease;
+}
+
+.menuIcon:hover {
+  background: black;
+  box-shadow: none;
+}
+
+.menuIcon:hover .bar {
+  background: white;
+}
+
+.bar {
+  width: 60%;
+  height: 1.5px;
+  background: black;
+  transition: all 0.3s ease;
+  border-radius: 2px;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.menuIcon.open .bar.top {
+  transform: rotate(45deg) translate(5px, 8px);
+  width: 75%;
+}
+
+.menuIcon.open .bar.middle {
+  opacity: 0;
+}
+
+.menuIcon.open .bar.bottom {
+  transform: rotate(-45deg) translate(5px, -8px);
+  width: 75%;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -42,8 +92,14 @@ html {
   
 }
 
-.promptProgress, .openProgress, .processingProgress {
+.openProgress, .processingProgress {
   width: 80%;
+}
+
+.promptProgress {
+  width: 90%;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .dropDownContainer {
@@ -156,6 +212,16 @@ progress {
   box-shadow: none;
 }
 
+.OpenResponse.no_hover:hover {
+  pointer-events: none;
+  cursor: default !important;
+  box-shadow: -4px 4px black !important;
+}
+
+.OpenResponse.no_hover:focus {
+  box-shadow: -4px 4px black !important;
+}
+
 .OpenResponse::-webkit-scrollbar {
   display: none; /* Safari and Chrome */
 }
@@ -251,11 +317,12 @@ div.progressContainer {
   border-radius: 20px;
   box-shadow: -4px 4px black;
   background-color: white;
-  padding-top: 1rem;
-  /* padding-bottom: 1rem; */
   height: 3rem;
   margin-top: auto;
   margin-bottom: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .workshopCardContainer {
@@ -507,7 +574,7 @@ div.progressContainer {
     border: none;
 }
 
-.multipleChoiceButton:not(.selected):hover {
+.multipleChoiceButton:not(.selected):not(.disabled):hover {
     background-color: #D2A478;
     color: white;
     box-shadow: none;
@@ -543,7 +610,6 @@ div.progressContainer {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding-left: 1rem;
 }
 
 .navOptions {
@@ -974,9 +1040,19 @@ rect:hover {
   list-style-type: none;
 }
 
+.dropDownOption.selected {
+  background-color: #D2A478;
+}
+
 .dropDownOption:hover {
   background-color: #D2A478;
   cursor: pointer;
+}
+
+.dropDownOption.no_hover:hover {
+  pointer-events: none;
+  cursor: default !important;
+  background-color: transparent !important;
 }
 
 .dropDownOptionsBox {

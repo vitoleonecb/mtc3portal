@@ -13,24 +13,33 @@ usersRouter.get('', authenticateToken, async (req, res, next) => {
     }    
     });
 
-usersRouter.post('/login', async (req, res, next) => {
+usersRouter.post('/login', async (req, res) => {
     try {
-        const {email, password} = req.body;
-        console.log(email);
+        const { email, password } = req.body;
+
+        // Run your auth procedure
         const [rows] = await connection.query('CALL login_auth(?, ?, @msg); SELECT @msg as msg', [email, password]);
+
         if (!process.env.ACCESS_TOKEN_SECRET) {
             throw new Error("Missing ACCESS_TOKEN_SECRET environment variable");
         }
-        const [[user_id]] = await connection.query(
-            'SELECT user_id FROM users WHERE email = ?', 
+
+        // Fetch the user's ID as a flat value
+        const [[userRow]] = await connection.query(
+            'SELECT user_id FROM users WHERE email = ?',
             [email]
         );
-        console.log(process.env.ACCESS_TOKEN_SECRET)
-        const accessToken = jwt.sign({email: email, user_id: user_id }, process.env.ACCESS_TOKEN_SECRET);
-        console.log(`Access token signed: ${accessToken}`);
-        res.status(200).json({accessToken: accessToken});
+
+        const payload = {
+            email,
+            user_id: userRow.user_id
+        };
+
+        const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+
+        res.status(200).json({ accessToken });
     } catch (error) {
-        res.status(500).send(`Internal Server Error: ${error}`);
+        res.status(500).send(`Internal Server Error: ${error.message}`);
     }
 });
 

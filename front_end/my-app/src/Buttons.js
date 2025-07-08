@@ -58,7 +58,7 @@ export function OpenButton({ moduleName, progressValue }) {
     );
 }
 
-export function OpenResponse({ onChange }) {
+export function OpenResponse({ onChange, responseData, disabled }) {
     
     const textareaRef = useRef(null);
     const [value, setValue] = useState('');
@@ -85,13 +85,19 @@ export function OpenResponse({ onChange }) {
         textarea.style.height = textarea.scrollHeight + 'px';
         }
     }, []);
+
+    useEffect(() => {
+	if (responseData) {
+		setValue(responseData);
+	}
+    }, [responseData])
     
     return (
         <textarea 
         ref={textareaRef}
         value={value}
-        onChange={handleChange}
-        className="OpenResponse" 
+        onChange={disabled ? undefined : handleChange}
+        className={`OpenResponse ${disabled ? 'no_hover' : ''}`} 
         placeholder='Enter your response here'/>
     )
 }
@@ -117,15 +123,23 @@ export function ModuleNavigator({submitHandler, backActive, backClick, nextClick
     )
 }
 
-export function CheckBoxButton({optionText = 'Not Available', onChange}) {
+export function CheckBoxButton({disabled, responseData, optionText = 'Not Available', onChange}) {
     
     const [color, setColor] = useState('white')
     const [isLocked, setIsLocked] = useState(false)
 
-    
+    useEffect(() => {
+    	if (responseData === true) {
+        	setIsLocked(true);
+        	setColor('#D2A478');
+    	} else {
+        	setIsLocked(false);
+        	setColor('white');
+    	}
+    }, [responseData]);
 
     function handleMouseEnter() {
-        if (!isLocked) {
+        if (!isLocked && !disabled) {
             setColor('#D2A478');
         }
     }
@@ -137,10 +151,12 @@ export function CheckBoxButton({optionText = 'Not Available', onChange}) {
     }
 
     function handleClick() {
-    	const newLockedState = !isLocked;
-    	setIsLocked(newLockedState);
-    	setColor(newLockedState ? '#D2A478' : 'white');
-    	onChange(newLockedState);
+    	if (!disabled) {
+		const newLockedState = !isLocked;
+    		setIsLocked(newLockedState);
+    		setColor(newLockedState ? '#D2A478' : 'white');
+    		onChange(newLockedState);
+	}
     }
     
     return (
@@ -153,7 +169,7 @@ export function CheckBoxButton({optionText = 'Not Available', onChange}) {
     )
 }
 
-export function MultipleChoiceButton({isSelected, onSelect, label}) {
+export function MultipleChoiceButton({disabled, isSelected, onSelect, label}) {
 
     // const styles = {
     //     border: isSelected ? 'none' : 'black 1px solid',
@@ -164,6 +180,7 @@ export function MultipleChoiceButton({isSelected, onSelect, label}) {
 
     const buttonClass = classNames('multipleChoiceButton', {
         'selected': isSelected,
+	disabled: disabled
     });
 
     // function handleMouseEnter() {
@@ -178,7 +195,7 @@ export function MultipleChoiceButton({isSelected, onSelect, label}) {
     // };
 
     function handleClick() {
-        if (!isSelected) {
+        if (!isSelected && !disabled) {
             onSelect();
         }
     };
@@ -199,8 +216,17 @@ export function MultipleChoiceButton({isSelected, onSelect, label}) {
     )
 };
 
-export function MultipleChoiceGroup({options, onChange}) {
+export function MultipleChoiceGroup({options, onChange, disabled, responseData}) {
     const [selectedOption, setSelectedOption] = useState(null);
+
+    console.log(responseData);
+    console.log(options);
+
+    useEffect(() => {
+        if (responseData) {
+            setSelectedOption(responseData[0].answer);
+        }
+    }, [responseData])
 
     const handleSelect = (option) => {
         setSelectedOption(option);
@@ -213,8 +239,13 @@ export function MultipleChoiceGroup({options, onChange}) {
                 <MultipleChoiceButton 
                     key={index}
                     label={option}
+		    disabled={disabled}
                     isSelected={selectedOption === option}
-                    onSelect={() => handleSelect(option)}
+                    onSelect={() => {
+                        if (!disabled) {
+                            handleSelect(option);
+                        }
+                    }}
                 />
             ))}
         </>
@@ -237,7 +268,7 @@ export function ScriptSampleRate({ sample }) {
     )
 }
 
-export function StarRater({ onChange }) {
+export function StarRater({ onChange, responseData, disabled }) {
     
     const [hoveredRating, setHoveredRating] = useState(0);
     const [selectedRating, setSelectedRating] = useState(0);
@@ -245,6 +276,12 @@ export function StarRater({ onChange }) {
     useEffect(() => {
         onChange(selectedRating);
     },[selectedRating])
+
+    useEffect(() => {
+	if (responseData) {
+		setSelectedRating(responseData);
+	}
+    })
 
     const handleMouseEnter = (index) => {
         setHoveredRating(index);
@@ -264,9 +301,9 @@ export function StarRater({ onChange }) {
                 [1,2,3,4,5].map((star) => (
                     <Star key={star} 
                     selected={hoveredRating >= star || (!hoveredRating && selectedRating >= star)} 
-                    onMouseEnter={() => handleMouseEnter(star)} 
+                    onMouseEnter={() => !disabled && handleMouseEnter(star)} 
                     onMouseLeave={handleMouseLeave} 
-                    onClick={() => handleClick(star)}
+                    onClick={() => !disabled && handleClick(star)}
                     />
                     )
                 )
@@ -424,7 +461,7 @@ export function MainNavCard({color, text, link}) {
     )
 }
 
-export function DropDown({ options, onSelect, reset, onChange}) {
+export function DropDown({ responseData, options, onSelect, reset, onChange, disabled}) {
     
     const [isClicked, setIsClicked] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
@@ -432,7 +469,8 @@ export function DropDown({ options, onSelect, reset, onChange}) {
 
     const handleMainClick = () => {
         setIsClicked(prevStatus => !prevStatus);
-    }
+    };
+    
 
     const handleOptionClick = (option) => {
         setSelectedOption(option);
@@ -443,9 +481,23 @@ export function DropDown({ options, onSelect, reset, onChange}) {
     }
 
     useEffect(() => {
-	setSelectedOption(null);
-	setDropDownLabel('Select an option');
+        if (reset) {
+            setSelectedOption(null);
+            setDropDownLabel('Select an option');
+        }
     }, [reset]);
+
+    useEffect(() => {
+        const answer = responseData.answer;
+        if (answer !== selectedOption) {
+            setSelectedOption(answer);
+            setDropDownLabel(answer);
+            setIsClicked(false);
+        }
+    }, [responseData]);
+    
+
+    const liClass = `dropDownOption${disabled ? ' no_hover': ''}`;
 
     return (
         <>
@@ -462,7 +514,7 @@ export function DropDown({ options, onSelect, reset, onChange}) {
            	 { isClicked && (
                		 <ul className="dropDownOptionsBox">
                     		{options.map((option) => (
-                        		<li className="dropDownOption" onClick={() => handleOptionClick(option)}>
+                        		<li className={`${liClass} ${option === selectedOption ? 'selected': ''}`} onClick={() => !disabled && handleOptionClick(option)}>
                             			{option}
                         		</li>
                     		))}

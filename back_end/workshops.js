@@ -119,6 +119,44 @@ workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/promptid', authentic
     }
 });
 
+// GET Number of Responses for Prompt
+workshopsRouter.get('/modules/:moduleid/progress', authenticateToken, async (req, res, next) => {
+    try {
+	const { moduleid } = req.params;
+	const userid = req.user.user_id;
+	console.log(`moduleId: ${moduleid} userId: ${userid}`);
+	const [numberOfResponses] = await connection.query(
+		'SELECT COUNT(*) FROM workshop_responses wr JOIN workshop_prompts wp ON (wr.workshop_prompt_id = wp.workshop_prompt_id) WHERE wp.workshop_module_id = ? AND wr.user_id = ?',
+		[moduleid, userid]
+	);
+	const count = Number(numberOfResponses?.[0]?.['COUNT(*)'] ?? 0);
+	res.status(200).json({ count });
+    } catch (error) {
+	res.status(500).send(`Internal Server Error: ${error}`);
+    }
+});
+
+// GET Response for Prompt
+workshopsRouter.get('/prompts/:promptid/response', authenticateToken, async (req, res) => {
+    try {
+        const { promptid } = req.params;
+        const userId = req.user.user_id;
+
+        const [rows] = await connection.query(
+            'SELECT workshop_response_content FROM workshop_responses WHERE user_id = ? AND workshop_prompt_id = ?',
+            [userId, promptid]
+        );
+
+        if (rows.length === 0) {
+            return res.status(200).json({ response: null });
+        }
+
+        res.status(200).json({ response: rows[0].workshop_response_content });
+    } catch (error) {
+        res.status(500).send(`Error fetching response: ${error.message}`);
+    }
+});
+
 // POST A Response To A Prompt
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authenticateToken, async (req, res, next) => {
     try {

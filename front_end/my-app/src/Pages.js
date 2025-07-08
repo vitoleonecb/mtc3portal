@@ -1,3 +1,4 @@
+
 import { MenuBarIcon, DragAndDropKey, ProgressBar } from './Icons.js';
 import { ModuleHeader } from './ModuleHeader.js'
 import { OpenResponse, 
@@ -21,7 +22,7 @@ import { OpenResponse,
     CreateButton,
     DropDown } from './Buttons.js';
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
-import React, { useRef, useState, useEffect, useContext } from 'react';
+import React, { useRef, useState, useEffect, useContext, createContext } from 'react';
 import axios from 'axios';
 import { Link, useParams, useNavigate, Outlet, useLocation, useMatch } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -36,6 +37,8 @@ import {
     CreateScriptNotationTemplate,
     CreateDropDownTemplate
   } from './CreateForms';
+
+const ProgressContext = createContext();
 
 export function DocumentationPage() {
     return (
@@ -133,7 +136,7 @@ export function LogInPage() {
             <Heading1 text="Log In" style="center"/>
             <form className="logInForm" onSubmit={handleSubmit}>
                 <Heading2 text="Email"/>
-                <input onChange={handleEmailChange} value={email} className="emailInput" type="email">
+                <input onChange={handleEmailChange} value={email} className="textInput" type="email">
                 </input>
                 <Heading2 text="Password"/>
                 <input onChange={handlePasswordChange} value={password} className="passwordInput" type="password">
@@ -517,7 +520,10 @@ export function WorkshopPromptsPage() {
     const accessToken = localStorage.getItem('accessToken');
     const [promptsList, setPromptsList] = useState([]);
     const [promptIndex, setPromptIndex] = useState(0);
+    const [promptMode, setPromptMode] = useState('edit');
     const [progress, setProgress] = useState(0);
+    const [responseData, setResponseData] = useState(null);
+    const setProgressState = useContext(ProgressContext);
     const [endOfPrompts, setEndOfPrompts] = useState(false);
     const [currentResponse, setCurrentResponse] = useState(null);
     const [maxProgress, setMaxProgress] = useState(0);
@@ -597,6 +603,51 @@ export function WorkshopPromptsPage() {
             setCurrentResponse(initialResponse);
         }
     }, [promptsList, promptIndex]);
+
+    useEffect(() => {
+        const fetchProgress = async () => {
+            try {
+                const response = await axios.get(
+                    `${process.env.REACT_APP_API_BASE}/workshops/modules/${moduleId}/progress`,
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${accessToken}`
+                        }
+                    }
+                );
+                setProgressState({ current: response.data.count, max: promptsList.length });
+            } catch (error) {
+                console.error('Failed to fetch progress:', error);
+            }
+        };
+    
+        fetchProgress();
+    }, [promptIndex, promptsList.length]);
+
+    useEffect(() => {
+        const fetchResponse = async () => {
+            try {
+                const response = await axios.get(
+                    `${process.env.REACT_APP_API_BASE}/workshops/prompts/${promptId}/response`,
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${accessToken}`
+                        }
+                    }
+                )
+                if (response.data.response) {
+                    setPromptMode('view');
+                    setResponseData(response.data.response);
+                }
+            } catch (error) {
+                console.log(`Front End Error: ${error}`);
+            }
+        }
+
+        fetchResponse();
+    }, [promptId]);
 
     const handleResponseChange = (index = 0, questionText = '', value = '', selected=false, keyName = '') => {
         switch (promptsList[promptIndex].prompt_template_id) {
@@ -707,19 +758,19 @@ export function WorkshopPromptsPage() {
 
         switch (prompt.prompt_template_id) {
             case 1:
-                return <MultipleChoiceTemplate onUpdateResponse={handleResponseChange} multipleChoiceOptions={prompt.workshop_prompt_options} />;
+                return <MultipleChoiceTemplate responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} multipleChoiceOptions={prompt.workshop_prompt_options} />;
             case 3:
-                return <CheckListTemplate onUpdateResponse={handleResponseChange} checkListOptions={prompt.workshop_prompt_options} />;
+                return <CheckListTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} checkListOptions={prompt.workshop_prompt_options} />;
             case 4:
-                return <ShortResponseTemplate onUpdateResponse={handleResponseChange} shortResponseOptions={prompt.workshop_prompt_options} />;
+                return <ShortResponseTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} shortResponseOptions={prompt.workshop_prompt_options} />;
             case 6:
-                return <DragAndDropTemplate onInitialPositions={setCurrentResponse} onUpdateResponse={handleResponseChange} dragOptions={prompt.workshop_prompt_options} />;
+                return <DragAndDropTemplate  responseData={responseData} disabled={promptMode === 'view'} onInitialPositions={setCurrentResponse} onUpdateResponse={handleResponseChange} dragOptions={prompt.workshop_prompt_options} />;
             case 7:
-                return <SampleRaterTemplate onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
+                return <SampleRaterTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
             case 8:
-                return <ScriptNotationTemplate onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
+                return <ScriptNotationTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
             case 9:
-                return <DropDownTemplate onUpdateResponse={handleResponseChange} dropDownOptions={prompt.workshop_prompt_options} />;
+                return <DropDownTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} dropDownOptions={prompt.workshop_prompt_options} />;
             default:
                 return <div>Unknown Template</div>;
         }
@@ -755,6 +806,7 @@ export function WorkshopPromptsPage() {
 };
 export function Root() {
     const [submitHandler, setSubmitHandler] = useState(null);
+    const [progressState, setProgressState] = useState({ current: 0, max: 0 });
     const { pathname } = useLocation();
 
     const isEditor = pathname.includes('prompts/edit');
@@ -765,11 +817,13 @@ export function Root() {
             <div className='menuBarIconContainer' style={{ display: 'grid', gridTemplateColumns: isEditor ? '1fr 1fr' : isPromptReader ? '1fr 5fr' : 'auto' }}>
                 <MenuBarIcon/>
 		        {isEditor && <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />}
-                {isPromptReader && <ProgressBar/>}
+                {isPromptReader && <ProgressBar current={progressState.current} max={progressState.max}/>}
             </div>
             <div className="body">
 	    	<EditorSubmitContext.Provider value={setSubmitHandler}>
-                	<Outlet/>
+			<ProgressContext.Provider value={setProgressState}>
+                		<Outlet/>
+			</ProgressContext.Provider>
 		    </EditorSubmitContext.Provider>
             </div>
         </>
@@ -832,33 +886,33 @@ export function HomePage() {
     )
 }
 
-export function MultipleChoiceTemplate({ multipleChoiceOptions, onUpdateResponse }) {
+export function MultipleChoiceTemplate({ multipleChoiceOptions, onUpdateResponse, responseData, disabled }) {
     return (
         <>
             {multipleChoiceOptions.multipleChoicePrompts.map((promptData, index) => (
                 <div key={index}>
                     <Heading1 text={promptData.questionText} />
-                    <MultipleChoiceGroup onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options} />
+                    <MultipleChoiceGroup responseData={responseData} disabled={disabled} onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options} />
                 </div>
             ))}
         </>
     );
 }
 
-export function DropDownTemplate({ dropDownOptions, onUpdateResponse}) {
+export function DropDownTemplate({ responseData, dropDownOptions, onUpdateResponse, disabled}) {
     return (
         <>
             {dropDownOptions.dropDownPrompts.map((promptData, index) => (
                 <div className="DropdownPromptContainer" key={index}>
                     <h1 class="Heading1" style={{ marginBottom: '20px' }}>{promptData.questionText}</h1>
-                    <DropDown onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options}/>
+                    <DropDown disabled={disabled} responseData={responseData?.[index] ?? {}} onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options}/>
                 </div>
             ))}
         </>
     )
 }
 
-export function CheckListTemplate({ checkListOptions, onUpdateResponse }) {
+export function CheckListTemplate({ responseData, checkListOptions, onUpdateResponse, disabled }) {
 
     return (
         <>
@@ -866,7 +920,7 @@ export function CheckListTemplate({ checkListOptions, onUpdateResponse }) {
                 <div key={index}>
                     <Heading1 text={promptData.questionText} />
                     {promptData.options.map((option, optIndex) => (
-                        <CheckBoxButton onChange={(selected) => onUpdateResponse(index, promptData.questionText, option, selected)} key={optIndex} optionText={option} />
+                        <CheckBoxButton disabled={disabled} responseData={responseData?.[index]?.['options']?.[optIndex]?.selected ?? false} onChange={(selected) => onUpdateResponse(index, promptData.questionText, option, selected)} key={optIndex} optionText={option} />
                     ))}
                 </div>
             ))}
@@ -874,24 +928,24 @@ export function CheckListTemplate({ checkListOptions, onUpdateResponse }) {
     );
 }
 
-export function ScriptNotationTemplate({reference, onUpdateResponse}) {
+export function ScriptNotationTemplate({responseData, disabled, reference, onUpdateResponse}) {
     return (
         <>
             <PromptInstruction question="Annotate the following script"/>
             <ScriptSampleNotate sample={reference} />
-            <OpenResponse onChange={(value) => onUpdateResponse(undefined, undefined, value)} />
+            <OpenResponse responseData={responseData?.['notationResponse']} disabled={disabled} onChange={(value) => onUpdateResponse(undefined, undefined, value)} />
             <ModuleNavigator />  
         </>
     )
 }
 
-export function SampleRaterTemplate({reference, onUpdateResponse}) {
+export function SampleRaterTemplate({responseData, disabled, reference, onUpdateResponse}) {
     
     return (
         <>
             <PromptInstruction question="Rate the following"/>
             <ScriptSampleRate sample={reference} />
-            <StarRater onChange={(value) => onUpdateResponse(undefined, undefined, String(value))}/>
+            <StarRater responseData={responseData?.['rating']} disabled={disabled} onChange={(value) => onUpdateResponse(undefined, undefined, String(value))}/>
         </>
     )
 }

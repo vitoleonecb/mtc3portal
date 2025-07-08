@@ -29,75 +29,23 @@ export function MenuBarIcon() {
     const location = useLocation();
     const navigate = useNavigate();
     const isMenuOpen = location.pathname === '/nav';
-
-    const [rectFill, setRectFill] = useState('white');
-    const [lineColor, setLineColor] = useState('black');
-
-    const handleMouseEnter = () => {
-        setRectFill('black');
-        setLineColor('white');
-    };
-
-    const handleMouseLeave = () => {
-        setRectFill('white');
-        setLineColor('black');
-    };
-
+  
     const handleClick = () => {
-        isMenuOpen ? navigate(-1) : navigate('/nav');
+      if (isMenuOpen) {
+        navigate(-1);
+      } else {
+        navigate('/nav');
+      }
     };
-
-    const topLineVariants = {
-        closed: { rotate: 0, y: 0 },
-        open: { rotate: 45, y: 6, x: 2 },
-    };
-
-    const middleLineVariants = {
-        closed: { opacity: 1 },
-        open: { opacity: 0 },
-    };
-
-    const bottomLineVariants = {
-        closed: { rotate: 0, y: 0 },
-        open: { rotate: -45, y: -6, x: -2 },
-    };
-
+  
     return (
-        <svg
-            onClick={handleClick}
-            className="MenuBarIcon"
-            viewBox="0 0 52 52" // More breathing room
-            width="3rem" height="3rem"
-            xmlns="http://www.w3.org/2000/svg"
-            preserveAspectRatio="xMidYMid meet"
-        >
-        <defs>
-            <filter id="menuShadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="-2" dy="2" stdDeviation="1" floodColor="#000" floodOpacity="1"/>
-            </filter>
-        </defs>
-            <g onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-                <motion.rect
-                    x="2"
-                    y="2"
-                    width="36"
-                    height="36"
-                    rx="8"
-                    fill={rectFill}
-                    stroke="black"
-                    strokeWidth="1"
-                    filter="url(#menuShadow)"
-                />
-                <motion.line x1="10" y1="14" x2="30" y2="14" stroke={lineColor} strokeWidth="1"
-                variants={topLineVariants} animate={isMenuOpen ? 'open' : 'closed'} />
-                <motion.line x1="10" y1="20" x2="30" y2="20" stroke={lineColor} strokeWidth="1"
-                variants={middleLineVariants} animate={isMenuOpen ? 'open' : 'closed'} />
-                <motion.line x1="10" y1="26" x2="30" y2="26" stroke={lineColor} strokeWidth="1"
-                variants={bottomLineVariants} animate={isMenuOpen ? 'open' : 'closed'} />
-            </g>
-        </svg>
+      <div className={`menuIcon ${isMenuOpen ? 'open' : ''}`} onClick={handleClick}>
+        <div className="bar top"></div>
+        <div className="bar middle"></div>
+        <div className="bar bottom"></div>
+      </div>
     );
-}
+  }
 
 export function ForwardArrowIcon() {
 
@@ -181,11 +129,11 @@ export function Star({selected, onMouseEnter, onMouseLeave, onClick}) {
     )
 }
 
-export function ProgressBar() {
+export function ProgressBar({current, max}) {
     return (
         <>
             <div className="promptProgressContainer">
-                <progress className="promptProgress" value={20} max="100"></progress>
+                <progress className="promptProgress" value={current} max={max}></progress>
             </div>
         </>
     )
