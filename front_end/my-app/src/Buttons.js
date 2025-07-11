@@ -312,22 +312,24 @@ export function StarRater({ onChange, responseData, disabled }) {
     )
 }
 
-export function ShortResponseArea({ onChange }) {
+export function ShortResponseArea({ onChange, responseData, disabled }) {
     
     const textareaRef = useRef(null);
     const [value, setValue] = useState('');
 
     const handleChange = (e) => {
-        const newValue = e.target.value
-        setValue(newValue);
-        if (onChange) {
-            onChange(newValue);
-        } 
-        const textarea = textareaRef.current;
-        if (textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = textarea.scrollHeight + 'px';
-        }
+        if (!disabled) {
+		const newValue = e.target.value
+        	setValue(newValue);
+        	if (onChange) {
+            		onChange(newValue);
+        	} 
+        	const textarea = textareaRef.current;
+        	if (textarea) {
+        		textarea.style.height = 'auto';
+        		textarea.style.height = textarea.scrollHeight + 'px';
+        	}
+	}
     };
 
     useEffect(() => {
@@ -337,6 +339,13 @@ export function ShortResponseArea({ onChange }) {
         textarea.style.height = textarea.scrollHeight + 'px';
         }
     }, []);
+
+    useEffect(() => {
+	if (responseData) {
+		setValue(responseData);
+		
+	}
+    }, [responseData]);
     
     return (
         <>
@@ -351,10 +360,21 @@ export function ShortResponseArea({ onChange }) {
     )
 }
 
-export function DragAndDropArea({ dragOptions, onInitialPositions }) {
+export function DragAndDropArea({ responseData, disabled, dragOptions, onInitialPositions }) {
     const constraintRef = useRef(null);
     const [positions, setPositions] = useState({});
     const total = dragOptions.options.length;
+
+    useEffect(() => {
+        if (Array.isArray(responseData)) {
+            const initialPositions = {};
+            responseData.forEach(item => {
+                initialPositions[item.keyName] = item.position;
+            });
+            setPositions(initialPositions);
+        }
+    }, [responseData]);
+    
 
     const handlePositionChange = (id, position) => {
         setPositions(prev => {
@@ -384,7 +404,9 @@ export function DragAndDropArea({ dragOptions, onInitialPositions }) {
                     color={limitedColors[index]}
                     dragConstraints={constraintRef}
                     onPositionChange={handlePositionChange}
-                />
+                    defaultPosition={positions[opt.optionName]}
+                    disabled={disabled}
+                />            
             ))}
         </div>
     );
@@ -488,12 +510,14 @@ export function DropDown({ responseData, options, onSelect, reset, onChange, dis
     }, [reset]);
 
     useEffect(() => {
-        const answer = responseData.answer;
-        if (answer !== selectedOption) {
-            setSelectedOption(answer);
-            setDropDownLabel(answer);
-            setIsClicked(false);
-        }
+        if (responseData) {
+		const answer = responseData.answer;
+        	if (answer !== selectedOption) {
+            		setSelectedOption(answer);
+            		setDropDownLabel(answer);
+            		setIsClicked(false);
+        	}
+	}
     }, [responseData]);
     
 

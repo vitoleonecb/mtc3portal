@@ -139,40 +139,50 @@ export function ProgressBar({current, max}) {
     )
 }
 
-export function DragElement({ id, color, dragConstraints, onPositionChange }) {
+export function DragElement({ id, color, dragConstraints, onPositionChange, defaultPosition, disabled }) {
     const ref = useRef(null);
 
     // Get initial position once mounted
     useEffect(() => {
-        const el = ref.current;
-        if (el && onPositionChange) {
-            const rect = el.getBoundingClientRect();
-            const containerRect = el.offsetParent.getBoundingClientRect();
-            onPositionChange(id, {
-                x: rect.left - containerRect.left,
-                y: rect.top - containerRect.top,
-            });
+        if (!disabled) {
+          const el = ref.current;
+          if (el && onPositionChange) {
+              const rect = el.getBoundingClientRect();
+              const containerRect = el.offsetParent.getBoundingClientRect();
+              onPositionChange(id, {
+                  x: rect.left - containerRect.left,
+                  y: rect.top - containerRect.top,
+              });
+          }
         }
-    }, []);
+        
+    }, [disabled]);
 
     const handleDragEnd = () => {
-        const el = ref.current;
-        if (el && onPositionChange) {
-            const rect = el.getBoundingClientRect();
-            const containerRect = el.offsetParent.getBoundingClientRect();
-            onPositionChange(id, {
-                x: Math.round(rect.left - containerRect.left),
-                y: Math.round(rect.top - containerRect.top),
-            });
+        if (!disabled) {
+          const el = ref.current;
+          if (el && onPositionChange) {
+              const rect = el.getBoundingClientRect();
+              const containerRect = el.offsetParent.getBoundingClientRect();
+              onPositionChange(id, {
+                  x: Math.round(rect.left - containerRect.left),
+                  y: Math.round(rect.top - containerRect.top),
+              });
+          }
+          
         }
     };
+
+    const positionStyle = disabled && defaultPosition
+      ? { position: 'absolute', left: defaultPosition.x, top: defaultPosition.y }
+      : {};
 
     return (
         <motion.div
             ref={ref}
             className="dragElement"
-            style={{ backgroundColor: color }}
-            drag
+            style={{ backgroundColor: color, ...positionStyle }}
+            drag={!disabled}
             dragMomentum={false}
             inertia={false}
             dragElastic={1}

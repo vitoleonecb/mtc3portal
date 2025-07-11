@@ -24,6 +24,7 @@ import { OpenResponse,
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
 import React, { useRef, useState, useEffect, useContext, createContext } from 'react';
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 import { Link, useParams, useNavigate, Outlet, useLocation, useMatch } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EditorSubmitContext } from './EditorSubmitContext';
@@ -332,10 +333,13 @@ export function WorkshopModules() {
     const [loading, setLoading] = useState(true);
     const [createFormSelected, setCreateFormSelected] = useState(false);
     const [moduleCreateFormData, setModuleCreateFormData] = useState({moduleName: ''});
-    const [moduleCreated, setModuleCreated] =useState(false);
+    const [moduleCreated, setModuleCreated] = useState(false);
     const { workshopId } = useParams();
     const [workshopName, setWorkshopName] = useState('Untitled');
     const accessToken = localStorage.getItem('accessToken');
+    const decodedToken = jwtDecode(accessToken);
+    const userId = decodedToken.user_id;
+    const [isAdmin, setIsAdmin] = useState(false);
     const navigate = useNavigate();
 
     const handleSubmit = async (event) => {
@@ -418,6 +422,23 @@ export function WorkshopModules() {
         }
     }, [moduleCreated]);
 
+    useEffect(() => {
+	const fetchAdminStatus = async () => {
+		try {
+			const response = await axios.get(`${process.env.REACT_APP_API_BASE}/users/${userId}/isadmin`,{
+				headers: {
+                        		'Content-Type': 'application/json',
+                        		'Authorization': `Bearer ${accessToken}`
+                    		}
+			});
+			response.data > 0 && setIsAdmin(true);
+		} catch (error) {
+			console.log(`Server Error: ${error}`);
+		}
+	};
+	fetchAdminStatus();
+    },[userId]);
+
     const completedModulesExists = modules.some((module) => module.workshop_module_status === 'completed');
     const openModulesExists = modules.some((module) => module.workshop_module_status === 'open');
     const pendingModulesExists = modules.some((module) => module.workshop_module_status === 'pending');
@@ -479,22 +500,33 @@ export function WorkshopModules() {
                     ) 
                 ))}
 
-            {pendingModulesExists && (<PendingHeading />)}
-                {modules.map((module) => (
-                    module.workshop_module_status === 'pending' && (
-                        <Link 
-                        to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/edit`} 
-                        className="linkNoUnderLine"
-                        state={{moduleName: module.workshop_module_name, moduleId: module.workshop_module_id}}>
+            {pendingModulesExists && <PendingHeading />}
+	    {modules.map((module) => {
+    		if (module.workshop_module_status !== 'pending') return null;
 
-                            <PendingButton 
-                                moduleName={module.workshop_module_name}
-                                isAdmin={true}
-                            />
-
-                        </Link>
-                    )
-                ))}
+    		return isAdmin ? (
+        		<Link
+            		key={module.workshop_module_id}
+            		to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/edit`}
+            		className="linkNoUnderLine"
+            		state={{
+                		moduleName: module.workshop_module_name,
+                		moduleId: module.workshop_module_id
+    			}}
+        		>
+            		<PendingButton
+                	moduleName={module.workshop_module_name}
+                	isAdmin={isAdmin}
+            		/>
+        		</Link>
+    		) : (
+        		<PendingButton
+            		key={module.workshop_module_id}
+            		moduleName={module.workshop_module_name}
+            		isAdmin={isAdmin}
+        		/>
+    		);
+		})}
 
             <CreateButton handleClick={handleClick}/>
 
@@ -817,7 +849,7 @@ export function Root() {
             <div className='menuBarIconContainer' style={{ display: 'grid', gridTemplateColumns: isEditor ? '1fr 1fr' : isPromptReader ? '1fr 5fr' : 'auto' }}>
                 <MenuBarIcon/>
 		        {isEditor && <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />}
-                {isPromptReader && <ProgressBar current={progressState.current} max={progressState.max}/>}
+                {isPromptReader && !isEditor && <ProgressBar current={progressState.current} max={progressState.max}/>}
             </div>
             <div className="body">
 	    	<EditorSubmitContext.Provider value={setSubmitHandler}>
@@ -950,24 +982,24 @@ export function SampleRaterTemplate({responseData, disabled, reference, onUpdate
     )
 }
 
-export function ShortResponseTemplate({shortResponseOptions, onUpdateResponse}) {
+export function ShortResponseTemplate({responseData, disabled, shortResponseOptions, onUpdateResponse}) {
     
     return (
         <>
             {shortResponseOptions.questions.map((option, index) => (
                 <div key={index}>
                     <Heading2 text={option.questionText}/>
-                    <ShortResponseArea onChange={(value) => onUpdateResponse(index, option.questionText, value)}/>
+                    <ShortResponseArea responseData={responseData?.[index]?.['answer'] ?? ''} disabled={disabled} onChange={(value) => onUpdateResponse(index, option.questionText, value)}/>
                 </div>
             ))}
         </>
     )
 }
 
-export function DragAndDropTemplate({ dragOptions, onUpdateResponse, onInitialPositions }) {
+export function DragAndDropTemplate({ dragOptions, onInitialPositions, onUpdateResponse, disabled, responseData }) {
     return (
         <>
-            <DragAndDropArea dragOptions={dragOptions} onInitialPositions={onInitialPositions} />
+            <DragAndDropArea responseData={responseData} onUpdateResponse={onUpdateResponse} disabled={disabled} dragOptions={dragOptions} onInitialPositions={onInitialPositions} />
             <DragAndDropKey dragOptions={dragOptions} />
         </>
     );

@@ -4,6 +4,19 @@ import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 
 export const usersRouter = express.Router();
 
+usersRouter.get('/:id/isadmin', authenticateToken, async (req, res, next) => {
+		const { id } = req.params;
+		try {
+			const [rows] = await connection.query('SELECT COUNT(*) AS admin_count FROM users WHERE user_type = "admin" AND user_id = ?',[id]);
+			console.log(rows);
+			res.status(200).json(rows[0].admin_count);
+		} catch (error) {
+			res.status(500).send(`Internal Server Error: ${error}`);
+		}
+	}
+	
+);
+
 usersRouter.get('', authenticateToken, async (req, res, next) => {
     try{
         const [results] = await connection.query('SELECT * FROM users'); 

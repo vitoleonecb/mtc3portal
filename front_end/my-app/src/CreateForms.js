@@ -294,7 +294,7 @@ export function CreateDragAndDropTemplate({ savedData, onChange }) {
         <>
             {options.map((option, optionIndex) => (
                 <input
-                    value={option}
+                    value={option.optionName}
                     onChange={(e) => handleOptionChange(optionIndex, e.target.value)}
                     className='textInput' 
                     placeholder='Enter a name' 
