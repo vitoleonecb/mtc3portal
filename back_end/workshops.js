@@ -54,12 +54,12 @@ workshopsRouter.get('/:workshopid/modulesprogress', authenticateToken, async (re
 
 	try {
 		const [promptCounts] = await connection.query(
-			'SELECT wm.workshop_module_id AS module_id, COUNT(*) AS prompt_count FROM workshop_modules wm JOIN workshop_prompts wp ON(wm.workshop_module_id = wp.workshop_module_id) WHERE wm.workshop_id = ? GROUP BY wm.workshop_module_id',
+			'SELECT wm.workshop_module_id AS module_id, COUNT(*) AS prompt_count FROM workshop_modules wm JOIN workshop_prompts wp ON(wm.workshop_module_id = wp.workshop_module_id) WHERE wm.workshop_id = ? AND wm.workshop_module_status = "open" GROUP BY wm.workshop_module_id',
 			[workshopid]
 		);
 		
 		const [responseCounts] = await connection.query(
-			'SELECT wm.workshop_module_id AS module_id, COUNT(*) AS response_count FROM workshop_responses wr JOIN workshop_prompts wp ON (wr.workshop_prompt_id = wp.workshop_prompt_id) JOIN workshop_modules wm ON (wp.workshop_module_id = wm.workshop_module_id) WHERE wr.user_id = ? AND wm.workshop_id = ? GROUP BY wm.workshop_module_id',
+			'SELECT wm.workshop_module_id AS module_id, COUNT(*) AS response_count FROM workshop_responses wr JOIN workshop_prompts wp ON (wr.workshop_prompt_id = wp.workshop_prompt_id) JOIN workshop_modules wm ON (wp.workshop_module_id = wm.workshop_module_id) WHERE wr.user_id = ? AND wm.workshop_id = ?  AND wm.workshop_module_status = "open" GROUP BY wm.workshop_module_id',
 			[user_id, workshopid]
 		);
 

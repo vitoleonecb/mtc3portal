@@ -35,10 +35,10 @@ export function FinalPrompt() {
 	)
 }
 
-export function ModuleEdge({nextModulePath, currentWorkshopPath, remainingModules, moduleFinished}) {
+export function ModuleEdge({nextModulePath, currentWorkshopPath, remainingModules, RSVPEarned}) {
 	return (
 		<>
-			{moduleFinished ? (
+			{RSVPEarned === false ? (
                 <div className="EdgeBox">
                     <Heading1 text="Module Complete!" style={{gridColumn: "1 / -1", gridRow: "1"}}/>
                     <Heading2 text={`${remainingModules} module${remainingModules !== 1 ? 's' : ''} left to RSVP.`} style={{ gridColumn: "1 / -1", gridRow: "2" }} />
@@ -49,7 +49,7 @@ export function ModuleEdge({nextModulePath, currentWorkshopPath, remainingModule
                 <div className="EdgeBox">
                     <Heading1 text="Module Complete!" style={{gridColumn: "1 / -1", gridRow: "1"}}/>
                     <Heading2 text={"Your RSVP is ready."} style={{ gridColumn: "1 / -1", gridRow: "2" }} />
-                    {/* <NextButton to={} text="RSVP" style={{gridColumn: "1", gridRow: "3"}}/> */}
+                    <NextButton text="RSVP" style={{gridColumn: "1", gridRow: "3"}}/>
                     <NextButton to={currentWorkshopPath} text="Leave" style={{gridColumn: "2", gridRow: "3"}}/>
 			    </div>
             )}

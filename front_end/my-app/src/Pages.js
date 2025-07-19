@@ -585,6 +585,7 @@ export function WorkshopPromptsPage() {
     const [remainingModules, setRemainingModules] = useState(0);
     const [promptIndex, setPromptIndex] = useState(0);
     const [promptMode, setPromptMode] = useState('edit');
+    const [RSVPEarned, setRSVPEarned] = useState(false);
     const [nextModulePath, setNextModulePath] = useState(null);
     const [responseData, setResponseData] = useState(null);
     const { state: progressState, setState: setProgressState } = useContext(ProgressContext);
@@ -761,6 +762,7 @@ export function WorkshopPromptsPage() {
                 } else {
                     // No unfinished modules left
                     setNextModulePath(null);
+                    setRSVPEarned(true);
                 }
 
             } catch (error) {
@@ -843,32 +845,39 @@ export function WorkshopPromptsPage() {
         
 	// Add a try catch here
 
-	if (!currentResponse || currentResponse.length === 0) {
-            console.log('Nothing to submit');
-            return;
-        }
+        if (!currentResponse || currentResponse.length === 0) {
+                console.log('Nothing to submit');
+                return false;
+            }
 
-	const response = await axios.post(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}/response`,
-	{ workshop_response_content: JSON.stringify(currentResponse) },
-	{ headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${accessToken}`}}
-	);
-	
-	if (response.status === 200) {
-		setPromptMode('view');
-		setProgressState(prev => ({current: prev.current + 1, max: prev.max}));
-	} else {
-		console.warn(`Unexpected status code: ${response.status}`);
-	}
+        try {    
+            const response = await axios.post(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}/response`,
+            { workshop_response_content: JSON.stringify(currentResponse) },
+            { headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${accessToken}`}}
+            );
+            
+            if (response.status === 200) {
+                setPromptMode('view');
+                setProgressState(prev => ({current: prev.current + 1, max: prev.max}));
+                return true;
+            } else {
+                console.warn(`Unexpected status code: ${response.status}`);
+                return false;
+            }
+        } catch (error) {
+            console.error(`Submission Failed: ${error}`);
+            return false;
+        }
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (promptIndex < promptsList.length - 1) {
             const nextPromptId = promptsList[promptIndex + 1].workshop_prompt_id;
-            handleSubmit();
+            await handleSubmit();
             navigate(`/workshops/${workshopId}/modules/${moduleId}/prompts/${nextPromptId}`);
         } else {
-            handleSubmit();
-            setEndOfPrompts(true);
+            const success = await handleSubmit();
+            if (success) setEndOfPrompts(true);
         }
     };
 
@@ -914,6 +923,7 @@ export function WorkshopPromptsPage() {
                     currentWorkshopPath={`/workshops/${workshopId}/modules`}
                     nextModulePath={nextModulePath}
                     remainingModules={remainingModules}
+                    RSVPEarned={RSVPEarned}
                 />
             </>
         )
