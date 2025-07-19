@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect }from 'react';
 import { DragElement, ArrowSVG, Star, BackArrowSVG, CheckBox, ForwardArrowIcon } from './Icons';
 import classNames from 'classnames';
 import { motion } from 'framer-motion';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
 
 export function CompleteButton({ moduleName }) {
     return (
@@ -45,12 +45,12 @@ export function PendingButton({ moduleName, isAdmin }) {
     );
 }
 
-export function OpenButton({ moduleName, progressValue }) {
+export function OpenButton({ moduleName, progressValue, maxValue }) {
     return (
     <button className="openButton">
         <span id="buttonText">{moduleName}</span>
         <div className="progressContainer">
-            <progress className="openProgress" value={progressValue} max="100"></progress>
+            <progress className="openProgress" value={progressValue} max={maxValue}></progress>
         </div>
         <span id="buttonTimeText">72 hrs</span>
         <ArrowSVG />
@@ -102,8 +102,8 @@ export function OpenResponse({ onChange, responseData, disabled }) {
     )
 }
 
-export function ModuleNavigator({submitHandler, backActive, backClick, nextClick, isReader=false}) {
-
+export function ModuleNavigator({submitHandler, backActive, backClick, nextClick, isReader=false, promptMode}) {
+    console.log(`Prompt Mode: ${promptMode}`);
     return (
         <>
             <div className='moduleNavigatorContainer'>
@@ -112,11 +112,13 @@ export function ModuleNavigator({submitHandler, backActive, backClick, nextClick
                         <BackArrowSVG />
                     </button>
                 </div>
-                <button className='nextButton' onClick={() => {
-                    console.log('Next Button Clicked');
-                    isReader ? submitHandler() : nextClick();
+                <button className='nextButton' onClick={async () => {
+                    if (isReader && promptMode === 'edit') { 
+                        await submitHandler();
+                    }
+                    nextClick();
                 }}>
-                    {isReader ? 'Submit' : <ArrowSVG/>}
+                    {(isReader && promptMode ==='edit') ? 'Submit' : <ArrowSVG/>}
                 </button>
             </div>
         </>
@@ -412,10 +414,18 @@ export function DragAndDropArea({ responseData, disabled, dragOptions, onInitial
     );
 }
 
-export function NextButton({ onClick, text = "Next" }) {
+export function NextButton({ onClick, text = "Next", style= {}, to=""}) {
+    
+    const navigate = useNavigate();
+
+    const handleClick = (e) => {
+        if (onClick) onClick(e);
+        if (to) navigate(to) 
+    }
+    
     return (
-        <div className="logInButtonContainer">
-            <button onClick={ onClick } className="logInButton">{text}</button>
+        <div style={style} className="logInButtonContainer">
+            <button onClick={handleClick} className="logInButton">{text}</button>
         </div>
     );
 }
@@ -483,7 +493,7 @@ export function MainNavCard({color, text, link}) {
     )
 }
 
-export function DropDown({ responseData, options, onSelect, reset, onChange, disabled}) {
+export function DropDown({ promptMode, responseData, options, onSelect, reset, onChange, disabled}) {
     
     const [isClicked, setIsClicked] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
@@ -510,7 +520,7 @@ export function DropDown({ responseData, options, onSelect, reset, onChange, dis
     }, [reset]);
 
     useEffect(() => {
-        if (responseData) {
+        if (promptMode === 'view' && responseData?.answer) {
 		const answer = responseData.answer;
         	if (answer !== selectedOption) {
             		setSelectedOption(answer);
@@ -518,8 +528,7 @@ export function DropDown({ responseData, options, onSelect, reset, onChange, dis
             		setIsClicked(false);
         	}
 	}
-    }, [responseData]);
-    
+    }, [responseData, promptMode, selectedOption]);
 
     const liClass = `dropDownOption${disabled ? ' no_hover': ''}`;
 

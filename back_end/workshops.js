@@ -44,7 +44,43 @@ workshopsRouter.get('/:workshopid/modules', authenticateToken, async (req, res, 
     }
 });
 
-// GET All Prompts Inside Modules
+// GET Progress for Modules Inside Workshop
+workshopsRouter.get('/:workshopid/modulesprogress', authenticateToken, async (req, res, next) => {
+	const { workshopid } = req.params;
+
+	const user_id = req.user.user_id;
+
+	console.log(`user id: ${user_id} workshop_id: ${workshopid}`);
+
+	try {
+		const [promptCounts] = await connection.query(
+			'SELECT wm.workshop_module_id AS module_id, COUNT(*) AS prompt_count FROM workshop_modules wm JOIN workshop_prompts wp ON(wm.workshop_module_id = wp.workshop_module_id) WHERE wm.workshop_id = ? GROUP BY wm.workshop_module_id',
+			[workshopid]
+		);
+		
+		const [responseCounts] = await connection.query(
+			'SELECT wm.workshop_module_id AS module_id, COUNT(*) AS response_count FROM workshop_responses wr JOIN workshop_prompts wp ON (wr.workshop_prompt_id = wp.workshop_prompt_id) JOIN workshop_modules wm ON (wp.workshop_module_id = wm.workshop_module_id) WHERE wr.user_id = ? AND wm.workshop_id = ? GROUP BY wm.workshop_module_id',
+			[user_id, workshopid]
+		);
+
+		const responseMap = new Map();
+		responseCounts.forEach(({module_id, response_count}) => {
+			responseMap.set(module_id, response_count);
+		});
+
+		const progressData = promptCounts.map(({ module_id, prompt_count }) => ({
+				module_id,
+				prompt_count,
+				response_count: responseMap.get(module_id) || 0
+		}));	
+		res.json(progressData);
+	} catch (error) {
+		console.log(`Error: ${error}`);
+		res.status(500).json({error: `Internal Server Error: ${error}`});
+	}
+});
+
+// ET All Prompts Inside Modules
 workshopsRouter.get('/:workshopid/modules/:moduleid/prompts', authenticateToken, async(req, res, next) => {
     try{
         const { moduleid } = req.params;
@@ -364,7 +400,8 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/response'
         const { promptid } = req.params;
         const { workshop_response_content } = req.body;
         const  user_id = req.user.user_id;
-        const response = await connection.query('INSERT INTO workshop_responses (user_id, workshop_prompt_id, workshop_response_content) VALUES (?, ?, ?)',[user_id,promptid,workshop_response_content])
+        const response = await connection.query('INSERT INTO workshop_responses (user_id, workshop_prompt_id, workshop_response_content) VALUES (?, ?, ?)',[user_id,promptid,workshop_response_content]);
+	res.status(200).send('Response Submitted Successfully');
     } catch (error) {
         res.status(500).send(`Server Error: ${error}`);
     }

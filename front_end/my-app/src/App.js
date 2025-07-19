@@ -1,5 +1,4 @@
 import './App.css';
-
 import { RouterProvider, createBrowserRouter, createRoutesFromElements, Route } from "react-router-dom";
 
 import { 
@@ -25,9 +24,9 @@ import {
 } from './Pages';
 
 import { DropDown } from './Buttons';
+import { ProgressProvider } from './Pages'; // or wherever your provider is defined
 
 function App() {
-
   const router = createBrowserRouter(createRoutesFromElements(
     <>
       <Route path="/" element={<Root/>}>
@@ -49,8 +48,10 @@ function App() {
   ));
 
   return (
-    <RouterProvider router={router} />
-    );
+    <ProgressProvider>
+      <RouterProvider router={router} />
+    </ProgressProvider>
+  );
 }
 
 export default App;

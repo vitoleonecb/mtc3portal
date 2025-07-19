@@ -1,6 +1,6 @@
-
 import { MenuBarIcon, DragAndDropKey, ProgressBar } from './Icons.js';
-import { ModuleHeader } from './ModuleHeader.js'
+import { ModuleHeader } from './ModuleHeader.js';
+import { ModuleEdge } from './EdgePages.js';
 import { OpenResponse, 
     ScriptSampleNotate, 
     ScriptSampleRate, 
@@ -39,7 +39,20 @@ import {
     CreateDropDownTemplate
   } from './CreateForms';
 
-const ProgressContext = createContext();
+export const ProgressContext = createContext({
+    state: { current: 0, max: 0 },
+    setState: () => {}
+});
+
+export function ProgressProvider({ children }) {
+    const [state, setState] = useState({ current: 0, max: 0 });
+  
+    return (
+      <ProgressContext.Provider value={{ state, setState }}>
+        {children}
+      </ProgressContext.Provider>
+    );
+  }
 
 export function DocumentationPage() {
     return (
@@ -134,7 +147,7 @@ export function LogInPage() {
 
     return (
         <>
-            <Heading1 text="Log In" style="center"/>
+            <Heading1 text="Log In" style={{ textAlign: "center" }}/>
             <form className="logInForm" onSubmit={handleSubmit}>
                 <Heading2 text="Email"/>
                 <input onChange={handleEmailChange} value={email} className="textInput" type="email">
@@ -339,7 +352,9 @@ export function WorkshopModules() {
     const accessToken = localStorage.getItem('accessToken');
     const decodedToken = jwtDecode(accessToken);
     const userId = decodedToken.user_id;
+    const location = useLocation();
     const [isAdmin, setIsAdmin] = useState(false);
+    const [progressData, setProgressData] = useState([]);
     const navigate = useNavigate();
 
     const handleSubmit = async (event) => {
@@ -347,7 +362,7 @@ export function WorkshopModules() {
 
             const response = await axios.post(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`,
             {workshop_module_name : moduleCreateFormData.moduleName},
-            { headers: {'Content-Type': 'application/json', 'Authorization':`BEARER ${accessToken}`}});
+            { headers: {'Content-Type': 'application/json', 'Authorization':`Bearer ${accessToken}`}});
 
             console.log(`New Module: ${moduleCreateFormData.moduleName} created for Workshop: ${workshopName}`);
             
@@ -375,52 +390,58 @@ export function WorkshopModules() {
     useEffect(() => {
         const controller = new AbortController();
 
-        const fetchModules = async () => {
+        const fetchModulesAndProgress = async () => {
             try {
-                
-                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`, {
+                const [modulesRes, workshopRes] = await Promise.all([
+                    axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        signal: controller.signal
+                    }),
+                    axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        signal: controller.signal
+                    })
+                ]);
+    
+                const progressRes = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modulesprogress`, {
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `BEARER ${accessToken}`
+                        'Authorization': `Bearer ${accessToken}`
                     },
                     signal: controller.signal
                 });
-
-                const workshopResponse = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `BEARER ${accessToken}`
-                    },
-                    signal: controller.signal
-                });
-
-                setWorkshopName(`${workshopResponse.data[0].workshop_name} Modules`);
-                setModules(response.data);
-                const responseData = JSON.stringify(response.data, null, 2);
-                const workshopResponseData = JSON.stringify(workshopResponse.data, null, 2);
-
-                console.log(`Axios Response: ${responseData}`);
-                console.log(`Axios Response: ${workshopResponseData}`);
-                
+    
+                setModules(modulesRes.data);
+                setWorkshopName(`${workshopRes.data[0].workshop_name} Modules`);
+                setProgressData(progressRes.data);
+    
+                console.log(`Modules Response: ${JSON.stringify(modulesRes.data, null, 2)}`);
+                console.log(`Workshop Name: ${JSON.stringify(workshopRes.data, null, 2)}`);
+                console.log(`Progress Data: ${JSON.stringify(progressRes.data, null, 2)}`);
+    
             } catch (error) {
-                if(axios.isCancel(error)) {
+                if (axios.isCancel(error)) {
                     console.log('Axios Request Was Aborted');
                     return;
                 }
                 console.error(`Front End Error Fetching Data: ${error}`);
-                setLoading(false);
             } finally {
                 setLoading(false);
             }
         };
-
-        fetchModules();
+    
+        fetchModulesAndProgress();
 
         return () => {
             console.log('Clenup: Aborting Axios Request');
             controller.abort();
         }
-    }, [moduleCreated]);
+    }, [moduleCreated, location.pathname]);
 
     useEffect(() => {
 	const fetchAdminStatus = async () => {
@@ -447,7 +468,7 @@ export function WorkshopModules() {
         return <div>loading...</div>
     }
 
-    if (completedModulesExists === false & openModulesExists === false & pendingModulesExists === false) {
+    if (completedModulesExists === false && openModulesExists === false && pendingModulesExists === false) {
         return (
         <>
             <Heading1 text={workshopName}/>
@@ -475,21 +496,31 @@ export function WorkshopModules() {
             
             <Heading1 text={workshopName}/>
 
-            {openModulesExists && (<OpenHeading />)}
-                {modules.map((module) => (
-                    module.workshop_module_status === 'open' && (
-                        <Link 
-                        to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`} 
-                        className="linkNoUnderLine"
-                        >
-                            <OpenButton
-                                progressValue={module.workshop_module_progress} 
-                                moduleName={module.workshop_module_name}
-                            />
-                        </Link>    
-                            
-                    ) 
-                ))}
+            {openModulesExists && (
+                <>
+                    <OpenHeading />
+                    {modules.map((module) => {
+                        if (module.workshop_module_status !== 'open') return null;
+
+                        const progress = progressData.find(p => p.module_id === module.workshop_module_id);
+                        const promptCount = progress?.prompt_count ?? 0;
+                        const responseCount = progress?.response_count ?? 0;
+
+                        return (
+                            <Link
+                                to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`}
+                                className="linkNoUnderLine"
+                            >
+                                <OpenButton
+                                    moduleName={module.workshop_module_name}
+                                    progressValue={responseCount}
+                                    maxValue={promptCount}
+                                />
+                            </Link>
+                        );
+                    })}
+                </>
+            )}
 
             {completedModulesExists && (<Completedheading />)}
                 {modules.map((module) => (
@@ -551,14 +582,15 @@ export function WorkshopPromptsPage() {
     const { workshopId, moduleId, promptId } = useParams();
     const accessToken = localStorage.getItem('accessToken');
     const [promptsList, setPromptsList] = useState([]);
+    const [remainingModules, setRemainingModules] = useState(0);
     const [promptIndex, setPromptIndex] = useState(0);
     const [promptMode, setPromptMode] = useState('edit');
-    const [progress, setProgress] = useState(0);
+    const [nextModulePath, setNextModulePath] = useState(null);
     const [responseData, setResponseData] = useState(null);
-    const setProgressState = useContext(ProgressContext);
+    const { state: progressState, setState: setProgressState } = useContext(ProgressContext);
     const [endOfPrompts, setEndOfPrompts] = useState(false);
+    const [moduleComplete, setModuleComplete] = useState(false);
     const [currentResponse, setCurrentResponse] = useState(null);
-    const [maxProgress, setMaxProgress] = useState(0);
     const [formData, setFormData] = useState();
     const navigate = useNavigate();
 
@@ -658,6 +690,12 @@ export function WorkshopPromptsPage() {
     }, [promptIndex, promptsList.length]);
 
     useEffect(() => {
+        if (promptsList.length > 0 && progressState?.current != null) {
+            setModuleComplete(progressState.current === promptsList.length);
+        }
+    }, [promptsList.length, progressState]);
+
+    useEffect(() => {
         const fetchResponse = async () => {
             try {
                 const response = await axios.get(
@@ -672,14 +710,70 @@ export function WorkshopPromptsPage() {
                 if (response.data.response) {
                     setPromptMode('view');
                     setResponseData(response.data.response);
-                }
+                } else {
+			setPromptMode('edit');
+			setResponseData(null);
+		}
             } catch (error) {
                 console.log(`Front End Error: ${error}`);
+		setPromptMode('edit');
+		setResponseData(null);
             }
         }
 
         fetchResponse();
     }, [promptId]);
+
+    useEffect(() => {
+        if (!endOfPrompts) return;
+
+        const fetchNextUnfinished = async () => {
+            try {
+                const progressRes = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modulesprogress`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+
+                const progressData = progressRes.data;
+                const unfinished = progressData.find(
+                    ({ prompt_count, response_count }) => response_count < prompt_count
+                );
+
+                const unfinishedcount = progressData.filter(
+                    ({ prompt_count, response_count }) => response_count < prompt_count
+                );
+
+                setRemainingModules(unfinishedcount.length);
+
+                if (unfinished) {
+                    const modules = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
+
+                    const moduleData = modules.data;
+                    const moduleMatch = moduleData.find(mod => mod.workshop_module_id === unfinished.module_id);
+
+                    if (moduleMatch?.first_prompt_id) {
+                        setNextModulePath(`/workshops/${workshopId}/modules/${moduleMatch.workshop_module_id}/prompts/${moduleMatch.first_prompt_id}`);
+                    }
+                } else {
+                    // No unfinished modules left
+                    setNextModulePath(null);
+                }
+
+            } catch (error) {
+                console.log(`Server Error: ${error}`);
+            }
+        };
+
+        fetchNextUnfinished();
+    },[endOfPrompts]);
+
+    useEffect(() => {
+        setEndOfPrompts(false);
+      }, [promptId]);
 
     const handleResponseChange = (index = 0, questionText = '', value = '', selected=false, keyName = '') => {
         switch (promptsList[promptIndex].prompt_template_id) {
@@ -746,24 +840,25 @@ export function WorkshopPromptsPage() {
     };
 
     const handleSubmit = async () => {
-        if (!currentResponse || currentResponse.length === 0) {
+        
+	// Add a try catch here
+
+	if (!currentResponse || currentResponse.length === 0) {
             console.log('Nothing to submit');
             return;
         }
 
-	console.log(`Current Response: ${JSON.stringify(currentResponse)}`);
-
-        // Uncomment when ready
-        // await axios.post(
-        //     `${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}/response`,
-        //     { workshop_response_content: currentResponse },
-        //     {
-        //         headers: {
-        //             'Content-Type': 'application/json',
-        //             'Authorization': `BEARER ${accessToken}`
-        //         }
-        //     }
-        // );
+	const response = await axios.post(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}/response`,
+	{ workshop_response_content: JSON.stringify(currentResponse) },
+	{ headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${accessToken}`}}
+	);
+	
+	if (response.status === 200) {
+		setPromptMode('view');
+		setProgressState(prev => ({current: prev.current + 1, max: prev.max}));
+	} else {
+		console.warn(`Unexpected status code: ${response.status}`);
+	}
     };
 
     const handleNext = () => {
@@ -802,18 +897,24 @@ export function WorkshopPromptsPage() {
             case 8:
                 return <ScriptNotationTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
             case 9:
-                return <DropDownTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} dropDownOptions={prompt.workshop_prompt_options} />;
+                return <DropDownTemplate  responseData={responseData} disabled={promptMode === 'view'} promptMode={promptMode} onUpdateResponse={handleResponseChange} dropDownOptions={prompt.workshop_prompt_options} />;
             default:
                 return <div>Unknown Template</div>;
         }
     };
+
+    console.log(`Prompt Mode: ${promptMode}`);
 
     const isFirst = promptIndex === 0;
 
     if (endOfPrompts) {
         return (
             <>
-                <div>that's a wrap!</div>
+                <ModuleEdge 
+                    currentWorkshopPath={`/workshops/${workshopId}/modules`}
+                    nextModulePath={nextModulePath}
+                    remainingModules={remainingModules}
+                />
             </>
         )
     }
@@ -832,35 +933,50 @@ export function WorkshopPromptsPage() {
                 backClick={handleBack}
                 nextClick={handleNext}
                 isReader={true}
+		        promptMode={promptMode}
             />
         </>
     );
 };
+
 export function Root() {
     const [submitHandler, setSubmitHandler] = useState(null);
-    const [progressState, setProgressState] = useState({ current: 0, max: 0 });
     const { pathname } = useLocation();
-
+    const { state: progressState } = useContext(ProgressContext);
+  
     const isEditor = pathname.includes('prompts/edit');
     const isPromptReader = useMatch('workshops/:workshopId/modules/:moduleId/prompts/:promptId');
-
+  
     return (
-        <>
-            <div className='menuBarIconContainer' style={{ display: 'grid', gridTemplateColumns: isEditor ? '1fr 1fr' : isPromptReader ? '1fr 5fr' : 'auto' }}>
-                <MenuBarIcon/>
-		        {isEditor && <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />}
-                {isPromptReader && !isEditor && <ProgressBar current={progressState.current} max={progressState.max}/>}
-            </div>
-            <div className="body">
-	    	<EditorSubmitContext.Provider value={setSubmitHandler}>
-			<ProgressContext.Provider value={setProgressState}>
-                		<Outlet/>
-			</ProgressContext.Provider>
-		    </EditorSubmitContext.Provider>
-            </div>
-        </>
-    )
-}
+      <>
+        <div className="headerBackground"></div>
+        <div
+          className="menuBarIconContainer"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isEditor
+              ? '1fr 1fr'
+              : isPromptReader
+              ? '1fr 5fr'
+              : 'auto'
+          }}
+        >
+          <MenuBarIcon />
+          {isEditor && (
+            <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />
+          )}
+          {isPromptReader && !isEditor && (
+            <ProgressBar current={progressState.current} max={progressState.max} />
+          )}
+        </div>
+        <div className="body">
+          <EditorSubmitContext.Provider value={setSubmitHandler}>
+            <Outlet />
+          </EditorSubmitContext.Provider>
+        </div>
+      </>
+    );
+  }
 
 export function Analytics() {
     return (
@@ -875,14 +991,6 @@ export function Settings() {
     return (
         <>
             
-            
-        </>
-    )
-}
-
-export function Home() {
-    return (
-        <>
             
         </>
     )
@@ -910,10 +1018,12 @@ export function NavPage() {
 export function HomePage() {
     return (
         <>
-            
-            <Heading1 text="Machine Theater Collective" style="center"/>
+            <Heading1 text="Machine Theater Collective" style={{ textAlign: "center" }}/>
             <Heading2 text="A theater company powered by software and your imagination."/>
             <NextButton text="Try Module"/>
+            <Link to="login" className="linkNoUnderLine">
+                <NextButton text="Log In"/>
+            </Link>
         </>
     )
 }
@@ -931,13 +1041,13 @@ export function MultipleChoiceTemplate({ multipleChoiceOptions, onUpdateResponse
     );
 }
 
-export function DropDownTemplate({ responseData, dropDownOptions, onUpdateResponse, disabled}) {
+export function DropDownTemplate({ promptMode, responseData, dropDownOptions, onUpdateResponse, disabled}) {
     return (
         <>
             {dropDownOptions.dropDownPrompts.map((promptData, index) => (
                 <div className="DropdownPromptContainer" key={index}>
                     <h1 class="Heading1" style={{ marginBottom: '20px' }}>{promptData.questionText}</h1>
-                    <DropDown disabled={disabled} responseData={responseData?.[index] ?? {}} onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options}/>
+                    <DropDown promptMode={promptMode} disabled={disabled} responseData={responseData?.[index] ?? {}} onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options}/>
                 </div>
             ))}
         </>

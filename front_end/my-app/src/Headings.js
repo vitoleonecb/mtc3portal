@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 
-export function Heading1({text, style = 'left'}) {
+export function Heading1({text, style = { textAlign: 'left'}}) {
 
     return (
-        <h1 className="Heading1" style={{ textAlign: style}}>{text}</h1>
+        <h1 className="Heading1" style={style}>{text}</h1>
     )
 }
 
-export function Heading2({text = "No Text Provided"}) {
+export function Heading2({text = "No Text Provided", style = {}}) {
     return (
-        <h1 className="Heading2">{text}</h1>
+        <h1 className="Heading2" style={style}>{text}</h1>
     )
 }
 
