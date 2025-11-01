@@ -24,10 +24,12 @@ import { OpenResponse,
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
 import React, { useRef, useState, useEffect, useContext, createContext } from 'react';
 import axios from 'axios';
+import { ResponseProcessor } from './Processing.js'
 import { jwtDecode } from 'jwt-decode';
 import { Link, useParams, useNavigate, Outlet, useLocation, useMatch } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EditorSubmitContext } from './EditorSubmitContext';
+import { MysqlDateInput } from './DateInput.js'
 
 import {
     CreateCheckListTemplate,
@@ -63,9 +65,27 @@ export function DocumentationPage() {
 
 export function WorkshopsPage() {
     
-    const [workshopsList, setWorkshopsList] = useState([]); 
+    const [workshopsList, setWorkshopsList] = useState([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [createFormSelected, setCreateFormSelected] = useState(false);
+    const [date, setDate] = useState('');
+    const [currentStep, setCurrentStep] = useState(0);
+    const [submitting, setSubmitting] = useState(false);
+    const [errorMsg, setErrorMsg] = useState("");
+
+    // State for POST via API
+
+    const [workshopCreateForm, setWorkshopCreateForm] = useState({
+        workshopName : '',
+        workshopDescription : '',
+        workshopTime : '',
+        workshopLocation : '',
+        workshopStyle : ''
+    });
 
     const accessToken = localStorage.getItem('accessToken');
+    const decodedToken = jwtDecode(accessToken);
+    const userId = decodedToken.user_id;
 
     useEffect(() => {
         const fetchWorkshops = async () => {
@@ -73,7 +93,7 @@ export function WorkshopsPage() {
                 const workshopsResponse = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops`, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization' : `BEARER ${accessToken}`
+                    'Authorization' : `Bearer ${accessToken}`
                 }
             });
             console.log(`Workshops Recieved: ${JSON.stringify(workshopsResponse.data)}`);
@@ -87,6 +107,23 @@ export function WorkshopsPage() {
         fetchWorkshops();
     }, []);
 
+    useEffect(() => {
+        const fetchAdminStatus = async () => {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/users/${userId}/isadmin`,{
+                    headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${accessToken}`
+                                }
+                });
+                response.data > 0 && setIsAdmin(true);
+            } catch (error) {
+                console.log(`Server Error: ${error}`);
+            }
+        };
+        fetchAdminStatus();
+        },[userId]);
+
     const formatDate = (datetime) => {
 
         const dateTimeObject = new Date(datetime);
@@ -96,20 +133,229 @@ export function WorkshopsPage() {
         return formattedDate;
     };
 
+    const handleClick = () => {
+
+        setCreateFormSelected(true);
+        
+    }
+
+    function handleFieldChange(e) {
+        const { name, value } = e.target;
+        setWorkshopCreateForm(prev => ({ ...prev, [name]: value }));
+      }
+
+    function handleDateChange(nextValue) {
+        setWorkshopCreateForm(prev => ({ ...prev, workshopTime: nextValue }));
+      }
+
+    function handleStyleSelect(option) {
+        setWorkshopCreateForm(prev => ({ ...prev, workshopStyle: option }));
+      }
+    
+    function isStepValid(stepIndex) {
+        switch (stepIndex) {
+            case 0: return workshopCreateForm.workshopName.trim().length > 0;
+            case 1: return workshopCreateForm.workshopDescription.trim().length > 0;
+            case 2: return workshopCreateForm.workshopTime?.trim().length > 0;
+            case 3: return workshopCreateForm.workshopLocation.trim().length > 0;
+            case 4: return workshopCreateForm.workshopStyle.trim().length > 0;
+            default: return true;
+        }
+    }
+
+    function next() {
+        if (!isStepValid(currentStep)) return;
+            setCurrentStep(s => Math.min(s + 1, 4));
+      }
+    
+    function back() {
+        setCurrentStep(s => Math.max(s - 1, 0));
+    }
+
+    async function createWorkshop() {
+        if (!isStepValid(currentStep)) return;
+      
+        setSubmitting(true);
+        setErrorMsg("");
+      
+        try {
+          // Map camelCase → API snake_case (adjust endpoint & payload names to match your server)
+          const payload = {
+            workshop_name: workshopCreateForm.workshopName,
+            workshop_description: workshopCreateForm.workshopDescription,
+            workshop_date: workshopCreateForm.workshopTime,        // ISO string or "YYYY-MM-DD HH:mm:ss"
+            workshop_location: workshopCreateForm.workshopLocation,
+            workshop_public: workshopCreateForm.workshopStyle === 'public' ? 1 : 0
+          };
+      
+          await axios.post(
+            `${process.env.REACT_APP_API_BASE}/workshops`,
+            payload,
+            { headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` } }
+          );
+      
+          // refresh list
+          const workshopsResponse = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops`, {
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` }
+          });
+          setWorkshopsList(workshopsResponse.data);
+      
+          // reset and close
+          setWorkshopCreateForm({
+            workshopName : "",
+            workshopDescription : "",
+            workshopTime : "",
+            workshopLocation : "",
+            workshopStyle : ""
+          });
+          setCurrentStep(0);
+          setCreateFormSelected(false);
+        } catch (err) {
+          const msg = err.response?.data?.message || err.message || "Failed to create workshop";
+          setErrorMsg(msg);
+        } finally {
+          setSubmitting(false);
+        }
+      }
+      
+      // Helper to show preview date nicely (fallback "—")
+      function previewDate(d) {
+        if (!d) return "—";
+        const dt = new Date(d);
+        if (Number.isNaN(+dt)) return d; // show raw if not parseable
+        return format(dt, "EEEE 'at' h:mm a | MM-dd-yyyy");
+      }
+    
     return (
         <>
             
             <Heading1 text="Workshops" />
             {workshopsList.map((workshop) => (
-            <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
-                <WorkshopCard
-                        key={workshop.workshop_id}
-                        workshopName={workshop.workshop_name} 
-                        workshopDescription={workshop.workshop_description} 
-                        workshopDate={formatDate(workshop.workshop_date)} 
-                        workshopLocation={workshop.workshop_location}
+                <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine cardLink">
+                    <WorkshopCard
+                            key={workshop.workshop_id}
+                            workshopName={workshop.workshop_name} 
+                            workshopDescription={workshop.workshop_description} 
+                            workshopDate={formatDate(workshop.workshop_date)} 
+                            workshopLocation={workshop.workshop_location}
+                        />
+                </Link>))
+            }
+
+            {isAdmin && <CreateButton handleClick={handleClick}/>}
+
+            {createFormSelected && (
+                <>
+            
+                {/* Slide content */}
+                {currentStep === 0 && (
+                  <>
+                    <Heading2 text="Name it" />
+                    <input
+                      type="text"
+                      name="workshopName"
+                      value={workshopCreateForm.workshopName}
+                      onChange={handleFieldChange}
+                      className="textInput"
+                      maxLength={60}
+                      placeholder="e.g., Movement Lab: Breath & Balance"
+                      autoFocus
                     />
-            </Link>))}
+                  </>
+                )}
+            
+                {currentStep === 1 && (
+                  <>
+                    <Heading2 text="Describe it" />
+                    <textarea
+                      name="workshopDescription"
+                      value={workshopCreateForm.workshopDescription}
+                      onChange={handleFieldChange}
+                      className="OpenResponse"
+                      placeholder="What happens in this workshop? Who is it for?"
+                      rows={5}
+                    />
+                  </>
+                )}
+            
+                {currentStep === 2 && (
+                  <>
+                    <Heading2 text="When?" />
+                    {/* Expect MysqlDateInput to call onChange(value) */}
+                    <MysqlDateInput
+                      value={workshopCreateForm.workshopTime}
+                      onChange={handleDateChange}
+                    />
+                  </>
+                )}
+            
+                {currentStep === 3 && (
+                  <>
+                    <Heading2 text="Where?" />
+                    <input
+                      type="text"
+                      name="workshopLocation"
+                      value={workshopCreateForm.workshopLocation}
+                      onChange={handleFieldChange}
+                      className="textInput"
+                      maxLength={80}
+                      placeholder="Studio / Venue / Address"
+                    />
+                  </>
+                )}
+            
+                {currentStep === 4 && (
+                  <>
+                    <Heading2 text="Style" />
+                    <DropDown
+                      reset={false}
+                      onSelect={handleStyleSelect}
+                      options={["Public", "Private"]}
+                    />
+                  </>
+                )}
+            
+                {/* Nav buttons */}
+                <div className="createWorkshopButtonContainer">
+                  <button type="button" onClick={back} className="createButton" disabled={currentStep === 0}>
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <polyline points="12.75 2.75 5.25 9 12.75 15.25" stroke="black" fill="none" />
+                    </svg>
+                  </button>
+                  {currentStep < 4 ? (
+                    <button type="button" onClick={next} className="createButton" disabled={!isStepValid(currentStep)}>
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <polyline points="5.25 2.75 12.75 9 5.25 15.25" stroke="black" fill="none" />
+                        </svg>
+
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="createButton"
+                      onClick={createWorkshop}
+                      disabled={submitting || !isStepValid(4)}
+                    >
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <polyline points="3.25 9.5 7.5 14.5 14.75 3.25" stroke="black" fill="none" />
+                        </svg>
+                    </button>
+                  )}
+                </div>
+            
+                {errorMsg && <p style={{ color: "crimson" }}>{errorMsg}</p>}
+            
+                {/* Live preview card */}
+                <div style={{ marginTop: 24 }}>
+                  <WorkshopCard
+                    workshopName={workshopCreateForm.workshopName || "—"}
+                    workshopDescription={workshopCreateForm.workshopDescription || "—"}
+                    workshopDate={previewDate(workshopCreateForm.workshopTime)}
+                    workshopLocation={workshopCreateForm.workshopLocation || "—"}
+                  />
+                </div>
+              </>
+            )}
         </>
         
     )
@@ -119,6 +365,7 @@ export function LogInPage() {
     
     const [password, setPassword] = useState('');
     const [email, setEmail] = useState('');
+    const navigate = useNavigate();
 
     const handlePasswordChange = (event) => {
         setPassword(event.target.value);
@@ -137,12 +384,12 @@ export function LogInPage() {
             { headers: {'Content-Type': 'application/json'}});
             console.log(`Log In Response: ${JSON.stringify(response.data)}`);
             localStorage.setItem('accessToken', response.data.accessToken);
+	    navigate('/workshops');
         } catch (error) {
             console.log(`Server Error: ${error}`);
         }
         
-        console.log(`Email: ${email}`);
-        console.log(`Password: ${password}`);
+        
     }
 
     return (
@@ -155,7 +402,7 @@ export function LogInPage() {
                 <Heading2 text="Password"/>
                 <input onChange={handlePasswordChange} value={password} className="passwordInput" type="password">
                 </input>
-                <LogInButton />
+	        <LogInButton />
             </form>    
         </>
     )
@@ -271,11 +518,10 @@ export function RegistrationPage() {
     // List of objects to keep track, display and update form field responses.
     
     const steps = [
-        {key: 'intro', label: 'Welcome to the Machine Theater Collective. Click next to start your registration.'},
-        {key: 'userName', label: 'Make a fun username for other users to see.'},
-        {key: 'firstName', label: 'What\'s your first name? This will be hidden from other users.'},
-        {key: 'lastName', label: 'What\'s your last name? This will also be hidden from other users.'},
-        {key: 'email', label: 'What email should we use for sending RSVPs or notifications if asked?', type: 'email'},
+        {key: 'userName', label: 'username'},
+        {key: 'firstName', label: 'first name'},
+        {key: 'lastName', label: 'last name'},
+        {key: 'email', label: 'email', type: 'email'},
         {key: 'userPhone', label: 'Phone Number'},
         {key: 'userPassword1', label: 'Choose a password', type: 'password'}
     ];
@@ -344,6 +590,7 @@ export function WorkshopModules() {
 
     const [modules, setModules] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [RSVPStatus, setRSVPStatus] = useState();
     const [createFormSelected, setCreateFormSelected] = useState(false);
     const [moduleCreateFormData, setModuleCreateFormData] = useState({moduleName: ''});
     const [moduleCreated, setModuleCreated] = useState(false);
@@ -356,6 +603,26 @@ export function WorkshopModules() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [progressData, setProgressData] = useState([]);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const fetchRSVPStatus = async () => {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/rsvp/${userId}/status`, { 
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                response.data.length === 1 ? setRSVPStatus(true) : setRSVPStatus(false);
+
+                console.log(`RSVP Status: ${response.data.length === 1 ? 'YES RSVP':'NO RSVP'}`)
+            } catch (error) {
+                console.log(`Front End Fetch Error: ${error}`);
+            }
+        }
+        fetchRSVPStatus()
+    },[])
 
     const handleSubmit = async (event) => {
         try {
@@ -462,6 +729,7 @@ export function WorkshopModules() {
 
     const completedModulesExists = modules.some((module) => module.workshop_module_status === 'completed');
     const openModulesExists = modules.some((module) => module.workshop_module_status === 'open');
+    const processingModulesExists = modules.some((module) => module.workshop_module_status === 'processing');
     const pendingModulesExists = modules.some((module) => module.workshop_module_status === 'pending');
 
     if (loading) {
@@ -509,7 +777,7 @@ export function WorkshopModules() {
                         return (
                             <Link
                                 to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`}
-                                className="linkNoUnderLine"
+                                className="linkNoUnderLine cardLink"
                             >
                                 <OpenButton
                                     moduleName={module.workshop_module_name}
@@ -518,6 +786,42 @@ export function WorkshopModules() {
                                 />
                             </Link>
                         );
+                    })}
+                </>
+            )}
+
+
+	    {processingModulesExists && (
+                <>
+                    <ProcessingHeading />
+                    {modules.map((module) => {
+                        if (module.workshop_module_status !== 'processing') return null;
+
+                        const progress = progressData.find(p => p.module_id === module.workshop_module_id);
+                        const promptCount = progress?.prompt_count ?? 0;
+                        const responseCount = progress?.response_count ?? 0;
+                                    
+                        if (isAdmin) {
+                            return (
+                                <Link
+                                    to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`}
+                                    className="linkNoUnderLine cardLink"
+                                >
+                                    <ProcessingButton
+                                        moduleName={module.workshop_module_name}
+                                        isAdmin={isAdmin}
+                                    />
+                                </Link>
+                                    );
+                        } else {
+                            return (
+                                <ProcessingButton
+                                    moduleName={module.workshop_module_name}
+                                    RSVPStatus={RSVPStatus}
+                                />
+                            )
+                        }
+			
                     })}
                 </>
             )}
@@ -539,7 +843,7 @@ export function WorkshopModules() {
         		<Link
             		key={module.workshop_module_id}
             		to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/edit`}
-            		className="linkNoUnderLine"
+            		className="linkNoUnderLine cardLink"
             		state={{
                 		moduleName: module.workshop_module_name,
                 		moduleId: module.workshop_module_id
@@ -559,7 +863,7 @@ export function WorkshopModules() {
     		);
 		})}
 
-            <CreateButton handleClick={handleClick}/>
+            {isAdmin && <CreateButton handleClick={handleClick}/>}
 
             {createFormSelected && (
                 <>
@@ -581,19 +885,44 @@ export function WorkshopModules() {
 export function WorkshopPromptsPage() {
     const { workshopId, moduleId, promptId } = useParams();
     const accessToken = localStorage.getItem('accessToken');
+    const decodedToken = jwtDecode(accessToken);
+    const userId = decodedToken.user_id;
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [allResponses, setAllResponses] = useState(null);
+    const [RSVPStatus, setRSVPStatus] = useState();
     const [promptsList, setPromptsList] = useState([]);
     const [remainingModules, setRemainingModules] = useState(0);
     const [promptIndex, setPromptIndex] = useState(0);
     const [promptMode, setPromptMode] = useState('edit');
     const [RSVPEarned, setRSVPEarned] = useState(false);
     const [nextModulePath, setNextModulePath] = useState(null);
-    const [responseData, setResponseData] = useState(null);
+    const [responseData, setResponseData] = useState([]);
     const { state: progressState, setState: setProgressState } = useContext(ProgressContext);
     const [endOfPrompts, setEndOfPrompts] = useState(false);
     const [moduleComplete, setModuleComplete] = useState(false);
-    const [currentResponse, setCurrentResponse] = useState(null);
+    const [RSVPPath, setRSVPPath] = useState(null);
     const [formData, setFormData] = useState();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const fetchRSVPStatus = async () => {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/rsvp/${userId}/status`, { 
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                response.data.length === 1 ? setRSVPStatus(true) : setRSVPStatus(false);
+
+                console.log(`RSVP Status: ${response.data.length === 1 ? 'YES RSVP':'NO RSVP'}`)
+            } catch (error) {
+                console.log(`Front End Fetch Error: ${error}`);
+            }
+        }
+        fetchRSVPStatus()
+    },[])
 
     useEffect(() => {
         const fetchPromptInformation = async () => {
@@ -601,7 +930,7 @@ export function WorkshopPromptsPage() {
                 const response = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts`, { 
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `BEARER ${accessToken}`
+                        'Authorization': `Bearer ${accessToken}`
                     }
                 });
 
@@ -612,6 +941,8 @@ export function WorkshopPromptsPage() {
                             ? JSON.parse(p.workshop_prompt_options)
                             : p.workshop_prompt_options
                 }));
+
+                console.log(JSON.stringify(parsedData));
 
                 setPromptsList(parsedData);
                 const index = parsedData.findIndex(p => p.workshop_prompt_id == promptId);
@@ -631,27 +962,21 @@ export function WorkshopPromptsPage() {
     }, [promptId, promptsList]);
 
     useEffect(() => {
-        const prompt = promptsList[promptIndex];
-        if (!prompt) return;
-      
-        switch (prompt.prompt_template_id) {
-          case 1:
-          case 3:
-          case 4:
-          case 6:
-          case 9:
-            setCurrentResponse([]);
-            break;
-          case 7:
-            setCurrentResponse({ rating: '' });
-            break;
-          case 8:
-            setCurrentResponse({ notationResponse: '' });
-            break;
-          default:
-            setCurrentResponse([]);
-        }
-      }, [promptsList, promptIndex]);
+        const fetchAdminStatus = async () => {
+            try {
+                const response = await axios.get(`${process.env.REACT_APP_API_BASE}/users/${userId}/isadmin`,{
+                    headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${accessToken}`
+                                }
+                });
+                response.data > 0 && setIsAdmin(true);
+            } catch (error) {
+                console.log(`Server Error: ${error}`);
+            }
+        };
+        fetchAdminStatus();
+    },[userId]);
 
     useEffect(() => {
         if (promptsList[promptIndex]?.prompt_template_id === 3) {
@@ -665,7 +990,7 @@ export function WorkshopPromptsPage() {
                 }))
             }));
     
-            setCurrentResponse(initialResponse);
+            setResponseData(initialResponse);
         }
     }, [promptsList, promptIndex]);
 
@@ -697,9 +1022,36 @@ export function WorkshopPromptsPage() {
     }, [promptsList.length, progressState]);
 
     useEffect(() => {
+        const p = promptsList[promptIndex];
+        if (!p) return;
+        switch (p.prompt_template_id) {
+          case 1: // MC
+          case 4: // short
+          case 9: // dropdown
+            setResponseData([]); break;
+          case 3: { // checklist -> build skeleton from options
+            const cl = p.workshop_prompt_options?.checkListPrompts ?? [];
+            const init = cl.map(q => ({
+              questionText: q.questionText,
+              options: (q.options || []).map((opt, i) => ({ id:i, optionText: opt, selected:false }))
+            }));
+            setResponseData(init);
+            break;
+          }
+          case 6: setResponseData({}); break;                // DnD uses map
+          case 7: setResponseData({ rating: '' }); break;
+          case 8: setResponseData({ notationResponse: '' }); break;
+          default: setResponseData([]);
+        }
+      }, [promptsList, promptIndex]);
+
+    useEffect(() => {
+        
         const fetchResponse = async () => {
+            if (!promptId) return;
+
             try {
-                const response = await axios.get(
+                const me = await axios.get(
                     `${process.env.REACT_APP_API_BASE}/workshops/prompts/${promptId}/response`,
                     {
                         headers: {
@@ -708,178 +1060,264 @@ export function WorkshopPromptsPage() {
                         }
                     }
                 )
-                if (response.data.response) {
-                    setPromptMode('view');
-                    setResponseData(response.data.response);
+
+                if (isAdmin) {
+
+                    const allResponsesResponse = await axios.get(
+                        `${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}`,
+                        {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${accessToken}`
+                            }
+                        }
+                    )
+
+                    setAllResponses(allResponsesResponse.data);
+		    console.log(allResponses)
+                }
+
+                if (me.data?.response) {
+                    const parsed = typeof me.data.response === 'string'
+                    ? JSON.parse(me.data.response)
+                    : me.data.response;
+                    setPromptMode('view');         
+                    setResponseData(parsed);
                 } else {
-			setPromptMode('edit');
-			setResponseData(null);
-		}
+                    setPromptMode('edit');
+                    setResponseData([]);
+		        }
             } catch (error) {
                 console.log(`Front End Error: ${error}`);
-		setPromptMode('edit');
-		setResponseData(null);
+                setPromptMode('edit');
+                setResponseData([]);
             }
         }
 
         fetchResponse();
-    }, [promptId]);
+    }, [promptId, isAdmin, accessToken, workshopId, moduleId]);
 
-    useEffect(() => {
-        if (!endOfPrompts) return;
+    //Debugging Next Button Persistence BEGIN
 
-        const fetchNextUnfinished = async () => {
-            try {
-                const progressRes = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modulesprogress`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
+      useEffect(() => {
+        setEndOfPrompts(false);
+        setRSVPEarned(false);
+        setNextModulePath(null);
+      }, [workshopId, moduleId, promptId]);
 
-                const progressData = progressRes.data;
-                const unfinished = progressData.find(
-                    ({ prompt_count, response_count }) => response_count < prompt_count
-                );
+      //Debugging Next Button Persistence END
 
-                const unfinishedcount = progressData.filter(
-                    ({ prompt_count, response_count }) => response_count < prompt_count
-                );
+	useEffect(() => {
+		console.log('responseData changed: ', responseData);
+	}, [responseData]);
 
-                setRemainingModules(unfinishedcount.length);
+    const handleResponseChange = (
+        index = 0,
+        questionText = '',
+        value = '',
+        selected = false,
+        keyName = ''
+        ) => {
 
-                if (unfinished) {
-                    const modules = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`, {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${accessToken}`
-                        }
+            const currentTemplateId = promptsList[promptIndex]?.prompt_template_id;
+
+            console.log('HRC enter', {currentTemplateId, index, value, selected, keyName});
+
+            switch (currentTemplateId) {
+                case 1: { // multiple choice
+                    setResponseData(prev => {
+                      const updated = Array.isArray(prev) ? [...prev] : [];
+                      updated[index] = { questionText, optionId: value, optionLabel: keyName };
+                      return updated;
                     });
+                    break;
+                  }
 
-                    const moduleData = modules.data;
-                    const moduleMatch = moduleData.find(mod => mod.workshop_module_id === unfinished.module_id);
+                case 3: {
+                    const optionId = value;        // j
+                    const optionLabel = keyName;   // label
 
-                    if (moduleMatch?.first_prompt_id) {
-                        setNextModulePath(`/workshops/${workshopId}/modules/${moduleMatch.workshop_module_id}/prompts/${moduleMatch.first_prompt_id}`);
-                    }
-                } else {
-                    // No unfinished modules left
-                    setNextModulePath(null);
-                    setRSVPEarned(true);
+                    setResponseData(prev => {
+                        const updated = Array.isArray(prev) ? [...prev] : [];
+                        const existing = updated[index] ?? { questionText, options: [] };
+                        const opts = Array.isArray(existing.options) ? [...existing.options] : [];
+
+                        // ensure dense options array
+                        while (opts.length <= optionId) {
+                            opts.push({ id: opts.length, optionText: '', selected: false });
+                        }
+
+                        opts[optionId] = {
+                            id: optionId,
+                            optionText: optionLabel,
+                            selected: !!selected,
+                        };
+
+                        updated[index] = { ...existing, questionText, options: opts };
+                        return updated;
+                    });
+                    break;
                 }
 
-            } catch (error) {
-                console.log(`Server Error: ${error}`);
+                case 4: { // another short/long answer
+                    setResponseData(prev => {
+                        const updated = Array.isArray(prev) ? [...prev] : [];
+                        updated[index] = { questionText, answer: value };
+                        return updated;
+                    });
+                    break;
+                }
+
+                case 6: {
+                    setResponseData(prev => {
+                        const updated = Array.isArray(prev) ? [...prev] : [];
+                        updated[index] = { index, answer: value, keyName };
+                        return updated;
+                    });
+                    break;
+                }
+
+                case 7: { // rating (object shape)
+                    setResponseData(prev => {
+                        const updated = { ...(prev || {}) };
+                        updated.rating = value;
+                        return updated;
+                    });
+                    break;
+                }
+
+                case 8: { // notation text (object shape)
+                    setResponseData(prev => {
+                        const updated = { ...(prev || {}) };
+                        updated.notationResponse = value;
+                        return updated;
+                    });
+                    break;
+                }
+
+                case 9: { // another indexed answer
+                    setResponseData(prev => {
+                        const updated = Array.isArray(prev) ? [...prev] : [];
+                        updated[index] = { questionText, answer: keyName, optionId: value, optionLabel: keyName };
+                        return updated;
+                    });
+                    break;
+                }
+
+                default:
+                    console.warn('Unknown Template ID:', currentTemplateId);
             }
         };
 
-        fetchNextUnfinished();
-    },[endOfPrompts]);
-
-    useEffect(() => {
-        setEndOfPrompts(false);
-      }, [promptId]);
-
-    const handleResponseChange = (index = 0, questionText = '', value = '', selected=false, keyName = '') => {
-        switch (promptsList[promptIndex].prompt_template_id) {
-            case 1:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { questionText, answer: value};
-                    return updated;
-                });
-                break;
-            case 3:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-
-                    const optionList = updated[index].options;
-
-                    const optionIndex = optionList.findIndex(opt => opt.optionText === value);
-
-                    if (optionIndex > -1) {
-                        optionList[optionIndex].selected = selected;
-                    }
-                    
-                    return updated;
-                });
-                break;
-            case 4:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { questionText, answer: value};
-                    return updated;
-                });
-                break;
-            case 6:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { keyName, answer: value};
-                    return updated;
-                });
-                break;
-            case 7:
-                setCurrentResponse(prev => {
-                    const updated = {...prev};
-                    updated.rating = value;
-                    return updated;
-                });
-                break;
-            case 8:
-                setCurrentResponse(prev => {
-                    const updated = {...prev};
-                    updated.notationResponse = value;
-                    return updated;
-                });
-                break;          
-            case 9:
-                setCurrentResponse(prev => {
-                    const updated = [...prev];
-                    updated[index] = { questionText, answer: value};
-                    return updated;
-                });
-                break;
-            default:
-                console.warn('Unknown Template ID')
-        }
+    const isEmptyResponse = (d) => {
+        if (d == null) return true;
+        if (Array.isArray(d)) return d.length === 0;
+        if (typeof d === 'object') return Object.keys(d).length === 0;
+        return false;
     };
 
     const handleSubmit = async () => {
-        
-	// Add a try catch here
-
-        if (!currentResponse || currentResponse.length === 0) {
-                console.log('Nothing to submit');
-                return false;
-            }
-
-        try {    
-            const response = await axios.post(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}/response`,
-            { workshop_response_content: JSON.stringify(currentResponse) },
-            { headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${accessToken}`}}
-            );
-            
-            if (response.status === 200) {
-                setPromptMode('view');
-                setProgressState(prev => ({current: prev.current + 1, max: prev.max}));
-                return true;
-            } else {
-                console.warn(`Unexpected status code: ${response.status}`);
-                return false;
-            }
-        } catch (error) {
-            console.error(`Submission Failed: ${error}`);
+        if (promptMode === 'view') return false;
+        try {
+          if (isEmptyResponse(responseData)) {
+            console.log('Nothing to submit');
             return false;
+          }
+          const p = promptsList[promptIndex];
+          const res = await axios.post(
+            `${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}/response`,
+            { workshop_response_content: responseData, prompt_template_id: p.prompt_template_id },
+            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` } }
+          );
+          if (res.status === 200 || res.status === 201) {
+            setPromptMode('view');
+            // setProgressState(prev => ({ current: prev.current + 1, max: prev.max }));
+            if (promptIndex === promptsList.length - 1) {
+                await handleEndOfModule();
+                setEndOfPrompts(true); 
+            } else {
+                setEndOfPrompts(false);
+            }
+          }
+          console.warn(`Unexpected status code: ${res.status}`);
+          return false;
+        } catch (e) {
+          console.error(`Submission Failed: ${e}`);
+          return false;
         }
-    };
+      };
 
-    const handleNext = async () => {
-        if (promptIndex < promptsList.length - 1) {
-            const nextPromptId = promptsList[promptIndex + 1].workshop_prompt_id;
-            await handleSubmit();
-            navigate(`/workshops/${workshopId}/modules/${moduleId}/prompts/${nextPromptId}`);
-        } else {
-            const success = await handleSubmit();
-            if (success) setEndOfPrompts(true);
-        }
-    };
+     const handleEndOfModule = async () => {
+             try {
+                 const progressRes = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modulesprogress`, {
+                     headers: { 'Authorization': `Bearer ${accessToken}` }
+                 });
+        
+                 const progressData = progressRes.data;
+
+                 // Diagnosing Next Button Issue BEGIN
+
+                 console.table(progressData.map(p => ({
+                    module_id: p.module_id, type: typeof p.module_id,
+                    prompt_count: p.prompt_count, response_count: p.response_count
+                  })));
+
+                  // Diagnosing Next Button Issue END
+        
+                 const unfinished = progressData.find(
+                     ({ prompt_count, response_count }) => response_count < prompt_count
+                 );
+        
+                 const unfinishedcount = progressData.filter(
+                     ({ prompt_count, response_count }) => response_count < prompt_count
+                 );
+        
+                 setRemainingModules(unfinishedcount.length);
+        
+                 if (unfinished) {
+                     const modules = await axios.get(`${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules`, {
+                         headers: {
+                             'Content-Type': 'application/json',
+                             'Authorization': `Bearer ${accessToken}`
+                         }
+                     });
+        
+                     const moduleData = modules.data;
+                     const moduleMatch = moduleData.find(mod => String(mod.workshop_module_id) === String(unfinished.module_id));
+        
+                     if (moduleMatch?.first_prompt_id) {
+                         setNextModulePath(`/workshops/${workshopId}/modules/${moduleMatch.workshop_module_id}/prompts/${moduleMatch.first_prompt_id}`);
+                     }
+                 } else {
+                    try {
+                        const rsvpCreate = await axios.post(
+                            `${process.env.REACT_APP_API_BASE}/workshops/rsvp/create`,
+                            {user_id: userId, workshop_id: workshopId},
+                            { headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${accessToken}`}}
+                        );
+                    } catch (error) {
+                        console.error(`Front End Error: ${error}`);
+                    }
+                    setNextModulePath(null);
+                    setRSVPEarned(true);
+                    setRSVPPath(`/workshops/${workshopId}/rsvp/${userId}`);
+                 }
+        
+                 setEndOfPrompts(true);
+             } catch (error) {
+                 console.log(`Server Error during RSVP check: ${error}`);
+             }
+         };
+        
+
+         const handleNext = () => {
+            if (promptIndex < promptsList.length - 1) {
+              const nextPromptId = promptsList[promptIndex + 1].workshop_prompt_id;
+              navigate(`/workshops/${workshopId}/modules/${moduleId}/prompts/${nextPromptId}`);
+            } else {
+              setEndOfPrompts(true);
+            }
+          };
 
     const handleBack = () => {
         const prevPromptId = promptsList[promptIndex - 1].workshop_prompt_id;
@@ -900,17 +1338,23 @@ export function WorkshopPromptsPage() {
             case 4:
                 return <ShortResponseTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} shortResponseOptions={prompt.workshop_prompt_options} />;
             case 6:
-                return <DragAndDropTemplate  responseData={responseData} disabled={promptMode === 'view'} onInitialPositions={setCurrentResponse} onUpdateResponse={handleResponseChange} dragOptions={prompt.workshop_prompt_options} />;
+                return <DragAndDropTemplate  responseData={responseData} disabled={promptMode === 'view'} onInitialPositions={setResponseData} onUpdateResponse={handleResponseChange} dragOptions={prompt.workshop_prompt_options} />;
             case 7:
                 return <SampleRaterTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
             case 8:
                 return <ScriptNotationTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} reference={prompt.workshop_prompt_reference} />;
             case 9:
-                return <DropDownTemplate  responseData={responseData} disabled={promptMode === 'view'} promptMode={promptMode} onUpdateResponse={handleResponseChange} dropDownOptions={prompt.workshop_prompt_options} />;
+                return <DropDownTemplate  responseData={responseData} disabled={promptMode === 'view'} onUpdateResponse={handleResponseChange} dropDownOptions={prompt.workshop_prompt_options} />;
             default:
                 return <div>Unknown Template</div>;
         }
     };
+
+    const renderResponses = () => {
+	if (!prompt) return <div>Loading...</div>;
+
+        return <ResponseProcessor allResponses={allResponses} isAdmin={isAdmin} templateId={prompt.prompt_template_id}/>;
+    }
 
     console.log(`Prompt Mode: ${promptMode}`);
 
@@ -924,10 +1368,14 @@ export function WorkshopPromptsPage() {
                     nextModulePath={nextModulePath}
                     remainingModules={remainingModules}
                     RSVPEarned={RSVPEarned}
+                    RSVPPath={RSVPPath}
                 />
             </>
         )
     }
+
+    console.log(`All Responses Response: ${JSON.stringify(allResponses, null, 2)}`);
+    console.log(`isAdmin: ${isAdmin}`)
 
     return (
         <>
@@ -937,6 +1385,14 @@ export function WorkshopPromptsPage() {
 
             {renderPrompt()}
 
+            {isAdmin && Array.isArray(allResponses) && allResponses.length > 0 &&
+                (<>
+
+		    {renderResponses()}
+
+                </>)
+            }
+
             <ModuleNavigator
                 submitHandler={handleSubmit}
                 backActive={isFirst}
@@ -944,6 +1400,7 @@ export function WorkshopPromptsPage() {
                 nextClick={handleNext}
                 isReader={true}
 		        promptMode={promptMode}
+		        endOfPrompts={endOfPrompts}
             />
         </>
     );
@@ -1031,7 +1488,7 @@ export function HomePage() {
             <Heading1 text="Machine Theater Collective" style={{ textAlign: "center" }}/>
             <Heading2 text="A theater company powered by software and your imagination."/>
             <NextButton text="Try Module"/>
-            <Link to="login" className="linkNoUnderLine">
+            <Link to="login" className="linkNoUnderLine cardLink">
                 <NextButton text="Log In"/>
             </Link>
         </>
@@ -1040,24 +1497,38 @@ export function HomePage() {
 
 export function MultipleChoiceTemplate({ multipleChoiceOptions, onUpdateResponse, responseData, disabled }) {
     return (
-        <>
-            {multipleChoiceOptions.multipleChoicePrompts.map((promptData, index) => (
-                <div key={index}>
-                    <Heading1 text={promptData.questionText} />
-                    <MultipleChoiceGroup responseData={responseData} disabled={disabled} onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options} />
-                </div>
-            ))}
-        </>
+      <>
+        {multipleChoiceOptions.multipleChoicePrompts.map((promptData, qIndex) => (
+          <div key={qIndex}>
+            <Heading1 text={promptData.questionText} />
+            <MultipleChoiceGroup
+              options={promptData.options}
+              disabled={disabled}
+              // current answer for THIS question:
+              currentAnswer={Array.isArray(responseData) ? responseData[qIndex] : undefined}
+              // pass option index + label
+              onChange={(optionIndex, label) =>
+                onUpdateResponse(qIndex, promptData.questionText, optionIndex, true, label)
+              }
+            />
+          </div>
+        ))}
+      </>
     );
-}
+  }
 
-export function DropDownTemplate({ promptMode, responseData, dropDownOptions, onUpdateResponse, disabled}) {
+export function DropDownTemplate({responseData, dropDownOptions, onUpdateResponse, disabled}) {
     return (
         <>
             {dropDownOptions.dropDownPrompts.map((promptData, index) => (
                 <div className="DropdownPromptContainer" key={index}>
-                    <h1 class="Heading1" style={{ marginBottom: '20px' }}>{promptData.questionText}</h1>
-                    <DropDown promptMode={promptMode} disabled={disabled} responseData={responseData?.[index] ?? {}} onChange={(value) => onUpdateResponse(index, promptData.questionText, value)} options={promptData.options}/>
+                    <h1 className="Heading1" style={{ marginBottom: '20px' }}>{promptData.questionText}</h1>
+                    <DropDown
+                        disabled={disabled}
+                        responseData={responseData?.[index] ?? {}}
+                        options={promptData.options}
+                        onChange={(label, optionIndex) => onUpdateResponse(index, promptData.questionText, optionIndex, false, label)}
+                    />
                 </div>
             ))}
         </>
@@ -1065,19 +1536,29 @@ export function DropDownTemplate({ promptMode, responseData, dropDownOptions, on
 }
 
 export function CheckListTemplate({ responseData, checkListOptions, onUpdateResponse, disabled }) {
-
-    return (
-        <>
-            {checkListOptions.checkListPrompts.map((promptData, index) => (
-                <div key={index}>
-                    <Heading1 text={promptData.questionText} />
-                    {promptData.options.map((option, optIndex) => (
-                        <CheckBoxButton disabled={disabled} responseData={responseData?.[index]?.['options']?.[optIndex]?.selected ?? false} onChange={(selected) => onUpdateResponse(index, promptData.questionText, option, selected)} key={optIndex} optionText={option} />
-                    ))}
-                </div>
-            ))}
-        </>
-    );
+  return (
+    <>
+      {checkListOptions.checkListPrompts.map((promptData, i) => (
+        <div key={i}>
+          <Heading1 text={promptData.questionText} />
+          {promptData.options.map((label, j) => {
+            const checked = !!responseData?.[i]?.options?.[j]?.selected;
+            return (
+              <CheckBoxButton
+                key={j}
+                disabled={disabled}
+                checked={checked}
+                optionText={label}
+                onChange={(selected) =>
+                  onUpdateResponse(i, promptData.questionText, j, selected, label)
+                }
+              />
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
 }
 
 export function ScriptNotationTemplate({responseData, disabled, reference, onUpdateResponse}) {

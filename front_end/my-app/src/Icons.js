@@ -47,6 +47,15 @@ export function MenuBarIcon() {
     );
   }
 
+export function LockSVG() {
+  <svg style="LockSVG" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M5.25 7V5.5a3.75 3.75 0 0 1 7.5 0V7" stroke="black" fill="none"/>
+    <rect x="4" y="7" width="10" height="8" stroke="black" fill="none"/>
+    <circle cx="9" cy="11" r="0.75" fill="black"/>
+  </svg>
+
+}
+
 export function ForwardArrowIcon() {
 
   const [rectFill,   setRectFill]   = useState('white');
@@ -86,7 +95,7 @@ export function ForwardArrowIcon() {
       </defs>
 
       <g filter={dropShadow}>
-        {/* ◀️ This stays fixed at 36×36 */}
+        {/* This stays fixed at 36×36 */}
         <rect
           x="5"
           y="1"
@@ -97,8 +106,6 @@ export function ForwardArrowIcon() {
           fill={rectFill}
           stroke="black"
         />
-
-        {/* 👉 This nested SVG holds and scales your 23×23 arrow */}
         <svg
           x={5 + PADDING}
           y={1 + PADDING}

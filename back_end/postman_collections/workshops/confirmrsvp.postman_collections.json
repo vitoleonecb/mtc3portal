@@ -1,0 +1,27 @@
+{
+    "info": {
+      "name": "Confirm RSVP",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+      {
+        "name": "PUT RSVP",
+        "request": {
+          "method": "PUT",
+          "header": [
+          {
+              "key": "Authorization",
+              "value": "Bearer {{access_token}}"
+          }
+      ],
+          "url": {
+            "raw": "http://localhost:3036/workshops/{{workshop_id}}/rsvp/{{user_id}}/update",
+            "protocol": "http",
+            "host": ["localhost"],
+            "port": "3036",
+            "path": ["workshops","{{workshop_id}}","rsvp","{{user_id}}","update"]
+          }
+        }
+      }
+    ]
+  }

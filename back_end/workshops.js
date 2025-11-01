@@ -1,5 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import moduleQueue from './queues/moduleQueue.js';
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 
 export const workshopsRouter = express.Router();
@@ -80,7 +81,7 @@ workshopsRouter.get('/:workshopid/modulesprogress', authenticateToken, async (re
 	}
 });
 
-// ET All Prompts Inside Modules
+// GET All Prompts Inside Modules
 workshopsRouter.get('/:workshopid/modules/:moduleid/prompts', authenticateToken, async(req, res, next) => {
     try{
         const { moduleid } = req.params;
@@ -172,7 +173,7 @@ workshopsRouter.get('/modules/:moduleid/progress', authenticateToken, async (req
     }
 });
 
-// GET Response for Prompt
+// GET 1 Response for Prompt
 workshopsRouter.get('/prompts/:promptid/response', authenticateToken, async (req, res) => {
     try {
         const { promptid } = req.params;
@@ -217,14 +218,60 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authent
     }
 });
 
-// PUT RSVP Status
-workshopsRouter.put('/:workshopid/rsvp', async (req, res, next) => {
+// POST RSVP
+workshopsRouter.post('/rsvp/create', authenticateToken, async (req, res, next) => {
+   
     try {
-        const { workshopid } = req.params;
-        const [response] = await connection.query('UPDATE workshop_rsvps SET rsvp_confirmation = "confirmed" WHERE user_id = ? AND workshop_id = ?',[req.user.user_id, workshopid]);
-        res.status(201).send(response);
+        const { user_id, workshop_id } = req.body;
+
+        const [response] = await connection.query(
+            'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?,?)',
+            [user_id, workshop_id]
+        );
+        res.status(203).send(`RSVP Created Succesfully`);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`)
+    }
+});
+
+// PUT RSVP Status
+workshopsRouter.put('/:workshopid/rsvp/:userid/update', async (req, res, next) => {
+    try {
+        const { workshopid, userid } = req.params;
+        const [response] = await connection.query('UPDATE workshop_rsvps SET rsvp_confirmation_status = "confirmed" WHERE user_id = ? AND workshop_id = ?',[userid, workshopid]);
+        res.status(201).send('RSVP Confirmed Successfully');
     } catch (error) {
         res.status(500).send(`Server Error: ${error}`);
+    }
+});
+
+// GET RSVP STATUS
+workshopsRouter.get('/:workshopid/rsvp/:userid/status', authenticateToken, async (req, res, next) => {
+    try {
+        const { userid, workshopid } = req.params;
+
+        const [response] = await connection.query(
+            'SELECT * FROM workshop_rsvps WHERE user_id = ? and workshop_id = ?',
+            [userid, workshopid]
+        );
+        res.status(203).send(response);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`)
+    }
+});
+
+// GET RSVP
+workshopsRouter.get('/:workshopid/rsvp/:userid', authenticateToken, async (req, res, next) => {
+    try {
+        const { userid, workshopid } = req.params;
+
+        const [response] = await connection.query(
+            'SELECT u.first_name AS first_name, u.username AS username, w.workshop_name AS workshop_name, w.workshop_description AS workshop_description, w.workshop_date AS workshop_date, w.workshop_location AS workshop_location, w.workshop_public AS workshop_public, wr.rsvp_confirmation_status AS rsvp_confirmation_status FROM workshops w JOIN workshop_rsvps wr ON (w.workshop_id = wr.workshop_id) JOIN users u ON (wr.user_id = u.user_id) WHERE w.workshop_id = ? AND u.user_id = ?',
+            [workshopid, userid]
+        );
+        res.status(203).send(response);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`)
     }
 });
 
@@ -234,14 +281,15 @@ workshopsRouter.put('/:workshopid/rsvp', async (req, res, next) => {
 ///
 ///
 
-// GET RSVPS
-workshopsRouter.get('/:workshopid/rsvps', authenticateTokenAdmin, async (req, res, next) => {
+// GET All Responses for Prompt
+
+workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid', authenticateTokenAdmin, async (req, res, next) => {
     try {
-        const { workshopid } = req.params;
-        const [result] = await connection.query('SELECT * FROM workshop_rsvps WHERE workshop_id = ?',[workshopid]);
-        res.status(200).send(result);
+        const { promptid } = req.params;
+        const [promptResponses] = await connection.query('SELECT wr.workshop_response_content, wr.workshop_prompt_id,workshop_response_id, wr.workshop_response_acceptance, workshop_response_created, wr.user_id, u.username, u.first_name, u.last_name FROM workshop_responses wr JOIN users u ON (wr.user_id = u.user_id) WHERE wr.workshop_prompt_id = ?', [promptid]);
+        res.status(200).send(promptResponses);
     } catch (error) {
-        res.status(500).send(`Internal Server Error: ${error}`);
+        res.status(500).send(error);
     }
 });
 
@@ -260,7 +308,7 @@ workshopsRouter.get('/:workshopid/attendance', authenticateTokenAdmin, async (re
 workshopsRouter.post('', authenticateTokenAdmin, async (req, res, next) => {
     try {
         const { workshop_name, workshop_description, workshop_location, workshop_date, workshop_public } = req.body;
-        const [response] = await connection.query('INSERT INTO workshops (workshop_name, workshop_description, workshop_location, workshop_date, workshop_public) VALUES (?, ?, ?, ?, ?)', [workshop_name, workshop_description, workshop_location, workshop_date, workshop_public]);
+        const [response] = await connection.query('INSERT INTO workshops (workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, workshop_public) VALUES (?, ?, ?, ?, ?)', [workshop_name, workshop_description, workshop_location, workshop_date, workshop_public]);
         res.status(204).send(`Workshop "${workshop_name}" created successfully`);
     } catch (error) {
         res.status(500).send(`Internal Server Error: ${error}`);
@@ -309,11 +357,13 @@ workshopsRouter.delete('/:workshopid/modules/:moduleid', authenticateTokenAdmin,
     }
 });
 
-// POST Prompt For Module
+// POST Prompts For Module
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts', authenticateTokenAdmin, async (req, res, next) => {
     try {
         const { moduleid } = req.params;
         const { promptDataList } = req.body;
+
+	console.log(promptDataList);
 
         const templateMap = {
             1 :'Multiple Choice',
@@ -358,6 +408,16 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts', authenticateToken
                 }
 
             }
+
+	    const openDelay = 1000 * 30 * 1;
+            const processDelay = openDelay + 1000 * 30 * 1;
+            const completedDelay = processDelay + 1000 * 30 * 1;
+
+            // await moduleQueue.add('openModule', { moduleId: moduleid }, { delay: openDelay });
+            // await moduleQueue.add('processModule', { moduleId: moduleid }, { delay: processDelay });
+            // await moduleQueue.add('completeModule', { moduleId: moduleid }, { delay: completedDelay });
+	    // console.log(`Scheduled completeModule for module ${moduleid} with delay ${completedDelay}`);
+
         } catch (error) {
             return res.status(400).send(`Error Looping Through Prompt Data: ${error}`)
         }
@@ -395,17 +455,39 @@ workshopsRouter.put('/:workshopid/modules/:moduleid', authenticateTokenAdmin, as
 });
 
 // POST Response to Module
-workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/response', authenticateToken, async (req, res, next) => {
+workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/response', authenticateToken, async (req, res) => {
     try {
-        const { promptid } = req.params;
-        const { workshop_response_content } = req.body;
-        const  user_id = req.user.user_id;
-        const response = await connection.query('INSERT INTO workshop_responses (user_id, workshop_prompt_id, workshop_response_content) VALUES (?, ?, ?)',[user_id,promptid,workshop_response_content]);
-	res.status(200).send('Response Submitted Successfully');
+      const { promptid } = req.params;
+      const { workshop_response_content, prompt_template_id } = req.body;
+      const user_id = req.user.user_id;
+  
+      // Normalize content: avoid double-JSON; store as a JSON string consistently
+      const content =
+        typeof workshop_response_content === 'string'
+          ? workshop_response_content
+          : JSON.stringify(workshop_response_content);
+  
+      // Accept/auto-accept flag for certain templates
+      const autoAccept = [1, 3, 6, 7, 9].includes(Number(prompt_template_id)) ? 1 : 0;
+  
+      // Idempotent upsert — safe on retries / double clicks
+      await connection.query(
+        `
+        INSERT INTO workshop_responses
+          (user_id, workshop_prompt_id, workshop_response_content, workshop_response_acceptance)
+        VALUES
+          (?, ?, ?, ?)
+        `,
+        [user_id, promptid, content, autoAccept]
+      );
+  
+      // Return once, and only once
+      return res.status(201).json({ ok: true, prompt_id: Number(promptid) });
     } catch (error) {
-        res.status(500).send(`Server Error: ${error}`);
+      console.error('Submit response error:', error);
+      return res.status(500).json({ ok: false, error: error.code || String(error) });
     }
-});
+  });
 
 // GET Responses To Workshop
 workshopsRouter.get('/:workshopid/modules/:moduleid', authenticateTokenAdmin, async (req, res, next) => {
@@ -418,3 +500,29 @@ workshopsRouter.get('/:workshopid/modules/:moduleid', authenticateTokenAdmin, as
     }
 });
 
+// PATCH Workshop Response
+workshopsRouter.patch('/:responseId/response/acceptance', authenticateTokenAdmin, async (req, res) => {
+    try {
+      const { responseId } = req.params;
+      let { acceptance } = req.body; // can be true/false or 0/1
+  
+      const val = acceptance === true || acceptance === 1 || acceptance === "1" ? 1 : 0;
+  
+      const [result] = await connection.execute(
+        'UPDATE workshop_responses SET workshop_response_acceptance = ? WHERE workshop_response_id = ?',
+        [val, responseId]
+      );
+  
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Response not found' });
+      }
+  
+      return res.status(200).json({
+        responseId: Number(responseId),
+        accepted: !!val,
+        message: val ? 'Approved' : 'Declined'
+      });
+    } catch (err) {
+        return res.status(500).json({ message: 'Server error', error: String(err) });
+      }
+    });

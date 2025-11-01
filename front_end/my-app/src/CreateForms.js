@@ -264,46 +264,72 @@ export function CreateShortResponseTemplate({ savedData, onChange }) {
     )
 }
 
+const slug = s => (s || "").toLowerCase().trim()
+  .replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "");
+const makeId = () => (crypto?.randomUUID?.() ?? `id_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+
+function uniquify(base, taken) {
+  if (!taken.has(base)) { taken.add(base); return base; }
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  const u = `${base}-${n}`;
+  taken.add(u);
+  return u;
+}
+
 export function CreateDragAndDropTemplate({ savedData, onChange }) {
-    
-    const [options, setOptions] = useState(
-        Array.isArray(savedData?.options) && savedData.options.length > 0
-          ? savedData.options
-          : [{optionName: ''}]
-      );
-    
-    const handleOptionChange = (index, value) => {
-        setOptions((prev) => {
-            const updated = prev.map((o, i) =>
-                i === index ? { optionName: value } : o
-            );
-            onChange({options: updated});
-            return updated;
-        });
-    }
+  const [options, setOptions] = useState(() => {
+    const base = Array.isArray(savedData?.options) && savedData.options.length
+      ? savedData.options
+      : [{ optionName: "", optionKey: "", optionId: makeId() }];
+    // ensure stable optionId, keep existing keys
+    return base.map(o => ({
+      optionId: o.optionId || makeId(),
+      optionName: o.optionName ?? "",
+      optionKey: o.optionKey ?? "", // will fill on blur/save
+    }));
+  });
 
-    const addName = () => {
-        setOptions((prev) => {
-            const updated = [...prev, { optionName: '' }];
-            onChange({ options: updated });
-            return updated;
-        });
-    };
+  const sync = (next) => {
+    setOptions(next);
+    onChange({ options: next });
+  };
 
-    return (
-        <>
-            {options.map((option, optionIndex) => (
-                <input
-                    value={option.optionName}
-                    onChange={(e) => handleOptionChange(optionIndex, e.target.value)}
-                    className='textInput' 
-                    placeholder='Enter a name' 
-                    type='text'
-                />
-            ))}
-	        <CreateButton handleClick={addName}/>
-        </>
-    )
+  const handleChange = (idx, value) => {
+    sync(options.map((o,i) => i===idx ? { ...o, optionName: value } : o)); // no key change here
+  };
+
+  const handleBlur = () => {
+    // (re)build unique keys from names once per edit session
+    const taken = new Set();
+    const next = options.map(o => {
+      const base = slug(o.optionName) || "item";
+      const key = uniquify(base, taken);
+      return { ...o, optionKey: key };
+    });
+    sync(next);
+  };
+
+  const addName = () => {
+    sync([...options, { optionId: makeId(), optionName: "", optionKey: "" }]);
+  };
+
+  return (
+    <>
+      {options.map((o, i) => (
+        <input
+          key={o.optionId}                    // ← stable across typing
+          value={o.optionName}
+          onChange={e => handleChange(i, e.target.value)}
+          onBlur={handleBlur}                 // ← compute unique optionKey here
+          className="textInput"
+          placeholder="Enter a name"
+          type="text"
+        />
+      ))}
+      <CreateButton handleClick={addName}/>
+    </>
+  );
 }
 
 export function CreateSampleRaterTemplate({ savedData, onChange }) {

@@ -24,7 +24,9 @@ import {
 } from './Pages';
 
 import { DropDown } from './Buttons';
-import { ProgressProvider } from './Pages'; // or wherever your provider is defined
+import { ProgressProvider } from './Pages';
+import { RSVP } from './EdgePages'
+
 
 function App() {
   const router = createBrowserRouter(createRoutesFromElements(
@@ -35,6 +37,7 @@ function App() {
         <Route path="workshops/:workshopId/modules/:moduleId/prompts/edit" element={ <WorkshopPromptsEditor /> } />
         <Route path="login" element={ <LogInPage /> } />
         <Route path="register" element={ <RegistrationPage /> } />
+        <Route path="workshops/:workshopId/rsvp/:userId" element={ <RSVP /> } />
         <Route path="workshops/create" element={ <WorkshopCreateForm /> } />
         <Route path="workshops" element={ <WorkshopsPage /> } />
         <Route index element={<HomePage />} />
