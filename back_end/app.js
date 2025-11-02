@@ -47,40 +47,53 @@ app.get('/health', (req, res) => {
   });
 });
 
-export function authenticateToken(req, res, next) {
-    verifyToken(req, res, next, false);
+export async function authenticateToken(req, res, next) {
+    await verifyToken(req, res, next, false);
+  }
+  
+export async function authenticateTokenAdmin(req, res, next) {
+await verifyToken(req, res, next, true);
 }
 
-export function authenticateTokenAdmin(req, res, next) {
-    verifyToken(req, res, next, true);
+async function verifyToken(req, res, next, requireAdmin) {
+const authHeader = req.headers['authorization'];
+const token = authHeader && authHeader.split(' ')[1];
+
+if (!token) {
+    return res.status(401).send('No Access Token Provided');
 }
 
-async function verifyToken(req, res, next, isAdmin) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) {
-        return res.status(401).send('No Access Token Provided');
+try {
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+
+    // Always fetch full user record
+    const [[userRow]] = await connection.query(
+    'SELECT user_id, email, user_type FROM users WHERE email = ? LIMIT 1',
+    [decoded.email]
+    );
+
+    if (!userRow) {
+    return res.status(403).send('Invalid user');
     }
 
-    try {
-        const user = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const isAdmin = userRow.user_type === 'admin';
 
-        if (isAdmin) {
-            const [results] = await connection.query(
-                'SELECT COUNT(*) as count FROM users WHERE email = ? AND user_type = "admin"',
-                [user.email]
-            );
-
-            if (results[0].count === 0) {
-                return res.status(403).send('Access Denied: admin privileges required');
-            }
-        }
-
-        req.user = user;
-        next();
-    } catch (error) {
-        return res.status(403).send(`Invalid Token: ${error.message}`);
+    // If this route requires admin, enforce it
+    if (requireAdmin && !isAdmin) {
+    return res.status(403).send('Access Denied: admin privileges required');
     }
+
+    // Attach complete info to req.user
+    req.user = {
+    ...decoded,
+    is_admin: isAdmin,
+    user_type: userRow.user_type
+    };
+
+    next();
+} catch (error) {
+    return res.status(403).send(`Invalid Token: ${error.message}`);
+}
 }
 
 app.get('/health', (req,res)=>res.json({ ok:true, env:{

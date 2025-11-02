@@ -283,11 +283,13 @@ workshopsRouter.get('/:workshopid/rsvp/:userid', authenticateToken, async (req, 
 
 // GET All Responses for Prompt
 
-workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid', authenticateTokenAdmin, async (req, res, next) => {
+workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid', authenticateToken, async (req, res, next) => {
     try {
         const { promptid } = req.params;
         const [promptResponses] = await connection.query('SELECT wr.workshop_response_content, wr.workshop_prompt_id,workshop_response_id, wr.workshop_response_acceptance, workshop_response_created, wr.user_id, u.username, u.first_name, u.last_name FROM workshop_responses wr JOIN users u ON (wr.user_id = u.user_id) WHERE wr.workshop_prompt_id = ?', [promptid]);
-        res.status(200).send(promptResponses);
+        console.log('User ID:', req.user?.user_id, 'Role:', req.user?.is_admin);
+        console.log('Prompt responses count:', promptResponses.length);
+        res.set('Cache-Control','no-store').status(200).json(promptResponses);
     } catch (error) {
         res.status(500).send(error);
     }

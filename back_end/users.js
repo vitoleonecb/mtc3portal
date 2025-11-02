@@ -26,35 +26,67 @@ usersRouter.get('', authenticateToken, async (req, res, next) => {
     }    
     });
 
-usersRouter.post('/login', async (req, res) => {
+usersRouter.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-
-        // Run your auth procedure
-        const [rows] = await connection.query('CALL login_auth(?, ?, @msg); SELECT @msg as msg', [email, password]);
-
-        if (!process.env.ACCESS_TOKEN_SECRET) {
-            throw new Error("Missing ACCESS_TOKEN_SECRET environment variable");
+    
+        if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required." });
         }
-
-        // Fetch the user's ID as a flat value
-        const [[userRow]] = await connection.query(
-            'SELECT user_id FROM users WHERE email = ?',
-            [email]
+    
+        // 1️⃣ Look up the user
+        const [[user]] = await connection.query(
+        "SELECT user_id, email, username, first_name, last_name, user_password, user_type FROM users WHERE email = ? LIMIT 1",
+        [email]
         );
-
+    
+        if (!user) {
+        return res.status(401).json({ message: "Invalid email or password." });
+        }
+    
+        // 2️⃣ Compare passwords (no hash in this schema)
+        if (user.user_password !== password) {
+        return res.status(401).json({ message: "Invalid email or password." });
+        }
+    
+        // 3️⃣ Define role flag
+        const isAdmin = user.user_type === "admin";
+    
+        // 4️⃣ Create JWT payload
         const payload = {
-            email,
-            user_id: userRow.user_id
+        user_id: user.user_id,
+        email: user.email,
+        username: user.username,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        user_type: user.user_type,
+        is_admin: isAdmin
         };
-
-        const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-
-        res.status(200).json({ accessToken });
+    
+        // 5️⃣ Sign the token
+        const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h"
+        });
+    
+        // 6️⃣ Send response
+        res.status(200).json({
+        message: "Login successful",
+        accessToken,
+        user: {
+            user_id: user.user_id,
+            email: user.email,
+            username: user.username,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            user_type: user.user_type,
+            is_admin: isAdmin
+        }
+        });
     } catch (error) {
-        res.status(500).send(`Internal Server Error: ${error.message}`);
+        console.error("Login error:", error);
+        res.status(500).json({ message: `Internal Server Error: ${error.message}` });
     }
-});
+    });
 
 usersRouter.get('/:id', authenticateToken, async(req, res, next) => {
     try {

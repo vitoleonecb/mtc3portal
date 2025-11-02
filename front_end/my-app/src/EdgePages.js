@@ -36,7 +36,10 @@ export function FinalPrompt() {
 }
 
 export function ModuleEdge({ nextModulePath, currentWorkshopPath, remainingModules, RSVPEarned, RSVPPath }) {
-	return (
+	
+    console.log(`RSVPPath: ${RSVPPath}`);
+    
+    return (
 		<>
 			{remainingModules === 0 ? (
 				<div className="EdgeBox">

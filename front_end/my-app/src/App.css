@@ -203,7 +203,12 @@ svg.backArrow {
 
 svg.LockSVG {
   margin-left: auto;
-  margin-right: 1rem;
+  margin-right: .5rem;
+}
+
+svg.EyeSVG {
+  margin-left: auto;
+  margin-right: .5rem;
 }
 
 progress {
@@ -1316,6 +1321,18 @@ rect:hover {
 
 .openButton:hover svg path {
   stroke: white;
+}
+
+.openButton:hover svg circle {
+  fill: white;
+}
+
+.openButton svg circle {
+  fill: #D2A478;
+}
+
+.openButton svg path {
+  stroke: #D2A478;
 }
 
 .completeButton:hover svg path {

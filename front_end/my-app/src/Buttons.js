@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect }from 'react';
-import { DragElement, ArrowSVG, Star, BackArrowSVG, CheckBox, LockSVG, ForwardArrowIcon } from './Icons';
+import { DragElement, ArrowSVG, Star, BackArrowSVG, CheckBox, LockSVG, EyeSVG, ForwardArrowIcon } from './Icons';
 import classNames from 'classnames';
 import { motion } from 'framer-motion';
 import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
@@ -19,20 +19,20 @@ export function CompleteButton({ moduleName }) {
 export function ProcessingButton({ moduleName, isAdmin, RSVPStatus }) {
 
     return (
-    <button className="processingButton">
+      <button className={RSVPStatus ? "openButton": "processingButton"}>
         <span id="buttonText">{moduleName}</span>
-	<div></div>
-	<div></div>
-	
-	{
-		isAdmin ? (
-			<svg className="pencilIconContainer" width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    		<path className="pencilIcon" d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383" stroke="white"/>
-                	</svg>
-			) : RSVPStatus ? <ArrowSVG/> : <LockSVG/>
-	}
-	
-    </button>
+        <div></div>
+        <div></div>
+    
+        {
+          isAdmin ? (
+            <svg className="pencilIconContainer" width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path className="pencilIcon" d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383" stroke="white"/>
+            </svg>
+            ) : RSVPStatus ? <EyeSVG/> : <LockSVG/>
+        }
+    
+      </button>
     );
 }
 
@@ -45,7 +45,7 @@ export function PendingButton({ moduleName, isAdmin }) {
             <div></div>
             { isAdmin && (
                 <svg className="pencilIconContainer" width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path className="pencilIcon" d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383" stroke="white"/>
+                  <path className="pencilIcon" d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383" stroke="white"/>
                 </svg>
             )}
         </button>
@@ -501,9 +501,11 @@ export function NextButton({ onClick, text = "Next", style= {}, to=""}) {
     const navigate = useNavigate();
 
     const handleClick = (e) => {
-        if (onClick) onClick(e);
-        if (to) navigate(to) 
-    }
+      console.log('CLICK:', { to });
+      if (onClick) onClick(e);
+      if (to) navigate(to);
+      else console.warn('Navigation skipped — `to` is falsy.');
+    };
     
     return (
         <div style={style} className="logInButtonContainer">

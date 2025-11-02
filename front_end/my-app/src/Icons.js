@@ -48,12 +48,23 @@ export function MenuBarIcon() {
   }
 
 export function LockSVG() {
-  <svg style="LockSVG" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M5.25 7V5.5a3.75 3.75 0 0 1 7.5 0V7" stroke="black" fill="none"/>
-    <rect x="4" y="7" width="10" height="8" stroke="black" fill="none"/>
-    <circle cx="9" cy="11" r="0.75" fill="black"/>
-  </svg>
+  return (
+    <svg className="LockSVG" width="23" height="23" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5.5 10.5V7a6 6 0 0 1 12 0v3.5" stroke="black" stroke-linecap="round" fill="none"/>
+      <rect x="4.5" y="10.5" width="14" height="9" rx="1.75" stroke="black" stroke-linecap="round" fill="none"/>
+      <circle cx="11.5" cy="14.75" r="1.25" fill="black"/>
+    </svg>
+  );
+}
 
+export function EyeSVG() {
+  return (
+    <svg className="EyeSVG" width="23" height="23" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1.75 11.5C4.25 6.75 8.5 4 11.5 4C14.5 4 18.75 6.75 21.25 11.5C18.75 16.25 14.5 19 11.5 19C8.5 19 4.25 16.25 1.75 11.5Z"
+        stroke="black" stroke-linecap="round" fill="none"/>
+      <circle cx="11.5" cy="11.5" r="2.5" fill="black"/>
+    </svg>
+  );
 }
 
 export function ForwardArrowIcon() {

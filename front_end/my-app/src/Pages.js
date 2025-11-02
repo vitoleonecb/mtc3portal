@@ -801,7 +801,7 @@ export function WorkshopModules() {
                         const promptCount = progress?.prompt_count ?? 0;
                         const responseCount = progress?.response_count ?? 0;
                                     
-                        if (isAdmin) {
+                        if (isAdmin || RSVPStatus) {
                             return (
                                 <Link
                                     to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`}
@@ -810,9 +810,10 @@ export function WorkshopModules() {
                                     <ProcessingButton
                                         moduleName={module.workshop_module_name}
                                         isAdmin={isAdmin}
+                                        RSVPStatus={RSVPStatus}
                                     />
                                 </Link>
-                                    );
+                                );
                         } else {
                             return (
                                 <ProcessingButton
@@ -889,7 +890,7 @@ export function WorkshopPromptsPage() {
     const userId = decodedToken.user_id;
     const [isAdmin, setIsAdmin] = useState(false);
     const [allResponses, setAllResponses] = useState(null);
-    const [RSVPStatus, setRSVPStatus] = useState();
+    const [RSVPStatus, setRSVPStatus] = useState(undefined);
     const [promptsList, setPromptsList] = useState([]);
     const [remainingModules, setRemainingModules] = useState(0);
     const [promptIndex, setPromptIndex] = useState(0);
@@ -1049,6 +1050,7 @@ export function WorkshopPromptsPage() {
         
         const fetchResponse = async () => {
             if (!promptId) return;
+            if (RSVPStatus === undefined) return;
 
             try {
                 const me = await axios.get(
@@ -1061,7 +1063,7 @@ export function WorkshopPromptsPage() {
                     }
                 )
 
-                if (isAdmin) {
+                if (isAdmin || RSVPStatus) {
 
                     const allResponsesResponse = await axios.get(
                         `${process.env.REACT_APP_API_BASE}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}`,
@@ -1074,7 +1076,7 @@ export function WorkshopPromptsPage() {
                     )
 
                     setAllResponses(allResponsesResponse.data);
-		    console.log(allResponses)
+		            console.log(allResponsesResponse.data)
                 }
 
                 if (me.data?.response) {
@@ -1095,7 +1097,7 @@ export function WorkshopPromptsPage() {
         }
 
         fetchResponse();
-    }, [promptId, isAdmin, accessToken, workshopId, moduleId]);
+    }, [promptId, isAdmin, accessToken, workshopId, moduleId, RSVPStatus]);
 
     //Debugging Next Button Persistence BEGIN
 
@@ -1299,11 +1301,11 @@ export function WorkshopPromptsPage() {
                         console.error(`Front End Error: ${error}`);
                     }
                     setNextModulePath(null);
-                    setRSVPEarned(true);
                     setRSVPPath(`/workshops/${workshopId}/rsvp/${userId}`);
-                 }
-        
-                 setEndOfPrompts(true);
+                    console.log(RSVPPath);
+                    setRSVPEarned(true);
+                    setEndOfPrompts(true)
+                }
              } catch (error) {
                  console.log(`Server Error during RSVP check: ${error}`);
              }
@@ -1368,7 +1370,7 @@ export function WorkshopPromptsPage() {
                     nextModulePath={nextModulePath}
                     remainingModules={remainingModules}
                     RSVPEarned={RSVPEarned}
-                    RSVPPath={RSVPPath}
+                    RSVPPath={`/workshops/${workshopId}/rsvp/${userId}`}
                 />
             </>
         )
@@ -1385,13 +1387,11 @@ export function WorkshopPromptsPage() {
 
             {renderPrompt()}
 
-            {isAdmin && Array.isArray(allResponses) && allResponses.length > 0 &&
-                (<>
-
-		    {renderResponses()}
-
-                </>)
-            }
+            {(isAdmin || RSVPStatus) && Array.isArray(allResponses) && allResponses.length > 0 && (
+                <>
+                    {renderResponses()}
+                </>
+            )}
 
             <ModuleNavigator
                 submitHandler={handleSubmit}
