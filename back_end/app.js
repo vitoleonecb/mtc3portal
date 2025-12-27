@@ -1,6 +1,7 @@
-import {productionsRouter} from './productions.js';
-import {workshopsRouter} from './workshops.js';
-import {usersRouter} from './users.js';
+import { productionsRouter } from './productions.js';
+import { workshopsRouter } from './workshops.js';
+import { usersRouter } from './users.js';
+import { analyticsRouter } from './analytics.js'
 import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -13,12 +14,12 @@ import morgan from 'morgan';
 import cors from 'cors';
 
 export const connection = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
-    multipleStatements: true,
-    waitForConnections: true
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  multipleStatements: true,
+  waitForConnections: true
 });
 
 const app = express();
@@ -34,6 +35,7 @@ app.use(express.json());
 app.use('/users', usersRouter);
 app.use('/workshops', workshopsRouter);
 app.use('/productions', productionsRouter);
+app.use('/analytics', analyticsRouter);
 
 app.get('/health', (req, res) => {
   res.json({

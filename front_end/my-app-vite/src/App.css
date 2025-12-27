@@ -154,7 +154,7 @@ html {
 
 svg.forwardArrow {
   margin-left: auto;
-  margin-right: .5rem;
+  margin-right: 1rem;
 }
 
 .checkBox {
@@ -196,8 +196,7 @@ svg.forwardArrow {
 }
 
 svg.backArrow {
-  margin-left: auto;
-  margin-right: 1rem;
+  margin: 0 auto;
   transform: rotateY(180deg);
 }
 
@@ -503,6 +502,7 @@ div.progressContainer {
   margin-right: auto;
   font-family: sans-serif;
   font-weight: lighter;
+  font-size: 45px;
 }
 
 .Heading2 {
@@ -539,6 +539,7 @@ div.progressContainer {
 .ProcessingText {
   font-family: sans-serif;
   font-weight: lighter;
+  font-size: 28px;
 }
 
 #dropDownText {
@@ -767,6 +768,10 @@ div.progressContainer {
   stroke: white;
 }
 
+.nextButton svg {
+  margin: 0 auto
+}
+
 .ForwardArrowIcon {
   margin-right: auto;
   margin-left: auto;
@@ -960,6 +965,8 @@ rect:hover {
   display: block;
   padding: 1rem;
   margin-left: auto;
+  margin-top: auto;
+  margin-bottom: auto;
   height: 3rem;
   border: black 1px solid;
   border-radius: 20px;
@@ -1017,6 +1024,10 @@ rect:hover {
   font-size: .9rem;
 }
 
+.createButton svg{
+  margin: 0 auto;
+}
+
 .enterButton {
   display: block;
   width: 40px;
@@ -1029,6 +1040,10 @@ rect:hover {
   box-shadow: -4px 4px black;
   font-size: .9rem;
   margin-bottom: 1.5rem;
+}
+
+.enterButton svg {
+  margin: 0 auto;
 }
 
 
@@ -1226,7 +1241,7 @@ rect:hover {
 
 .pencilIconContainer {
   margin-left: auto;
-  margin-right: .5rem
+  margin-right: 1rem
 }
 
 .completeButton:hover {
@@ -1288,6 +1303,10 @@ rect:hover {
   display: flex;
   justify-content: right;
   margin-right: 1rem;
+}
+
+.charting {
+  margin: 0 auto;
 }
 
 .dropDownButton {
@@ -1416,6 +1435,7 @@ select.dropDown {
 .createWorkshopButtonContainer,
 .ProcessorResponseContainer,
 .EdgeBox,
+.charting,
 .mysql-picker {
   width: var(--element-width);
   transition: width .5s ease;

@@ -1,23 +1,52 @@
-# Node.js (Express)
+# --------------------
+# Environment
+# --------------------
 .env
-dist/
+.env.*
+!.env.example
+
+# --------------------
+# Logs
+# --------------------
 *.log
+logs/
+
+# --------------------
+# Dependencies
+# --------------------
 node_modules/
 **/node_modules/
 
-# React
-/build
-/.next
-.cache/
+# --------------------
+# Builds / Artifacts
+# --------------------
+dist/
+build/
+**/build/
 .vite/
-
-# OS-specific
-.DS_Store
-Thumbs.db
-
-# Editor/IDE
-.vscode/
-.idea/
+.cache/
+.next/
+out/
+coverage/
 *.save.*
 
-front_end/my-app/.env.production
+# Old frontend artifacts
+front_end/my-app/build_old/
+
+# --------------------
+# OS / Editor
+# --------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc

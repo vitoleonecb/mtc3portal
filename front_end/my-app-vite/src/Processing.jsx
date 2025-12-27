@@ -1,15 +1,15 @@
-import { MenuBarIcon, DragAndDropKey, ProgressBar } from './Icons.js';
-import { ModuleHeader } from './ModuleHeader.js';
-import { ModuleEdge } from './EdgePages.js';
-import { OpenResponse, 
-    ScriptSampleNotate, 
-    ScriptSampleRate, 
-    CheckBoxButton, 
-    ModuleNavigator, 
-    PendingButton, 
-    CompleteButton, 
-    OpenButton, 
-    ProcessingButton, 
+import { MenuBarIcon, DragAndDropKey, ProgressBar } from './Icons.jsx';
+import { ModuleHeader } from './ModuleHeader.jsx';
+import { ModuleEdge } from './EdgePages.jsx';
+import { OpenResponse,
+    ScriptSampleNotate,
+    ScriptSampleRate,
+    CheckBoxButton,
+    ModuleNavigator,
+    PendingButton,
+    CompleteButton,
+    OpenButton,
+    ProcessingButton,
     MultipleChoiceGroup,
     ShortResponseArea,
     DragAndDropArea,
@@ -20,44 +20,111 @@ import { OpenResponse,
     YesNoButton,
     WorkshopCard,
     CreateButton,
-    DropDown } from './Buttons.js';
-import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.js';
+    DropDown } from './Buttons.jsx';
+import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.jsx';
 import React, { useRef, useState, useEffect, useContext, createContext } from 'react';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import { Link, useParams, useNavigate, Outlet, useLocation, useMatch } from 'react-router-dom';
 import { format } from 'date-fns';
+import { DefaultBarChart } from './BarChartExample.jsx'
+import { GlowingLineChart } from './LineChartExample.jsx';
+import { GlowingBarVerticalChart } from '/var/www/mtc3portal/front_end/my-app-vite/src/components/ui/glowing-bar-vertical-chart.jsx';
 
 export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin }) {
-  
+
+  const [analyticsData, setAnalyticsData] = useState({});
+  const [templateType, setTemplateType] = useState();
+
   const accessToken = localStorage.getItem('accessToken');
 
+  const safeResponses = Array.isArray(allResponses) ? allResponses : [];
+
   const visibleResponses = isAdmin
-    ? allResponses
-    : allResponses.filter(r => r.workshop_response_acceptance === 1);
+    ? safeResponses
+    : safeResponses.filter(r => r.workshop_response_acceptance === 1);
 
   useEffect(() => {
     const fetchPromptAnalytics = async () => {
+
+      const promptTemplateType = (() => {
+        switch (templateId) {
+          case 1: return 'multiplechoice';
+          case 3: return 'checklist';
+          case 6: return 'draganddrop';
+          case 9: return 'dropdown';
+          case 8: return 'notation';
+          case 7: return 'samplerater';
+          case 4: return 'shortresponse';
+          default: return 'multiplechoice';
+        }
+      })();
+
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE}/analytics/multiplechoice/${promptId}`, { 
+            const response = await axios.get(`${import.meta.env.VITE_API_URL}/analytics/${promptTemplateType}/${promptId}`, {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${accessToken}`
                 }
             });
-
             console.log(`Analytics for Prompt: ${JSON.stringify(response.data)}`)
+
+            setTemplateType(promptTemplateType);
+            setAnalyticsData(response.data);
         } catch (error) {
             console.log(`Front End Fetch Error: ${error}`);
         }
     }
     fetchPromptAnalytics()
-  },[])
+  },[promptId, templateId, accessToken])
+
+  const chartsByTemplate = {
+    multiplechoice: (
+      <>
+        <GlowingBarVerticalChart analyticsData={analyticsData} />
+        <GlowingLineChart analyticsData={analyticsData} />
+      </>
+    ),
+
+    checklist: (
+      <>
+        <DefaultBarChart analyticsData={analyticsData} />
+        <GlowingLineChart analyticsData={analyticsData} />
+      </>
+    ),
   
+    dropdown: (
+      <>
+        <GlowingLineChart analyticsData={analyticsData} />
+      </>
+    ),
+  
+    shortresponse: (
+      <>
+        <GlowingBarVerticalChart />
+        <GlowingLineChart analyticsData={analyticsData} />
+      </>
+    ),
+  
+    draganddrop: (
+      <GlowingLineChart analyticsData={analyticsData} />
+    ),
+
+    notation: (
+      <GlowingLineChart analyticsData={analyticsData} />
+    ),
+
+    samplerater: (
+      <GlowingLineChart analyticsData={analyticsData} />
+    ),
+
+  };
+
   return (
     <>
       <Heading1 text={visibleResponses.length > 0 ? "Community Responses" : "Community Responses Coming Soon"} />
       <div className="ProcessorContainer">
+        {chartsByTemplate[templateType] ?? null}
         {visibleResponses.map((r, i) => (
           <ProcessorCard
             key={r.workshop_response_id ?? i}
@@ -100,7 +167,7 @@ export function ProcessorCard({
     setAccepted(nextAccepted); // optimistic
     try {
       await axios.patch(
-        `${process.env.REACT_APP_API_BASE}/workshops/${responseId}/response/acceptance`,
+        `${import.meta.env.VITE_API_URL}/workshops/${responseId}/response/acceptance`,
         { acceptance: nextAccepted },
         {headers: {'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`}}
       );
@@ -169,34 +236,48 @@ export function ProcessorCard({
         );
       }
 
-      case 6: {
-        const fmt = (v) =>
-          v == null ? "—" : v <= 1 ? `${(v * 100).toFixed(0)}` : `${Math.round(v)}px`;
-        const prettyFromKey = (k) => {
-          if (!k) return "";
-          const s = String(k).replace(/[-_]+/g, " ").trim();
-          return s.charAt(0).toUpperCase() + s.slice(1);
-        };
-        return (
-          <div>
-            <strong className="QuestionProcessing">Dragged Items and Their Positions:</strong>
-            <ul>
-              {[...response_content]
-                .filter((e) => e?.keyName && e.keyName !== "undefined")
-                .sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0))
-                .map((e, idx) => {
-                  const x = e.position?.x, y = e.position?.y;
-                  const label = e.label ?? prettyFromKey(e.keyName);
-                  return (
-                    <li key={e.keyName ?? idx}>
-                      {label} — Y: {fmt(y)}, X: {fmt(x)}
-                    </li>
-                  );
-                })}
-            </ul>
-          </div>
-        );
-      }
+        case 6: {
+          const items = (() => {
+            if (Array.isArray(response_content)) return response_content;
+            if (response_content && typeof response_content === "object")
+              return [response_content];
+            return [];
+          })();
+
+          const fmt = (v) =>
+            v == null ? "—" : v <= 1 ? `${(v * 100).toFixed(0)}` : `${Math.round(v)}px`;
+
+          const prettyFromKey = (k) => {
+            if (!k) return "";
+            const s = String(k).replace(/[-_]+/g, " ").trim();
+            return s.charAt(0).toUpperCase() + s.slice(1);
+          };
+
+          return (
+            <div>
+              <strong className="QuestionProcessing">
+                Dragged Items and Their Positions:
+              </strong>
+              <ul>
+                {items
+                  .filter((e) => e?.keyName && e.keyName !== "undefined")
+                  .sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0))
+                  .map((e, idx) => {
+                    const x = e.position?.x;
+                    const y = e.position?.y;
+                    const label = e.label ?? prettyFromKey(e.keyName);
+
+                    return (
+                      <li key={e.keyName ?? idx}>
+                        {label} — Y: {fmt(y)}, X: {fmt(x)}
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          );
+        }
+
 
       case 9: {
         const items = (() => {

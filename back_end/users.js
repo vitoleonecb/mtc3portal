@@ -4,6 +4,29 @@ import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 
 export const usersRouter = express.Router();
 
+///
+///
+/// ADMIN AUTOMATION LEVEL
+///
+///
+
+usersRouter.get('/list', authenticateTokenAdmin, async(req, res, next) => {
+    console.log("Decoded token:", req.user);
+    try {
+        const [results] = await connection.query('SELECT * FROM users');
+        res.status(200).send(results);
+    } catch(error) {
+        res.status(500).send(`Internal Server Error: ${error}`);
+    }
+});
+
+
+///
+///
+/// GENERAL ACCESS
+///
+///
+
 usersRouter.get('/:id/isadmin', authenticateToken, async (req, res, next) => {
 		const { id } = req.params;
 		try {
@@ -31,7 +54,7 @@ usersRouter.post("/login", async (req, res) => {
         const { email, password } = req.body;
     
         if (!email || !password) {
-        return res.status(400).json({ message: "Email and password are required." });
+            return res.status(400).json({ message: "Email and password are required." });
         }
     
         // 1️⃣ Look up the user
@@ -41,12 +64,12 @@ usersRouter.post("/login", async (req, res) => {
         );
     
         if (!user) {
-        return res.status(401).json({ message: "Invalid email or password." });
+            return res.status(401).json({ message: "Invalid email or password." });
         }
     
         // 2️⃣ Compare passwords (no hash in this schema)
         if (user.user_password !== password) {
-        return res.status(401).json({ message: "Invalid email or password." });
+            return res.status(401).json({ message: "Invalid email or password." });
         }
     
         // 3️⃣ Define role flag
@@ -54,25 +77,6 @@ usersRouter.post("/login", async (req, res) => {
     
         // 4️⃣ Create JWT payload
         const payload = {
-        user_id: user.user_id,
-        email: user.email,
-        username: user.username,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        user_type: user.user_type,
-        is_admin: isAdmin
-        };
-    
-        // 5️⃣ Sign the token
-        const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h"
-        });
-    
-        // 6️⃣ Send response
-        res.status(200).json({
-        message: "Login successful",
-        accessToken,
-        user: {
             user_id: user.user_id,
             email: user.email,
             username: user.username,
@@ -80,7 +84,26 @@ usersRouter.post("/login", async (req, res) => {
             last_name: user.last_name,
             user_type: user.user_type,
             is_admin: isAdmin
-        }
+        };
+    
+        // 5️⃣ Sign the token
+        const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
+            expiresIn: "1h"
+        });
+    
+        // 6️⃣ Send response
+        res.status(200).json({
+            message: "Login successful",
+            accessToken,
+            user: {
+                user_id: user.user_id,
+                email: user.email,
+                username: user.username,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                user_type: user.user_type,
+                is_admin: isAdmin
+            }
         });
     } catch (error) {
         console.error("Login error:", error);

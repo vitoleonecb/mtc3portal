@@ -1,5 +1,4 @@
 import { MenuBarIcon, DragAndDropKey, ProgressBar } from './Icons.js';
-import { ModuleHeader } from './ModuleHeader.js';
 import { ModuleEdge } from './EdgePages.js';
 import { OpenResponse, 
     ScriptSampleNotate, 
@@ -48,9 +47,10 @@ export const ProgressContext = createContext({
 
 export function ProgressProvider({ children }) {
     const [state, setState] = useState({ current: 0, max: 0 });
+    const [moduleStatus, setModuleStatus] = useState(null);
   
     return (
-      <ProgressContext.Provider value={{ state, setState }}>
+      <ProgressContext.Provider value={{ state, setState, moduleStatus, setModuleStatus }}>
         {children}
       </ProgressContext.Provider>
     );
@@ -518,10 +518,10 @@ export function RegistrationPage() {
     // List of objects to keep track, display and update form field responses.
     
     const steps = [
-        {key: 'userName', label: 'username'},
         {key: 'firstName', label: 'first name'},
         {key: 'lastName', label: 'last name'},
         {key: 'email', label: 'email', type: 'email'},
+        {key: 'userName', label: 'username'},
         {key: 'userPhone', label: 'Phone Number'},
         {key: 'userPassword1', label: 'Choose a password', type: 'password'}
     ];
@@ -558,8 +558,6 @@ export function RegistrationPage() {
         setFormData({ ...formData, [steps[stepIndex].key]: event.target.value });
     }
 
-    const isIntro = stepIndex === 0;
-
     return (
         <>
                 <div className="menuBarIconContainer">
@@ -568,20 +566,17 @@ export function RegistrationPage() {
                 
                 <Heading2 text={steps[stepIndex].label}/>
                 
-                {isIntro ? (
-                        <NextButton onClick={handleNext}/>
-                    ) : (
-                        <>
-                            <input 
-                                onChange={handleChange} 
-                                value={formData[steps[stepIndex].key]} 
-                                type={steps[stepIndex].type || "text"} 
-                                onKeyDown={(event) => event.key === "Enter" && handleNext()}
-                                className="textInput"
-                            />
-                            <NextButton onClick={handleNext}></NextButton>
-                        </>
-                )}
+                
+                    <>
+                        <input 
+                            onChange={handleChange} 
+                            value={formData[steps[stepIndex].key]} 
+                            type={steps[stepIndex].type || "text"} 
+                            onKeyDown={(event) => event.key === "Enter" && handleNext()}
+                            className="textInput"
+                        />
+                        <NextButton onClick={handleNext}></NextButton>
+                    </>
         </>
     )
 }
@@ -592,16 +587,23 @@ export function WorkshopModules() {
     const [loading, setLoading] = useState(true);
     const [RSVPStatus, setRSVPStatus] = useState();
     const [createFormSelected, setCreateFormSelected] = useState(false);
-    const [moduleCreateFormData, setModuleCreateFormData] = useState({moduleName: ''});
-    const [moduleCreated, setModuleCreated] = useState(false);
-    const { workshopId } = useParams();
-    const [workshopName, setWorkshopName] = useState('Untitled');
-    const accessToken = localStorage.getItem('accessToken');
-    const decodedToken = jwtDecode(accessToken);
-    const userId = decodedToken.user_id;
-    const location = useLocation();
     const [isAdmin, setIsAdmin] = useState(false);
     const [progressData, setProgressData] = useState([]);
+    const [moduleCreateFormData, setModuleCreateFormData] = useState({moduleName: ''});
+    const [moduleCreated, setModuleCreated] = useState(false);
+    const [workshopName, setWorkshopName] = useState('Untitled');
+    const { setModuleStatus } = useContext(ProgressContext);
+
+    const { workshopId, moduleId } = useParams();
+
+    const accessToken = localStorage.getItem('accessToken');
+
+    const decodedToken = jwtDecode(accessToken);
+
+    const userId = decodedToken.user_id;
+
+    const location = useLocation();
+
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -778,6 +780,7 @@ export function WorkshopModules() {
                             <Link
                                 to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`}
                                 className="linkNoUnderLine cardLink"
+                                state={{ moduleStatus: module.workshop_module_status }}
                             >
                                 <OpenButton
                                     moduleName={module.workshop_module_name}
@@ -806,6 +809,7 @@ export function WorkshopModules() {
                                 <Link
                                     to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`}
                                     className="linkNoUnderLine cardLink"
+                                    state={{ moduleStatus: module.workshop_module_status }}
                                 >
                                     <ProcessingButton
                                         moduleName={module.workshop_module_name}
@@ -898,12 +902,19 @@ export function WorkshopPromptsPage() {
     const [RSVPEarned, setRSVPEarned] = useState(false);
     const [nextModulePath, setNextModulePath] = useState(null);
     const [responseData, setResponseData] = useState([]);
-    const { state: progressState, setState: setProgressState } = useContext(ProgressContext);
     const [endOfPrompts, setEndOfPrompts] = useState(false);
     const [moduleComplete, setModuleComplete] = useState(false);
     const [RSVPPath, setRSVPPath] = useState(null);
     const [formData, setFormData] = useState();
     const navigate = useNavigate();
+    const location = useLocation();
+    const { state: progressState, setState: setProgressState, moduleStatus, setModuleStatus } = useContext(ProgressContext);
+
+    useEffect(() => {
+        if (location.state?.moduleStatus) {
+          setModuleStatus(location.state.moduleStatus);
+        }
+      }, []);
 
     useEffect(() => {
         const fetchRSVPStatus = async () => {
@@ -1049,8 +1060,12 @@ export function WorkshopPromptsPage() {
     useEffect(() => {
         
         const fetchResponse = async () => {
+            
             if (!promptId) return;
             if (RSVPStatus === undefined) return;
+            if (moduleStatus === 'processing') {
+                setPromptMode('view');
+            }
 
             try {
                 const me = await axios.get(
@@ -1076,7 +1091,7 @@ export function WorkshopPromptsPage() {
                     )
 
                     setAllResponses(allResponsesResponse.data);
-		            console.log(allResponsesResponse.data)
+		            console.log(allResponsesResponse.data);
                 }
 
                 if (me.data?.response) {
@@ -1101,11 +1116,11 @@ export function WorkshopPromptsPage() {
 
     //Debugging Next Button Persistence BEGIN
 
-      useEffect(() => {
+    useEffect(() => {
         setEndOfPrompts(false);
         setRSVPEarned(false);
         setNextModulePath(null);
-      }, [workshopId, moduleId, promptId]);
+    }, [workshopId, moduleId, promptId]);
 
       //Debugging Next Button Persistence END
 
@@ -1353,10 +1368,9 @@ export function WorkshopPromptsPage() {
     };
 
     const renderResponses = () => {
-	if (!prompt) return <div>Loading...</div>;
-
-        return <ResponseProcessor allResponses={allResponses} isAdmin={isAdmin} templateId={prompt.prompt_template_id}/>;
-    }
+        if (!prompt) return <div>Loading...</div>;
+            return <ResponseProcessor promptId={promptId} allResponses={allResponses} isAdmin={isAdmin} templateId={prompt.prompt_template_id}/>;
+        }
 
     console.log(`Prompt Mode: ${promptMode}`);
 
@@ -1409,9 +1423,10 @@ export function WorkshopPromptsPage() {
 export function Root() {
     const [submitHandler, setSubmitHandler] = useState(null);
     const { pathname } = useLocation();
-    const { state: progressState } = useContext(ProgressContext);
+    const { state: progressState, moduleStatus } = useContext(ProgressContext);
   
     const isEditor = pathname.includes('prompts/edit');
+    const isProcessing = moduleStatus === 'processing';
     const isPromptReader = useMatch('workshops/:workshopId/modules/:moduleId/prompts/:promptId');
   
     return (
@@ -1432,7 +1447,7 @@ export function Root() {
           {isEditor && (
             <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />
           )}
-          {isPromptReader && !isEditor && (
+          {isPromptReader && !isEditor && !isProcessing && (
             <ProgressBar current={progressState.current} max={progressState.max} />
           )}
         </div>
@@ -1442,6 +1457,7 @@ export function Root() {
           </EditorSubmitContext.Provider>
         </div>
       </>
+      
     );
   }
 
@@ -1490,6 +1506,9 @@ export function HomePage() {
             <NextButton text="Try Module"/>
             <Link to="login" className="linkNoUnderLine cardLink">
                 <NextButton text="Log In"/>
+            </Link>
+            <Link to="register" className="linkNoUnderLine cardLink">
+                <NextButton text="Sign Up"/>
             </Link>
         </>
     )

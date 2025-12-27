@@ -83,6 +83,7 @@ workshopsRouter.get('/:workshopid/modulesprogress', authenticateToken, async (re
 
 // GET All Prompts Inside Modules
 workshopsRouter.get('/:workshopid/modules/:moduleid/prompts', authenticateToken, async(req, res, next) => {
+    console.log("Decoded token:", req.user);
     try{
         const { moduleid } = req.params;
         const [rows] = await connection.query('SELECT * FROM workshop_prompts WHERE workshop_module_id = ?', [moduleid]);
@@ -275,6 +276,40 @@ workshopsRouter.get('/:workshopid/rsvp/:userid', authenticateToken, async (req, 
     }
 });
 
+// GET Analytics
+workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid/analytics', authenticateToken, async (req, res, next) => {
+    try {
+        const { userid, promptid } = req.params;
+
+        const { templateId } = req.body;
+
+        switch (templateId) {
+            case 1:
+                
+            case 1:
+                
+            case 1:
+                
+            case 1:
+                
+            case 1:
+                
+            case 1:
+                
+            case 1:
+                
+        }
+
+        const [response] = await connection.query(
+            'SELECT u.first_name AS first_name, u.username AS username, w.workshop_name AS workshop_name, w.workshop_description AS workshop_description, w.workshop_date AS workshop_date, w.workshop_location AS workshop_location, w.workshop_public AS workshop_public, wr.rsvp_confirmation_status AS rsvp_confirmation_status FROM workshops w JOIN workshop_rsvps wr ON (w.workshop_id = wr.workshop_id) JOIN users u ON (wr.user_id = u.user_id) WHERE w.workshop_id = ? AND u.user_id = ?',
+            [workshopid, userid]
+        );
+        res.status(203).send(response);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`)
+    }
+});
+
 ///
 ///
 /// ADMIN LEVEL
@@ -456,6 +491,17 @@ workshopsRouter.put('/:workshopid/modules/:moduleid', authenticateTokenAdmin, as
     }
 });
 
+// GET Module Status
+workshopsRouter.get('/:workshopid/modules/:moduleid', authenticateTokenAdmin, async (req, res, next) => {
+    try {
+        const { moduleid, workshopid } = req.params;
+        const response = await connection.query('SELECT workshop_module_status FROM workshop_modules WHERE workshop_id = ? AND workshop_module_id = ?', [workshopid, moduleid]);
+        res.status(200).send(response);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`);
+    }
+});
+
 // POST Response to Module
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/response', authenticateToken, async (req, res) => {
     try {
@@ -528,3 +574,31 @@ workshopsRouter.patch('/:responseId/response/acceptance', authenticateTokenAdmin
         return res.status(500).json({ message: 'Server error', error: String(err) });
       }
     });
+
+
+///
+///
+/// ADMIN AUTOMATION LEVEL
+///
+///
+
+workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/automated', authenticateTokenAdmin, async (req, res, next) => {
+    try {
+        
+        const { workshopid, moduleid, promptid } = req.params;
+        const { workshop_response_content, user_id } = req.body;
+        
+        const [response] = await connection.query('INSERT INTO workshop_responses (workshop_response_content, user_id, workshop_prompt_id) VALUES (?, ?, ?)',[JSON.stringify(workshop_response_content), user_id, promptid]);
+        
+        const [rsvpAccomplishmentRows] = await connection.query('SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]);
+        const [userAccomplishmentRows] = await connection.query('SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]);
+        
+        if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
+            const rsvpCreateResponse = await connection.query('INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',[user_id, workshopid]);
+            res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
+        }
+        res.status(201).send(response);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`);
+    }
+});
