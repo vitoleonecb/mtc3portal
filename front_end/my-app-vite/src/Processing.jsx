@@ -29,7 +29,9 @@ import { Link, useParams, useNavigate, Outlet, useLocation, useMatch } from 'rea
 import { format } from 'date-fns';
 import { DefaultBarChart } from './BarChartExample.jsx'
 import { GlowingLineChart } from './LineChartExample.jsx';
-import { GlowingBarVerticalChart } from '/var/www/mtc3portal/front_end/my-app-vite/src/components/ui/glowing-bar-vertical-chart.jsx';
+import { GlowingBarVerticalChart } from "./components/ui/glowing-bar-vertical-chart.jsx";
+  
+import { RandomBackgroundLayer } from "./components/RandomBackgroundLayer";
 
 export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin }) {
 

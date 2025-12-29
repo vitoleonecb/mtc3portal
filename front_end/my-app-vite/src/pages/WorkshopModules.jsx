@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useMemo } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 
 import axios from "axios";
@@ -13,6 +13,8 @@ import {
     PendingButton,
     CreateButton,
 } from "../Buttons.jsx";
+import { RAW_CHARACTERS } from "../components/card-characters.jsx";
+import { createRng, pickFrom } from "../utils/random.js";
 
 import {
     OpenHeading,
@@ -185,6 +187,57 @@ export function WorkshopModules() {
     const processingModulesExists = modules.some((module) => module.workshop_module_status === 'processing');
     const pendingModulesExists = modules.some((module) => module.workshop_module_status === 'pending');
 
+    // Random-but-stable-per-mount decoration map. Roughly 1 in 4 modules
+    // gets a character on each page load. Decorations now use only the
+    // premade raw SVG characters.
+    const moduleDecorations = useMemo(() => {
+        const DECORATION_PROB = 0.25;
+        const placements = [
+          "cardDecoration-top-right",
+          "cardDecoration-top-left",
+          "cardDecoration-edge-right",
+          "cardDecoration-edge-left",
+        ];
+
+        const map = {};
+        modules.forEach((mod) => {
+            const rng = createRng(`module-${mod.workshop_module_id}-${location.key}`);
+            if (rng() < DECORATION_PROB) {
+                const placement = pickFrom(rng, placements);
+                if (!placement) return;
+
+                const RawChar = pickFrom(rng, RAW_CHARACTERS);
+                if (RawChar) {
+                    // Mostly small/medium; big characters ~10% of the time.
+                    const bigChance = 0.1;
+                    let scale;
+                    if (rng() < bigChance) {
+                      const t = rng();
+                      scale = 1.4 + t * 1.0; // big
+                    } else {
+                      const t = rng();
+                      scale = 0.2 + (t * t) * 1.0; // small/medium, skewed small
+                    }
+
+                    map[mod.workshop_module_id] = (
+                      <div
+                        className={`cardDecoration ${placement}`}
+                        style={{
+                          transform: `scale(${scale})`,
+                          transformOrigin: "center center",
+                        }}
+                      >
+                        <RawChar />
+                      </div>
+                    );
+                }
+            }
+        });
+        return map;
+    }, [modules, location.key]);
+
+    const getModuleDecoration = (moduleId) => moduleDecorations[moduleId] || null;
+
     if (loading) {
         return <div>loading...</div>
     }
@@ -226,6 +279,7 @@ export function WorkshopModules() {
                         const progress = progressData.find(p => p.module_id === module.workshop_module_id);
                         const promptCount = progress?.prompt_count ?? 0;
                         const responseCount = progress?.response_count ?? 0;
+                        const decoration = getModuleDecoration(module.workshop_module_id);
 
                         return (
                             <Link
@@ -237,6 +291,7 @@ export function WorkshopModules() {
                                     moduleName={module.workshop_module_name}
                                     progressValue={responseCount}
                                     maxValue={promptCount}
+                                    decoration={decoration}
                                 />
                             </Link>
                         );
@@ -254,6 +309,7 @@ export function WorkshopModules() {
                         const progress = progressData.find(p => p.module_id === module.workshop_module_id);
                         const promptCount = progress?.prompt_count ?? 0;
                         const responseCount = progress?.response_count ?? 0;
+                        const decoration = getModuleDecoration(module.workshop_module_id);
                                     
                         if (isAdmin || RSVPStatus) {
                             return (
@@ -266,6 +322,7 @@ export function WorkshopModules() {
                                         moduleName={module.workshop_module_name}
                                         isAdmin={isAdmin}
                                         RSVPStatus={RSVPStatus}
+                                        decoration={decoration}
                                     />
                                 </Link>
                                 );
@@ -274,6 +331,7 @@ export function WorkshopModules() {
                                 <ProcessingButton
                                     moduleName={module.workshop_module_name}
                                     RSVPStatus={RSVPStatus}
+                                    decoration={decoration}
                                 />
                             )
                         }
@@ -287,6 +345,7 @@ export function WorkshopModules() {
                     module.workshop_module_status === 'completed' && (
                         <CompleteButton
                             moduleName={module.workshop_module_name}
+                            decoration={getModuleDecoration(module.workshop_module_id)}
                         />
                     ) 
                 ))}
@@ -308,6 +367,7 @@ export function WorkshopModules() {
             		<PendingButton
                 	moduleName={module.workshop_module_name}
                 	isAdmin={isAdmin}
+                	decoration={getModuleDecoration(module.workshop_module_id)}
             		/>
         		</Link>
     		) : (
@@ -315,6 +375,7 @@ export function WorkshopModules() {
             		key={module.workshop_module_id}
             		moduleName={module.workshop_module_name}
             		isAdmin={isAdmin}
+            		decoration={getModuleDecoration(module.workshop_module_id)}
         		/>
     		);
 		})}

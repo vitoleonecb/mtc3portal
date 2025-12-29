@@ -32,10 +32,10 @@ app.use(cors(
 app.use(morgan('dev'));
 app.use(express.json());
 
-app.use('/users', usersRouter);
-app.use('/workshops', workshopsRouter);
-app.use('/productions', productionsRouter);
-app.use('/analytics', analyticsRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/workshops', workshopsRouter);
+app.use('/api/productions', productionsRouter);
+app.use('/api/analytics', analyticsRouter);
 
 app.get('/health', (req, res) => {
   res.json({

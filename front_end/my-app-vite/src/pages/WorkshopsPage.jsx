@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { format } from "date-fns";
 
 // UI Components
@@ -9,12 +9,15 @@ import { Heading1, Heading2 } from "../Headings.jsx";
 import { CreateButton } from "../Buttons.jsx";
 import { DropDown } from "../Buttons.jsx";
 import { WorkshopCard } from "../Buttons.jsx";
+import { RAW_CHARACTERS } from "../components/card-characters.jsx";
+import { createRng, pickFrom } from "../utils/random.js";
 import { MysqlDateInput } from "../DateInput.jsx";
 
 
 export function WorkshopsPage() {
     
     const [workshopsList, setWorkshopsList] = useState([]);
+    const { key: locationKey } = useLocation();
     const [isAdmin, setIsAdmin] = useState(false);
     const [createFormSelected, setCreateFormSelected] = useState(false);
     const [date, setDate] = useState('');
@@ -185,7 +188,57 @@ export function WorkshopsPage() {
         if (Number.isNaN(+dt)) return d; // show raw if not parseable
         return format(dt, "EEEE 'at' h:mm a | MM-dd-yyyy");
       }
-    
+    const workshopDecorations = useMemo(() => {
+        const DECORATION_PROB = 0.25;
+        const placements = [
+          "cardDecoration-top-right",
+          "cardDecoration-top-left",
+          "cardDecoration-edge-right",
+          "cardDecoration-edge-left",
+        ];
+        const map = {};
+
+        workshopsList.forEach((workshop) => {
+            const rng = createRng(`workshop-${workshop.workshop_id}-${locationKey}`);
+            if (rng() < DECORATION_PROB) {
+                const placement = pickFrom(rng, placements);
+                if (!placement) return;
+
+                // Always use one of the four raw SVG characters.
+                const RawChar = pickFrom(rng, RAW_CHARACTERS);
+                if (RawChar) {
+                    // Mostly small/medium; big characters ~10% of the time.
+                    const bigChance = 0.1;
+                    let scale;
+                    if (rng() < bigChance) {
+                      // Big: bias toward upper range 1.4x–2.4x
+                      const t = rng();
+                      scale = 1.4 + t * 1.0;
+                    } else {
+                      // Small/medium: 0.2x–1.2x, skewed toward smaller with t^2
+                      const t = rng();
+                      scale = 0.2 + (t * t) * 1.0;
+                    }
+
+                    map[workshop.workshop_id] = (
+                      <div
+                        className={`cardDecoration ${placement}`}
+                        style={{
+                          transform: `scale(${scale})`,
+                          transformOrigin: "center center",
+                        }}
+                      >
+                        <RawChar />
+                      </div>
+                    );
+                }
+            }
+        });
+        return map;
+    }, [workshopsList, locationKey]);
+
+    const getWorkshopDecoration = (id) => workshopDecorations[id] || null;
+
     return (
         <>
             
@@ -198,6 +251,7 @@ export function WorkshopsPage() {
                             workshopDescription={workshop.workshop_description} 
                             workshopDate={formatDate(workshop.workshop_date)} 
                             workshopLocation={workshop.workshop_location}
+                            decoration={getWorkshopDecoration(workshop.workshop_id)}
                         />
                 </Link>))
             }

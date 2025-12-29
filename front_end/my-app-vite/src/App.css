@@ -94,6 +94,19 @@ html {
 .body {
   margin-top: 180px;
   margin-bottom: 180px;
+  position: relative;
+}
+
+/* White column that hides background shapes behind main content */
+.contentBackplate {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--element-width);
+  min-height: 100%;
+  background: #ffffff;
+  z-index: -1; /* above background layer (-3), below content (auto) */
 }
 /* ICONS */
 
@@ -396,6 +409,8 @@ div.progressContainer {
   background-color: white;
   padding-top: 1rem;
   padding-bottom: 1rem;
+  position: relative;
+  overflow: visible;
 }
 
 .EdgeBox {
@@ -587,6 +602,8 @@ div.progressContainer {
   border: 1px solid #000000;
   box-shadow: -4px 4px 0px #000000;
   border-radius: 16px;
+  position: relative;
+  overflow: visible;
 }
 
 .MainNavCardContainer:hover button {
@@ -829,6 +846,8 @@ rect:hover {
   border-radius: 20px;
   box-shadow: -4px 4px black;
   background-color: white;
+  position: relative;
+  overflow: visible;
 }
 
 .processingButton {
@@ -844,6 +863,8 @@ rect:hover {
   border-radius: 20px;
   box-shadow: -4px 4px black;
   background-color: white;
+  position: relative;
+  overflow: visible;
 }
 
 .openButton {
@@ -859,6 +880,8 @@ rect:hover {
   border-radius: 20px;
   box-shadow: -4px 4px black;
   background-color: white;
+  position: relative;
+  overflow: visible;
 }
 
 .textInput {
@@ -912,6 +935,71 @@ rect:hover {
   margin-right: auto;
   margin-left: auto;
   padding-left: 1rem;
+}
+
+/* Small character decoration that sits on/around module cards. */
+.cardDecoration {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure card content (text, arrows, buttons) renders above cardDecoration
+ * without changing the positioning of the decoration itself.
+ * We explicitly exclude .cardDecoration wrappers from these rules so they
+ * remain absolutely positioned and do not affect layout.
+ */
+.completeButton > span,
+.completeButton > div:not(.cardDecoration),
+.completeButton > svg,
+.processingButton > span,
+.processingButton > div:not(.cardDecoration),
+.processingButton > svg,
+.pendingButton > span,
+.pendingButton > div:not(.cardDecoration),
+.pendingButton > svg,
+.openButton > span,
+.openButton > div:not(.cardDecoration),
+.openButton > svg,
+.workshopCardContainer > span,
+.workshopCardContainer > h1,
+.workshopCardContainer > div:not(.cardDecoration),
+.workshopCardContainer > svg,
+.MainNavCardContainer > span,
+.MainNavCardContainer > div:not(.cardDecoration),
+.MainNavCardContainer > svg {
+  position: relative;
+  z-index: 1;
+}
+
+.cardDecoration-top-right {
+  right: -12px;
+  top: -36px;
+}
+
+.cardDecoration-top-left {
+  left: -12px;
+  top: -36px;
+}
+
+.cardDecoration-bottom-right {
+  right: -12px;
+  bottom: -32px;
+}
+
+.cardDecoration-bottom-left {
+  left: -12px;
+  bottom: -32px;
+}
+
+.cardDecoration-edge-right {
+  right: -8px;
+  top: 8px;
+}
+
+.cardDecoration-edge-left {
+  left: -8px;
+  top: 8px;
 }
 
 .createChecklistQuestionContainer {

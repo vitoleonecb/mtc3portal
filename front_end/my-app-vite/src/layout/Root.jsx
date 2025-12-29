@@ -6,10 +6,11 @@ import { NextButton } from '../Buttons.jsx';
 import { ProgressBar } from '../Icons.jsx';
 import { ProgressContext } from '../context/ProgressContext';
 import { EditorSubmitContext } from '../context/EditorSubmitContext.jsx';
+import { RandomBackgroundLayer } from '../components/RandomBackgroundLayer.jsx';
 
 export function Root() {
   const [submitHandler, setSubmitHandler] = useState(null);
-  const { pathname } = useLocation();
+  const { pathname, key: locationKey } = useLocation();
   const { state: progressState, moduleStatus } = useContext(ProgressContext);
 
   const isEditor = pathname.includes('prompts/edit');
@@ -41,6 +42,18 @@ export function Root() {
       </div>
 
       <div className="body">
+        {/* Background layer now scoped to body so it covers full scrollable height */}
+        <RandomBackgroundLayer
+          asFullScreen={false}
+          variant="dots-haze"
+          density="medium"
+          mode="behind"
+          seed={`${pathname}-${locationKey}`}
+        />
+
+        {/* White content column that covers background shapes behind main content */}
+        <div className="contentBackplate" aria-hidden="true" />
+
         <EditorSubmitContext.Provider value={setSubmitHandler}>
           <Outlet />
         </EditorSubmitContext.Provider>

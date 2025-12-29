@@ -5,65 +5,96 @@ import classNames from 'classnames';
 import { motion } from 'framer-motion';
 import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
 
-export function CompleteButton({ moduleName }) {
+export function CompleteButton({ moduleName, decoration }) {
     return (
     <button className="completeButton">
         <span id="buttonText">{moduleName}</span>
         <div></div>
         <div></div>
         <ArrowSVG />
+        {decoration && (
+          <div className="cardDecoration">{decoration}</div>
+        )}
     </button>
     );
 }
 
-export function ProcessingButton({ moduleName, isAdmin, RSVPStatus }) {
+export function ProcessingButton({ moduleName, isAdmin, RSVPStatus, decoration }) {
+  const buttonClassName = RSVPStatus ? "openButton" : "processingButton";
 
-    return (
-      <button className={RSVPStatus ? "openButton": "processingButton"}>
-        <span id="buttonText">{moduleName}</span>
-        <div></div>
-        <div></div>
-    
-        {
-          isAdmin ? (
-            <svg className="pencilIconContainer" width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path className="pencilIcon" d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383" stroke="white"/>
-            </svg>
-            ) : RSVPStatus ? <EyeSVG/> : <LockSVG/>
-        }
-    
-      </button>
-    );
+  return (
+    <button className={buttonClassName}>
+      <span id="buttonText">{moduleName}</span>
+      <div></div>
+      <div></div>
+
+      {isAdmin ? (
+        <svg
+          className="pencilIconContainer"
+          width="20"
+          height="21"
+          viewBox="0 0 20 21"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            className="pencilIcon"
+            d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383"
+            stroke="white"
+          />
+        </svg>
+      ) : RSVPStatus ? (
+        <EyeSVG />
+      ) : (
+        <LockSVG />
+      )}
+
+      {decoration && <div className="cardDecoration">{decoration}</div>}
+    </button>
+  );
 }
 
-export function PendingButton({ moduleName, isAdmin }) {
+export function PendingButton({ moduleName, isAdmin, decoration }) {
+  return (
+    <button className={isAdmin ? "adminPendingButton" : "pendingButton"}>
+      <span id="buttonText">{moduleName}</span>
+      <div></div>
+      <div></div>
 
-    return (
-        <button className={isAdmin ? "adminPendingButton" : "pendingButton"}>
-            <span id="buttonText">{moduleName}</span>
-            <div></div>
-            <div></div>
-            { isAdmin && (
-                <svg className="pencilIconContainer" width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path className="pencilIcon" d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383" stroke="white"/>
-                </svg>
-            )}
-        </button>
+      {isAdmin && (
+        <svg
+          className="pencilIconContainer"
+          width="20"
+          height="21"
+          viewBox="0 0 20 21"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            className="pencilIcon"
+            d="M2.76738 16C2.76738 16 1.49988 19 0.999939 20C0.5 21 4.53482 18.2222 4.53482 18.2222M2.76738 16L4.53482 18.2222M2.76738 16L14.924 2.24383M4.53482 18.2222L17.6802 5M17.6802 5L18.5004 4.17499C19.3108 3.35985 19.2596 2.0284 18.3891 1.27785V1.27785C17.5676 0.569597 16.3293 0.653647 15.611 1.46641L14.924 2.24383M17.6802 5L14.924 2.24383"
+            stroke="white"
+          />
+        </svg>
+      )}
 
-    );
+      {decoration && <div className="cardDecoration">{decoration}</div>}
+    </button>
+  );
 }
 
-export function OpenButton({ moduleName, progressValue, maxValue }) {
-    return (
+export function OpenButton({ moduleName, progressValue, maxValue, decoration }) {
+  return (
     <button className="openButton">
-        <span id="buttonText">{moduleName}</span>
-        <div className="progressContainer">
-            <progress className="openProgress" value={progressValue} max={maxValue}></progress>
-        </div>
-        <span id="buttonTimeText">72 hrs</span>
-        <ArrowSVG />
+      <span id="buttonText">{moduleName}</span>
+      <div className="progressContainer">
+        <progress className="openProgress" value={progressValue} max={maxValue}></progress>
+      </div>
+      <span id="buttonTimeText">72 hrs</span>
+      <ArrowSVG />
+      {decoration && <div className="cardDecoration">{decoration}</div>}
     </button>
-    );
+  );
 }
 
 export function OpenResponse({ onChange, responseData, disabled }) {
@@ -546,38 +577,40 @@ export function CreateButton({ handleClick }) {
     );
 }
 
-export function WorkshopCard({ workshopName, workshopLocation, workshopDate, workshopDescription }) {
-    return (
-        <>
-            <div className="workshopCardContainer">
-                <div>
-                    <h1 className="workshopCardName">{workshopName}</h1>
-                    <span id="buttonText">{'When: ' + workshopDate}</span>
-                    <span id="buttonText">{'Where: ' + workshopLocation}</span>
-                    <span id="workshopCardDescription">{workshopDescription}</span>
-                </div>
+export function WorkshopCard({ workshopName, workshopLocation, workshopDate, workshopDescription, decoration }) {
+  return (
+    <>
+      <div className="workshopCardContainer">
+        <div>
+          <h1 className="workshopCardName">{workshopName}</h1>
+          <span id="buttonText">{"When: " + workshopDate}</span>
+          <span id="buttonText">{"Where: " + workshopLocation}</span>
+          <span id="workshopCardDescription">{workshopDescription}</span>
+        </div>
 
-                <div>
-                    <ArrowSVG />
-                </div>
+        <div>
+          <ArrowSVG />
+        </div>
 
-            </div>
-        </>
-    )
+        {decoration && <div className="cardDecoration">{decoration}</div>}
+      </div>
+    </>
+  );
 }
 
-export function MainNavCard({color, text, link}) {
-    return (
-      <Link to={link} className="linkNoUnderLine cardLink">
-        <div className="MainNavCardContainer" style={{ backgroundColor: color}}>
-            <div className="MainNavCardLabel">
-                <span className="MainNavCardTitle">{text}</span>
-                <span className="MainNavCardDesc"></span>
-            </div>
-            <EnterButton />
+export function MainNavCard({ color, text, link, decoration }) {
+  return (
+    <Link to={link} className="linkNoUnderLine cardLink">
+      <div className="MainNavCardContainer" style={{ backgroundColor: color }}>
+        <div className="MainNavCardLabel">
+          <span className="MainNavCardTitle">{text}</span>
+          <span className="MainNavCardDesc"></span>
         </div>
-      </Link>
-    )
+        <EnterButton />
+        {decoration && <div className="cardDecoration">{decoration}</div>}
+      </div>
+    </Link>
+  );
 }
 
 export function DropDown({ responseData, options = [], onSelect, reset, onChange, disabled }) {
