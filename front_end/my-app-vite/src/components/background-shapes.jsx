@@ -308,6 +308,9 @@ export function WhiteSquare({ width = 32, height = 32, ...props }) {
 }
 
 export function BlackSquare({ width = 32, height = 32, ...props }) {
+  // Intentional: black squares are the only background squares WITHOUT a drop shadow.
+  // All other colored squares (white, gray, red, tan, green) keep their shadow
+  // for visual depth, but black is treated as a flat "ink" tile.
   return (
     <svg
       width={width}
@@ -319,22 +322,15 @@ export function BlackSquare({ width = 32, height = 32, ...props }) {
       role="presentation"
       {...props}
     >
-      <g filter="url(#filter0_d_5_864)">
-      <rect x="4" width="195" height="195" rx="16" fill="black"/>
-      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black"/>
-      </g>
-      <defs>
-      <filter id="filter0_d_5_864" x="0" y="0" width="199" height="199" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="-4" dy="4"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_5_864"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_5_864" result="shape"/>
-      </filter>
-      </defs>
-
+      <rect x="4" width="195" height="195" rx="16" fill="black" />
+      <rect
+        x="4.5"
+        y="0.5"
+        width="194"
+        height="194"
+        rx="15.5"
+        stroke="black"
+      />
     </svg>
   );
 }

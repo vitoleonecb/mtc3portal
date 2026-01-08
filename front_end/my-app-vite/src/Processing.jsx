@@ -37,18 +37,89 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
 
   const [analyticsData, setAnalyticsData] = useState({});
   const [templateType, setTemplateType] = useState();
+  const [isDragging, setIsDragging] = useState(false);
+
+  const scrollerRef = useRef(null);
+  const adminAnalysisRef = useRef(null);
+  const dragStartXRef = useRef(0);
+  const dragScrollLeftRef = useRef(0);
+  const isDraggingRef = useRef(false);
 
   const accessToken = localStorage.getItem('accessToken');
 
   const safeResponses = Array.isArray(allResponses) ? allResponses : [];
+
+  const [adminAnalysis, setAdminAnalysis] = useState("");
+  const [adminAnalysisLoading, setAdminAnalysisLoading] = useState(false);
+  const [adminAnalysisSaving, setAdminAnalysisSaving] = useState(false);
+  const [adminAnalysisError, setAdminAnalysisError] = useState("");
+  const [adminAnalysisSavedAt, setAdminAnalysisSavedAt] = useState(null);
+  const [adminAnalysisLocked, setAdminAnalysisLocked] = useState(false);
 
   const visibleResponses = isAdmin
     ? safeResponses
     : safeResponses.filter(r => r.workshop_response_acceptance === 1);
 
   useEffect(() => {
-    const fetchPromptAnalytics = async () => {
+    if (!isAdmin || !promptId) return;
 
+    let cancelled = false;
+
+    const fetchAdminAnalysis = async () => {
+      setAdminAnalysisLoading(true);
+      setAdminAnalysisError("");
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/analytics/admin-analysis/${promptId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (cancelled) return;
+
+        const value = response.data?.adminAnalysis ?? "";
+        const text = typeof value === "string" ? value : "";
+        setAdminAnalysis(text);
+        // If any non-empty analysis exists, lock the field (no further edits via UI)
+        setAdminAnalysisLocked(text.trim().length > 0);
+      } catch (error) {
+        if (cancelled) return;
+
+        // 404 -> treat as no existing analysis
+        if (error?.response?.status === 404) {
+          // No existing analysis; allow first-time entry.
+          setAdminAnalysis("");
+          setAdminAnalysisLocked(false);
+        } else {
+          console.error("Fetch admin analysis error:", error);
+          setAdminAnalysisError("Could not load analysis.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAdminAnalysisLoading(false);
+        }
+      }
+    };
+
+    fetchAdminAnalysis();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, promptId, accessToken]);
+
+  useEffect(() => {
+    const textarea = adminAnalysisRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }, [adminAnalysis]);
+
+  useEffect(() => {
+    const fetchPromptAnalytics = async () => {
       const promptTemplateType = (() => {
         switch (templateId) {
           case 1: return 'multiplechoice';
@@ -62,23 +133,33 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
         }
       })();
 
-        try {
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/analytics/${promptTemplateType}/${promptId}`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
-                }
-            });
-            console.log(`Analytics for Prompt: ${JSON.stringify(response.data)}`)
+      // Always record which template we are rendering charts for,
+      // even if the analytics request fails.
+      setTemplateType(promptTemplateType);
 
-            setTemplateType(promptTemplateType);
-            setAnalyticsData(response.data);
-        } catch (error) {
-            console.log(`Front End Fetch Error: ${error}`);
-        }
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/analytics/${promptTemplateType}/${promptId}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          }
+        );
+        console.log(`Analytics for Prompt (${promptTemplateType}): ${JSON.stringify(response.data)}`);
+
+        setAnalyticsData(response.data || {});
+      } catch (error) {
+        console.log(`Front End Fetch Error for ${promptTemplateType}:`, error);
+        setAnalyticsData({});
+      }
+    };
+
+    if (promptId && templateId) {
+      fetchPromptAnalytics();
     }
-    fetchPromptAnalytics()
-  },[promptId, templateId, accessToken])
+  }, [promptId, templateId, accessToken]);
 
   const chartsByTemplate = {
     multiplechoice: (
@@ -117,9 +198,86 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
     ),
 
     samplerater: (
-      <GlowingLineChart analyticsData={analyticsData} />
+      <>
+        <div style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>
+          <strong>Average Rating: </strong>
+          {analyticsData && analyticsData.averageRating != null
+            ? Number(analyticsData.averageRating).toFixed(1)
+            : '—'}
+        </div>
+        <GlowingLineChart analyticsData={analyticsData} />
+      </>
     ),
 
+  };
+
+  const handleHorizontalWheel = (e) => {
+    if (!scrollerRef.current) return;
+    
+    // If vertical wheel movement is dominant (typical mouse wheel)
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      scrollerRef.current.scrollLeft += e.deltaY;
+    }
+    // Otherwise let native horizontal scrolling (trackpad) work naturally
+  };
+
+  const handlePointerDown = (e) => {
+    // Enable click-and-drag only for mouse pointers so touch/trackpads behave natively
+    if (e.pointerType !== 'mouse') return;
+    if (!scrollerRef.current) return;
+
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    dragStartXRef.current = e.clientX;
+    dragScrollLeftRef.current = scrollerRef.current.scrollLeft;
+    scrollerRef.current.setPointerCapture?.(e.pointerId);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDraggingRef.current || !scrollerRef.current) return;
+    e.preventDefault();
+
+     const speed = 2; // >1 = faster scrolling, <1 = slower
+    const dx = e.clientX - dragStartXRef.current;
+    scrollerRef.current.scrollLeft = dragScrollLeftRef.current - dx * speed;
+  };
+
+  const endDrag = (e) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    scrollerRef.current?.releasePointerCapture?.(e.pointerId);
+  };
+
+  const handleSaveAdminAnalysis = async () => {
+    if (!isAdmin || !promptId) return;
+
+    setAdminAnalysisSaving(true);
+    setAdminAnalysisError("");
+
+    try {
+      await axios.put(
+        `${import.meta.env.VITE_API_URL}/analytics/admin-analysis/${promptId}`,
+        { adminAnalysis },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      setAdminAnalysisSavedAt(new Date());
+      // Once saved successfully, prevent further edits/overwrites in the UI.
+      setAdminAnalysisLocked(true);
+    } catch (error) {
+      console.error('Save admin analysis error:', error);
+      setAdminAnalysisError(
+        error?.response?.data?.message || 'Failed to save analysis.'
+      );
+    } finally {
+      setAdminAnalysisSaving(false);
+    }
   };
 
   return (
@@ -127,19 +285,77 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
       <Heading1 text={visibleResponses.length > 0 ? "Community Responses" : "Community Responses Coming Soon"} />
       <div className="ProcessorContainer">
         {chartsByTemplate[templateType] ?? null}
-        {visibleResponses.map((r, i) => (
-          <ProcessorCard
-            key={r.workshop_response_id ?? i}
-            name={`${r.first_name} ${r.last_name}`}
-            username={r.username}
-            response_content={r.workshop_response_content}
-            templateId={templateId}
-            isAdmin={isAdmin}
-            responseId={r.workshop_response_id}
-            initialAccepted={!!r.workshop_response_acceptance}
-            accessToken={accessToken}
-          />
-        ))}
+
+        {isAdmin && (
+          <div className="AdminAnalysisContainer">
+            <h2 className="AdminAnalysisHeading">Admin Analysis</h2>
+            <textarea
+              ref={adminAnalysisRef}
+              className={`OpenResponse AdminAnalysisTextarea ${(adminAnalysisSaving || adminAnalysisLocked) ? 'no_hover' : ''}`}
+              value={adminAnalysis}
+              onChange={(adminAnalysisSaving || adminAnalysisLocked) ? undefined : (e) => {
+                setAdminAnalysis(e.target.value);
+                if (adminAnalysisSavedAt) setAdminAnalysisSavedAt(null);
+              }}
+              readOnly={adminAnalysisLocked}
+              placeholder="Enter your summary and analysis for this prompt..."
+            />
+            {!adminAnalysisLocked && (
+              <div className="AdminAnalysisControls">
+                <button
+                  type="button"
+                  onClick={handleSaveAdminAnalysis}
+                  disabled={adminAnalysisSaving}
+                  class="logInButton"
+                >
+                  {adminAnalysisSaving ? "Saving…" : "Save analysis"}
+                </button>
+                {adminAnalysisLoading && (
+                  <span className="status-text" role="status">
+                    Loading…
+                  </span>
+                )}
+                {adminAnalysisError && (
+                  <span className="error-text" role="status">
+                    {adminAnalysisError}
+                  </span>
+                )}
+                {!adminAnalysisError && adminAnalysisSavedAt && (
+                  <span className="status-text" role="status">
+                    Saved
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Horizontal scroller for processor cards */}
+        {visibleResponses.length > 0 && (
+          <div 
+            className={`ProcessorScroller${isDragging ? ' is-dragging' : ''}`} 
+            ref={scrollerRef}
+            onWheel={handleHorizontalWheel}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={endDrag}
+            onPointerLeave={endDrag}
+          >
+            {visibleResponses.map((r, i) => (
+              <ProcessorCard
+                key={r.workshop_response_id ?? i}
+                name={`${r.first_name} ${r.last_name}`}
+                username={r.username}
+                response_content={r.workshop_response_content}
+                templateId={templateId}
+                isAdmin={isAdmin}
+                responseId={r.workshop_response_id}
+                initialAccepted={!!r.workshop_response_acceptance}
+                accessToken={accessToken}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

@@ -54,7 +54,9 @@ function generateElements(variant, density, seed) {
     // Smaller scale on average but still visible
     const scale = 0.4 + rand() * 0.4; // 0.4 - 0.8
     const rotation = 0;               // no rotation – just location + scale
-    // Use full opacity so dark fills and drop shadows stay true black
+
+    // All shapes use full opacity; visual variation comes only from
+    // the underlying SVG artwork, not from per-instance alpha.
     const opacity = 1;
 
     const ShapeComponent =
@@ -93,11 +95,15 @@ export function RandomBackgroundLayer({
   asFullScreen = false,
   className = "",
   style = {},
+  heightFactor = 1,
 }) {
   const elements = useMemo(
     () => generateElements(variant, density, seed),
     [variant, density, seed]
   );
+
+  // Scale the vertical coordinate system of the SVG with the document height
+  const logicalHeight = 100 * Math.max(1, heightFactor);
 
   const baseStyle = asFullScreen
     ? {
@@ -119,12 +125,12 @@ export function RandomBackgroundLayer({
       role="presentation"
       className={className}
       style={{ ...baseStyle, ...style }}
-      viewBox="0 0 100 100"
+      viewBox={`0 0 100 ${logicalHeight}`}
       preserveAspectRatio="xMidYMid slice"
     >
       {elements.map((el) => {
         const cx = el.x * 100;
-        const cy = el.y * 100;
+        const cy = el.y * logicalHeight;
         const Shape = el.ShapeComponent;
 
         return (

@@ -21,6 +21,11 @@
   margin-bottom: 1rem;
 }
 
+.appBackgroundLayer {
+  filter: blur(0px);
+  opacity: 1;
+}
+
 
 .menuIcon {
   width: 3rem;
@@ -93,7 +98,7 @@ html {
 
 .body {
   margin-top: 180px;
-  margin-bottom: 180px;
+  margin-bottom: 0px;
   position: relative;
 }
 
@@ -101,13 +106,26 @@ html {
 .contentBackplate {
   position: absolute;
   top: 0;
+  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: var(--element-width);
-  min-height: 100%;
+  /* Slightly wider than the main column to create a solid white sliver */
+  width: calc(var(--element-width) + 20px);
   background: #ffffff;
   z-index: -1; /* above background layer (-3), below content (auto) */
 }
+/* Optional extra wrapper; currently unused for fading since the
+   RandomBackgroundLayer itself is masked. Left as a no-op so markup stays. */
+.contentFade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  z-index: -2;
+}
+
 /* ICONS */
 
 .ratingSVG,
@@ -232,7 +250,8 @@ progress {
   display: block;
 }
 
-.OpenResponse {
+.OpenResponse,
+.AdminAnalysisTextarea {
   display: block;
   height: 3rem;
   border: black 1px solid;
@@ -253,25 +272,30 @@ progress {
   -ms-overflow-style: none;  /* Internet Explorer 10+ */
 }
 
-.OpenResponse:hover {
+.OpenResponse:hover,
+.AdminAnalysisTextarea:hover {
   box-shadow: -2px 2px black;
 }
 
-.OpenResponse:focus {
+.OpenResponse:focus,
+.AdminAnalysisTextarea:focus {
   box-shadow: none;
 }
 
-.OpenResponse.no_hover:hover {
+.OpenResponse.no_hover:hover,
+.AdminAnalysisTextarea.no_hover:hover {
   pointer-events: none;
   cursor: default !important;
   box-shadow: -4px 4px black !important;
 }
 
-.OpenResponse.no_hover:focus {
+.OpenResponse.no_hover:focus,
+.AdminAnalysisTextarea.no_hover:focus {
   box-shadow: -4px 4px black !important;
 }
 
-.OpenResponse::-webkit-scrollbar {
+.OpenResponse::-webkit-scrollbar,
+.AdminAnalysisTextarea::-webkit-scrollbar {
   display: none; /* Safari and Chrome */
 }
 
@@ -374,15 +398,40 @@ div.progressContainer {
   justify-content: center;
 }
 
+/* Community Responses layout */
+.ProcessorContainer {
+}
+
+.ProcessorScroller {
+  width: var(--element-width);
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 1.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  margin-top: 24px;
+  padding: 0 0.75rem 0.5rem 0.75rem; /* add horizontal padding to prevent card shadows from being clipped */
+  overscroll-behavior: contain;
+  cursor: grab;
+}
+
+.ProcessorScroller.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.ProcessorScroller::-webkit-scrollbar {
+  height: 0;
+}
+
 .ProcessorResponseContainer {
   display: grid;
   grid-template-columns: 6fr 1fr;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 40px;
-  margin-bottom: 20px;
   align-items: center;
-  width: 80%;
   border: black 1px solid;
   border-radius: 20px;
   box-shadow: -4px 4px black;
@@ -518,6 +567,9 @@ div.progressContainer {
   font-family: sans-serif;
   font-weight: lighter;
   font-size: 45px;
+  background-color: white;
+  padding: 7px;
+  border-radius: 30px;   
 }
 
 .Heading2 {
@@ -529,6 +581,9 @@ div.progressContainer {
   margin-right: auto;
   font-family: sans-serif;
   font-weight: lighter;
+  background-color: white;
+  padding: 7px;
+  border-radius: 30px;     
 }
 
 .DropdownPromptContainer {
@@ -543,7 +598,8 @@ div.progressContainer {
   font-weight: lighter;
 }
 
-.OpenResponse:focus {
+.OpenResponse:focus,
+.AdminAnalysisTextarea:focus {
   outline: none;
 }
 
@@ -551,10 +607,21 @@ div.progressContainer {
 .PendingText,
 .CompletedText,
 #dropDownText,
-.ProcessingText {
+.ProcessingText,
+.AdminAnalysisHeading {
   font-family: sans-serif;
   font-weight: lighter;
-  font-size: 28px;
+  font-size: 28px; 
+}
+
+.AdminAnalysisHeading {
+  padding-bottom: 1.5rem;
+}
+
+.AdminAnalysisContainer {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 40px;  
 }
 
 #dropDownText {
@@ -582,6 +649,9 @@ div.progressContainer {
   display: grid;
   grid-template-columns: .2fr 5fr;
   align-items: center;
+  background-color: white;
+  padding: 7px;
+  border-radius: 30px;      
 }
 
 /* BUTTONS */
@@ -630,6 +700,8 @@ div.progressContainer {
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  z-index: 2; /* above nav card decorations (z=1) */
 }
 
 .DragAndDropContainer {
@@ -937,11 +1009,22 @@ rect:hover {
   padding-left: 1rem;
 }
 
-/* Small character decoration that sits on/around module cards. */
+/* Small character decoration that sits on/around module cards.
+ * Characters are rendered *behind* the card content so text and icons
+ * always remain readable, except on navigation cards where we let
+ * characters sit on top for extra personality.
+ */
 .cardDecoration {
   position: absolute;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1; /* behind card contents within the same card by default */
+}
+
+/* Exception: navigation cards keep their characters on top of the
+ * card background, but still sit behind the MainNavCardLabel text box.
+ */
+.MainNavCardContainer .cardDecoration {
+  z-index: 1; /* above card background, below MainNavCardLabel (z=2) */
 }
 
 /* Ensure card content (text, arrows, buttons) renders above cardDecoration
@@ -1521,12 +1604,28 @@ select.dropDown {
 .createChecklistQuestionContainer,
 .createButtonContainer,
 .createWorkshopButtonContainer,
-.ProcessorResponseContainer,
 .EdgeBox,
 .charting,
-.mysql-picker {
+.mysql-picker,
+.AdminAnalysisContainer {
   width: var(--element-width);
   transition: width .5s ease;
+}
+
+/* Inside the admin analysis section, the textarea should fill the container,
+   not shrink to a nested var(--element-width) */
+.AdminAnalysisTextarea {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+/* Processor cards used in horizontal scroller: flex-basis controls visible width */
+.ProcessorResponseContainer {
+  width: auto;
+  flex: 0 0 82%;
+  max-width: 82%;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 @media (max-width: 700px) {

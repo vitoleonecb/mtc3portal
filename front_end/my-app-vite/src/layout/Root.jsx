@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useLayoutEffect } from 'react';
 import { Outlet, useLocation, useMatch } from 'react-router-dom';
 
 import { MenuBarIcon } from '../Icons.jsx';
@@ -16,6 +16,21 @@ export function Root() {
   const isEditor = pathname.includes('prompts/edit');
   const isProcessing = moduleStatus === 'processing';
   const isPromptReader = useMatch('workshops/:workshopId/modules/:moduleId/prompts/:promptId');
+
+  const [heightFactor, setHeightFactor] = useState(1);
+
+  useLayoutEffect(() => {
+    const update = () => {
+      if (typeof window === 'undefined') return;
+      const doc = document.documentElement;
+      const factor = Math.max(1, doc.scrollHeight / window.innerHeight);
+      setHeightFactor(factor);
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   return (
     <>
@@ -49,11 +64,12 @@ export function Root() {
           density="medium"
           mode="behind"
           seed={`${pathname}-${locationKey}`}
+          heightFactor={heightFactor}
+          className="appBackgroundLayer"
         />
 
         {/* White content column that covers background shapes behind main content */}
         <div className="contentBackplate" aria-hidden="true" />
-
         <EditorSubmitContext.Provider value={setSubmitHandler}>
           <Outlet />
         </EditorSubmitContext.Provider>

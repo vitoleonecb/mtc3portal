@@ -177,5 +177,108 @@ export async function getCLAnalytics(promptId) {
     });
 
     return analytics;
+}
 
+async function getTimeSeriesOnlyAnalytics(promptId) {
+    const [rows] = await connection.query(
+        `
+        SELECT workshop_response_created
+        FROM workshop_responses
+        WHERE workshop_prompt_id = ?
+          AND workshop_response_acceptance = 1
+        `,
+        [promptId]
+    );
+
+    const analytics = {
+        promptId,
+        totalResponses: rows.length,
+        timeSeries: {}
+    };
+
+    rows.forEach(row => {
+        const day = dayjs(row.workshop_response_created).format("YYYY-MM-DD");
+        analytics.timeSeries[day] = (analytics.timeSeries[day] || 0) + 1;
+    });
+
+    return analytics;
+}
+
+export async function getDragAndDropAnalytics(promptId) {
+    return getTimeSeriesOnlyAnalytics(promptId);
+}
+
+export async function getShortResponseAnalytics(promptId) {
+    return getTimeSeriesOnlyAnalytics(promptId);
+}
+
+export async function getDropDownAnalytics(promptId) {
+    return getTimeSeriesOnlyAnalytics(promptId);
+}
+
+export async function getSampleRaterAnalytics(promptId) {
+    const [rows] = await connection.query(
+        `
+        SELECT workshop_response_content, workshop_response_created
+        FROM workshop_responses
+        WHERE workshop_prompt_id = ?
+          AND workshop_response_acceptance = 1
+        `,
+        [promptId]
+    );
+
+    let ratingSum = 0;
+    let ratingCount = 0;
+
+    const analytics = {
+        promptId,
+        totalResponses: rows.length,
+        averageRating: null,
+        timeSeries: {}
+    };
+
+    rows.forEach(row => {
+        const content = safeParse(row.workshop_response_content);
+        const ratings = [];
+
+        if (Array.isArray(content)) {
+            // e.g. [{ rating: 4 }, ...]
+            content.forEach(item => {
+                if (item && typeof item === "object" && Object.prototype.hasOwnProperty.call(item, "rating")) {
+                    ratings.push(Number(item.rating));
+                }
+            });
+        } else if (content != null && typeof content === "object") {
+            // e.g. { rating: 4 }
+            if (Object.prototype.hasOwnProperty.call(content, "rating")) {
+                ratings.push(Number(content.rating));
+            }
+        } else if (typeof content === "number" || typeof content === "string") {
+            // e.g. raw numeric value
+            ratings.push(Number(content));
+        }
+
+        ratings.forEach(rating => {
+            if (Number.isFinite(rating) && rating > 0) {
+                ratingSum += rating;
+                ratingCount += 1;
+            }
+        });
+
+        const day = dayjs(row.workshop_response_created).format("YYYY-MM-DD");
+        analytics.timeSeries[day] = (analytics.timeSeries[day] || 0) + 1;
+    });
+
+    if (ratingCount > 0) {
+        const avg = ratingSum / ratingCount;
+        analytics.averageRating = Math.round(avg * 10) / 10;
+    } else {
+        analytics.averageRating = null;
+    }
+
+    return analytics;
+}
+
+export async function getNotationAnalytics(promptId) {
+    return getTimeSeriesOnlyAnalytics(promptId);
 }
