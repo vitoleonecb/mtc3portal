@@ -24,6 +24,20 @@ function generateElements(variant, density, seed) {
   const minDist = 0.22; // normalized distance to keep shapes from clustering too tightly
   const minDistSq = minDist * minDist;
 
+  // We want most shapes to hug the left/right gutters so they peek out
+  // from behind the centered content column instead of sitting in the
+  // middle of the page.
+  const sampleEdgeCoord = () => {
+    // Approximate central content band as x in [0.3, 0.7]. We place
+    // background tiles either in [0, 0.22] or [0.78, 1].
+    const LEFT_MAX = 0.25;
+    const RIGHT_MIN = 0.75;
+    const sideIsLeft = rand() < .5;
+    return sideIsLeft
+      ? rand() * LEFT_MAX
+      : RIGHT_MIN + rand() * (1 - RIGHT_MIN);
+  };
+
   for (let i = 0; i < count; i += 1) {
     let x = 0;
     let y = 0;
@@ -32,7 +46,8 @@ function generateElements(variant, density, seed) {
 
     // Try a few times to find a spot not too close to existing shapes
     while (tries < 8 && !ok) {
-      x = rand(); // 0-1
+      x = sampleEdgeCoord(); // biased toward left/right borders
+      // Vertical placement anywhere in [0,1] within the viewport.
       y = rand();
       let tooClose = false;
       for (let j = 0; j < positions.length; j += 1) {
@@ -102,8 +117,11 @@ export function RandomBackgroundLayer({
     [variant, density, seed]
   );
 
-  // Scale the vertical coordinate system of the SVG with the document height
-  const logicalHeight = 100 * Math.max(1, heightFactor);
+  // Logical height is scaled by the observed aspect of the scrollable
+  // body. This only affects the SVG's internal coordinate system; the
+  // background remains absolutely positioned and does not change page
+  // height.
+  const logicalHeight = 100 * (heightFactor && heightFactor > 0 ? heightFactor : 1);
 
   const baseStyle = asFullScreen
     ? {
@@ -126,7 +144,7 @@ export function RandomBackgroundLayer({
       className={className}
       style={{ ...baseStyle, ...style }}
       viewBox={`0 0 100 ${logicalHeight}`}
-      preserveAspectRatio="xMidYMid slice"
+      preserveAspectRatio="xMidYMid meet"
     >
       {elements.map((el) => {
         const cx = el.x * 100;

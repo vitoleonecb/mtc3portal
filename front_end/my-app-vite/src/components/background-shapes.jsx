@@ -288,21 +288,12 @@ export function WhiteSquare({ width = 32, height = 32, ...props }) {
       role="presentation"
       {...props}
     >
-      <g filter="url(#filter0_d_5_863)">
-      <rect x="4" width="195" height="195" rx="16" fill="white"/>
-      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black"/>
-      </g>
-      <defs>
-      <filter id="filter0_d_5_863" x="0" y="0" width="199" height="199" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="-4" dy="4"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_5_863"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_5_863" result="shape"/>
-      </filter>
-      </defs>
+      {/* Shadow rectangle, mimicking CSS -4px / +4px shadow offset */}
+      <rect x="0" y="4" width="195" height="195" rx="16" fill="black" />
+      {/* Card body */}
+      <rect x="4" y="0" width="195" height="195" rx="16" fill="white" />
+      {/* Outline */}
+      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black" />
     </svg>
   );
 }
@@ -347,23 +338,12 @@ export function GraySquare({ width = 32, height = 32, ...props }) {
       role="presentation"
       {...props}
     >
-
-      <g filter="url(#filter0_d_5_865)">
-      <rect x="4" width="195" height="195" rx="16" fill="#D9D9D9"/>
-      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black"/>
-      </g>
-      <defs>
-      <filter id="filter0_d_5_865" x="0" y="0" width="199" height="199" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="-4" dy="4"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_5_865"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_5_865" result="shape"/>
-      </filter>
-      </defs>
-
+      {/* Shadow */}
+      <rect x="0" y="4" width="195" height="195" rx="16" fill="black" />
+      {/* Card body */}
+      <rect x="4" y="0" width="195" height="195" rx="16" fill="#D9D9D9" />
+      {/* Outline */}
+      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black" />
     </svg>
   );
 }
@@ -380,23 +360,12 @@ export function RedSquare({ width = 32, height = 32, ...props }) {
       role="presentation"
       {...props}
     >
-
-      <g filter="url(#filter0_d_5_866)">
-      <rect x="4" width="195" height="195" rx="16" fill="#994242"/>
-      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black"/>
-      </g>
-      <defs>
-      <filter id="filter0_d_5_866" x="0" y="0" width="199" height="199" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="-4" dy="4"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_5_866"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_5_866" result="shape"/>
-      </filter>
-      </defs>
-
+      {/* Shadow */}
+      <rect x="0" y="4" width="195" height="195" rx="16" fill="black" />
+      {/* Card body */}
+      <rect x="4" y="0" width="195" height="195" rx="16" fill="#994242" />
+      {/* Outline */}
+      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black" />
     </svg>
   );
 }
@@ -413,25 +382,12 @@ export function TanSquare({ width = 32, height = 32, ...props }) {
       role="presentation"
       {...props}
     >
-
-
-      <g filter="url(#filter0_d_5_869)">
-      <rect x="4" width="195" height="195" rx="16" fill="#D2A478"/>
-      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black"/>
-      </g>
-      <defs>
-      <filter id="filter0_d_5_869" x="0" y="0" width="199" height="199" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="-4" dy="4"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_5_869"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_5_869" result="shape"/>
-      </filter>
-      </defs>
-
-
+      {/* Shadow */}
+      <rect x="0" y="4" width="195" height="195" rx="16" fill="black" />
+      {/* Card body */}
+      <rect x="4" y="0" width="195" height="195" rx="16" fill="#D2A478" />
+      {/* Outline */}
+      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black" />
     </svg>
   );
 }
@@ -448,22 +404,12 @@ export function GreenSquare({ width = 32, height = 32, ...props }) {
       role="presentation"
       {...props}
     >
-      <g filter="url(#filter0_d_8_8)">
-      <rect x="4" y="1.52588e-05" width="195" height="195" rx="16" fill="#57A15E"/>
-      <rect x="4.5" y="0.500015" width="194" height="194" rx="15.5" stroke="black"/>
-      </g>
-      <defs>
-      <filter id="filter0_d_8_8" x="0" y="0" width="199" height="199" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dx="-4" dy="4"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_8_8"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_8_8" result="shape"/>
-      </filter>
-      </defs>
-
+      {/* Shadow */}
+      <rect x="0" y="4" width="195" height="195" rx="16" fill="black" />
+      {/* Card body */}
+      <rect x="4" y="0" width="195" height="195" rx="16" fill="#57A15E" />
+      {/* Outline */}
+      <rect x="4.5" y="0.5" width="194" height="194" rx="15.5" stroke="black" />
     </svg>
   );
 }

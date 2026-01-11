@@ -230,10 +230,14 @@ export async function getSampleRaterAnalytics(promptId) {
     let ratingSum = 0;
     let ratingCount = 0;
 
+    // Always track buckets for a fixed 1–5 star scale
+    const ratingBuckets = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
     const analytics = {
         promptId,
         totalResponses: rows.length,
         averageRating: null,
+        ratingBuckets,
         timeSeries: {}
     };
 
@@ -259,9 +263,10 @@ export async function getSampleRaterAnalytics(promptId) {
         }
 
         ratings.forEach(rating => {
-            if (Number.isFinite(rating) && rating > 0) {
+            if (Number.isFinite(rating) && rating >= 1 && rating <= 5) {
                 ratingSum += rating;
                 ratingCount += 1;
+                ratingBuckets[rating] = (ratingBuckets[rating] || 0) + 1;
             }
         });
 

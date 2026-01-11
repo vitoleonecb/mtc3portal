@@ -400,6 +400,9 @@ div.progressContainer {
 
 /* Community Responses layout */
 .ProcessorContainer {
+  /* Reserve space so the fixed ModuleNavigator bar at the bottom
+     does not visually or interactively overlap the response scroller. */
+  padding-bottom: 8rem; /* slightly larger than .moduleNavigatorContainer height (7rem) */
 }
 
 .ProcessorScroller {
@@ -414,7 +417,7 @@ div.progressContainer {
   overflow-y: hidden;
   scroll-behavior: smooth;
   margin-top: 24px;
-  padding: 0 0.75rem 0.5rem 0.75rem; /* add horizontal padding to prevent card shadows from being clipped */
+  padding: 0 0.75rem 1.5rem 0.75rem; /* bottom padding keeps OS scroll indicator above nav bar */
   overscroll-behavior: contain;
   cursor: grab;
 }

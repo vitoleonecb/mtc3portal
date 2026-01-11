@@ -199,12 +199,7 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
 
     samplerater: (
       <>
-        <div style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>
-          <strong>Average Rating: </strong>
-          {analyticsData && analyticsData.averageRating != null
-            ? Number(analyticsData.averageRating).toFixed(1)
-            : '—'}
-        </div>
+        <GlowingBarVerticalChart analyticsData={analyticsData} />
         <GlowingLineChart analyticsData={analyticsData} />
       </>
     ),

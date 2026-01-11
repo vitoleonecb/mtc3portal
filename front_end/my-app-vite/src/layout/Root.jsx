@@ -1,4 +1,4 @@
-import React, { useState, useContext, useLayoutEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { Outlet, useLocation, useMatch } from 'react-router-dom';
 
 import { MenuBarIcon } from '../Icons.jsx';
@@ -6,7 +6,7 @@ import { NextButton } from '../Buttons.jsx';
 import { ProgressBar } from '../Icons.jsx';
 import { ProgressContext } from '../context/ProgressContext';
 import { EditorSubmitContext } from '../context/EditorSubmitContext.jsx';
-import { RandomBackgroundLayer } from '../components/RandomBackgroundLayer.jsx';
+import { ScrollBackgroundLayer } from '../components/ScrollBackgroundLayer.jsx';
 
 export function Root() {
   const [submitHandler, setSubmitHandler] = useState(null);
@@ -16,25 +16,19 @@ export function Root() {
   const isEditor = pathname.includes('prompts/edit');
   const isProcessing = moduleStatus === 'processing';
   const isPromptReader = useMatch('workshops/:workshopId/modules/:moduleId/prompts/:promptId');
-
-  const [heightFactor, setHeightFactor] = useState(1);
-
-  useLayoutEffect(() => {
-    const update = () => {
-      if (typeof window === 'undefined') return;
-      const doc = document.documentElement;
-      const factor = Math.max(1, doc.scrollHeight / window.innerHeight);
-      setHeightFactor(factor);
-    };
-
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-
+ 
   return (
     <>
       <div className="headerBackground"></div>
+
+      {/* Scroll-linked background overlay that anchors tiles to
+          document height but does not affect layout or scroll. */}
+      <ScrollBackgroundLayer
+        variant="dots-haze"
+        density="medium"
+        seed={`${pathname}-${locationKey}`}
+        className="appBackgroundLayer"
+      />
 
       <div
         className="menuBarIconContainer"
@@ -57,17 +51,6 @@ export function Root() {
       </div>
 
       <div className="body">
-        {/* Background layer now scoped to body so it covers full scrollable height */}
-        <RandomBackgroundLayer
-          asFullScreen={false}
-          variant="dots-haze"
-          density="medium"
-          mode="behind"
-          seed={`${pathname}-${locationKey}`}
-          heightFactor={heightFactor}
-          className="appBackgroundLayer"
-        />
-
         {/* White content column that covers background shapes behind main content */}
         <div className="contentBackplate" aria-hidden="true" />
         <EditorSubmitContext.Provider value={setSubmitHandler}>
