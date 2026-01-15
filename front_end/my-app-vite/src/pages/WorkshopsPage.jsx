@@ -12,6 +12,9 @@ import { WorkshopCard } from "../Buttons.jsx";
 import { RAW_CHARACTERS } from "../components/card-characters.jsx";
 import { createRng, pickFrom } from "../utils/random.js";
 import { MysqlDateInput } from "../DateInput.jsx";
+import { useOverlay } from "../context/OverlayContext.jsx";
+import { ErrorOverlay } from "../components/ErrorOverlay.jsx";
+import { classifyError } from "../errors/errorRegistry.js";
 
 
 export function WorkshopsPage() {
@@ -23,7 +26,7 @@ export function WorkshopsPage() {
     const [date, setDate] = useState('');
     const [currentStep, setCurrentStep] = useState(0);
     const [submitting, setSubmitting] = useState(false);
-    const [errorMsg, setErrorMsg] = useState("");
+    const { show } = useOverlay();
 
     // State for POST via API
 
@@ -139,7 +142,6 @@ export function WorkshopsPage() {
         if (!isStepValid(currentStep)) return;
       
         setSubmitting(true);
-        setErrorMsg("");
       
         try {
           // Map camelCase → API snake_case (adjust endpoint & payload names to match your server)
@@ -174,8 +176,8 @@ export function WorkshopsPage() {
           setCurrentStep(0);
           setCreateFormSelected(false);
         } catch (err) {
-          const msg = err.response?.data?.message || err.message || "Failed to create workshop";
-          setErrorMsg(msg);
+          const classification = classifyError(err, { hint: "WORKSHOP_CREATE_FAILED" });
+          show(<ErrorOverlay classification={classification} />);
         } finally {
           setSubmitting(false);
         }
@@ -356,8 +358,6 @@ export function WorkshopsPage() {
                     </button>
                   )}
                 </div>
-            
-                {errorMsg && <p style={{ color: "crimson" }}>{errorMsg}</p>}
             
                 {/* Live preview card */}
                 <div style={{ marginTop: 24 }}>

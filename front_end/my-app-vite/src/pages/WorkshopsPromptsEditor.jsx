@@ -26,6 +26,9 @@ import {
 
 import { PromptInstruction } from "../Headings.jsx";
 import { DropDown, ModuleNavigator } from "../Buttons.jsx";
+import { useOverlay } from "../context/OverlayContext.jsx";
+import { ErrorOverlay } from "../components/ErrorOverlay.jsx";
+import { classifyError } from "../errors/errorRegistry.js";
 
 export function WorkshopPromptsEditor() {
     
@@ -43,7 +46,7 @@ export function WorkshopPromptsEditor() {
     const setSubmitHandler = useContext(EditorSubmitContext);
     const [submissionSuccess, setSubmissionSuccess] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [errorMsg, setErrorMsg] = useState('');
+    const { show } = useOverlay();
 
     useEffect(() => {
     	setSubmitHandler(() => handleSubmit);
@@ -66,7 +69,8 @@ export function WorkshopPromptsEditor() {
             );
             setSubmissionSuccess(true);
         } catch (error) {
-            setErrorMsg('Something went wrong. Try again.');
+            const classification = classifyError(error, { hint: "PROMPTS_SAVE_FAILED" });
+            show(<ErrorOverlay classification={classification} />);
             console.error(error);
         } finally {
             setIsSubmitting(false)
@@ -272,7 +276,6 @@ export function WorkshopPromptsEditor() {
         return (
             <>
                 {isSubmitting && <div>Submitting...</div>}
-                {errorMsg && <div className="error-msg">{errorMsg}</div>}
                 <PromptInstruction question={`Editing Module: ${moduleName}`}/>
                 <DropDown reset={dropDownReset} onSelect={handleTemplateSelect} options={['Multiple Choice','Checklist','Short Response','Drag and Drop','Sample Rater','Notation','DropDown']}/>
                 { promptsList[promptIndex] && renderPromptTemplate() }

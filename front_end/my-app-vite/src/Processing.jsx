@@ -20,7 +20,8 @@ import { OpenResponse,
     YesNoButton,
     WorkshopCard,
     CreateButton,
-    DropDown } from './Buttons.jsx';
+    DropDown,
+    useAutosizeTextArea } from './Buttons.jsx';
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.jsx';
 import React, { useRef, useState, useEffect, useContext, createContext } from 'react';
 import axios from 'axios';
@@ -111,12 +112,8 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
     };
   }, [isAdmin, promptId, accessToken]);
 
-  useEffect(() => {
-    const textarea = adminAnalysisRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = textarea.scrollHeight + 'px';
-  }, [adminAnalysis]);
+  // Autosize the admin analysis textarea whenever its content changes.
+  useAutosizeTextArea(adminAnalysisRef, adminAnalysis);
 
   useEffect(() => {
     const fetchPromptAnalytics = async () => {

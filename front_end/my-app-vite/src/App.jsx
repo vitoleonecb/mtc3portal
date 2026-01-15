@@ -18,8 +18,8 @@ import { Root } from './layout/Root';
 
 import { DropDown } from './Buttons';
 import { ProgressProvider } from './context/ProgressContext';
-import { RSVP } from './EdgePages'
-
+import { RSVP } from './EdgePages';
+import { OverlayProvider } from './context/OverlayContext.jsx';
 
 function App() {
   const router = createBrowserRouter(
@@ -44,7 +44,9 @@ function App() {
 
   return (
     <ProgressProvider>
-      <RouterProvider router={router} />
+      <OverlayProvider>
+        <RouterProvider router={router} />
+      </OverlayProvider>
     </ProgressProvider>
   );
 }

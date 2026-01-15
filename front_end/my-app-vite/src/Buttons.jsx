@@ -5,6 +5,16 @@ import classNames from 'classnames';
 import { motion } from 'framer-motion';
 import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
 
+// Shared textarea autosize hook: adjusts height to fit content whenever `value` changes.
+export function useAutosizeTextArea(textareaRef, value) {
+  useLayoutEffect(() => {
+    const textarea = textareaRef?.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }, [textareaRef, value]);
+}
+
 export function CompleteButton({ moduleName, decoration }) {
     return (
     <button className="completeButton">
@@ -98,38 +108,29 @@ export function OpenButton({ moduleName, progressValue, maxValue, decoration }) 
 }
 
 export function OpenResponse({ onChange, responseData, disabled }) {
-    
     const textareaRef = useRef(null);
     const [value, setValue] = useState('');
 
+    // Keep height in sync with current value (both user input and prop-driven changes).
+    useAutosizeTextArea(textareaRef, value);
+
     const handleChange = (e) => {
-        const newValue = e.target.value
+        const newValue = e.target.value;
         setValue(newValue);
 
         if (onChange) {
             onChange(newValue);
         }
-
-        const textarea = textareaRef.current;
-        if (textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = textarea.scrollHeight + 'px';
-        }
     };
 
+    // Rehydrate when responseData changes (including on first mount).
     useEffect(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = textarea.scrollHeight + 'px';
+        if (responseData !== undefined && responseData !== null) {
+            setValue(responseData);
+        } else {
+            setValue('');
         }
-    }, []);
-
-    useEffect(() => {
-	if (responseData) {
-		setValue(responseData);
-	}
-    }, [responseData])
+    }, [responseData]);
     
     return (
         <textarea 
@@ -138,7 +139,7 @@ export function OpenResponse({ onChange, responseData, disabled }) {
         onChange={disabled ? undefined : handleChange}
         className={`OpenResponse ${disabled ? 'no_hover' : ''}`} 
         placeholder='Enter your response here'/>
-    )
+    );
 }
 
 export function ModuleNavigator({ endOfPrompts, submitHandler, backActive, backClick, nextClick, isReader=false, promptMode }) {

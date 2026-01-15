@@ -1,6 +1,7 @@
 import express from "express";
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 import { getMCAnalytics, getCLAnalytics, getDragAndDropAnalytics, getShortResponseAnalytics, getDropDownAnalytics, getSampleRaterAnalytics, getNotationAnalytics } from "./services/analyticsService.js";
+import { getPromptAIAnalysis } from "./services/aiAnalysisService.js";
 
 export const analyticsRouter = express.Router();
 
@@ -78,6 +79,23 @@ analyticsRouter.get("/notation/:promptId", authenticateToken, async (req, res) =
     } catch (error) {
         console.error("Notation Analytics Error:", error);
         res.status(500).json({ error: "Failed to load analytics." });
+    }
+});
+
+// AI-driven, non-prescriptive analysis bundle for a prompt
+analyticsRouter.get("/ai/:promptId", authenticateTokenAdmin, async (req, res) => {
+    try {
+        const { promptId } = req.params;
+        const analysis = await getPromptAIAnalysis(promptId);
+
+        if (!analysis) {
+            return res.status(404).json({ message: "No AI analysis found for this prompt." });
+        }
+
+        return res.status(200).json(analysis);
+    } catch (error) {
+        console.error("AI Analysis Error:", error);
+        res.status(500).json({ error: "Failed to load AI analysis." });
     }
 });
 
