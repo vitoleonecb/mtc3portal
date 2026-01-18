@@ -213,7 +213,84 @@ export async function getShortResponseAnalytics(promptId) {
 }
 
 export async function getDropDownAnalytics(promptId) {
-    return getTimeSeriesOnlyAnalytics(promptId);
+    // Fetch all accepted dropdown responses for the prompt
+    const [rows] = await connection.query(
+        `
+        SELECT workshop_response_content, workshop_response_created
+        FROM workshop_responses
+        WHERE workshop_prompt_id = ?
+          AND workshop_response_acceptance = 1
+        `,
+        [promptId]
+    );
+
+    const responses = rows.map(r => ({
+        content: safeParse(r.workshop_response_content),
+        created: r.workshop_response_created,
+    }));
+
+    const analytics = {
+        promptId,
+        totalResponses: responses.length,
+        questions: {},
+        timeSeries: {},
+    };
+
+    // Aggregate per question + per selected option (similar to checklist analytics)
+    responses.forEach(response => {
+        const questions = Array.isArray(response.content) ? response.content : [];
+
+        questions.forEach((question, qIndex) => {
+            if (!question || typeof question !== "object") return;
+
+            if (!analytics.questions[qIndex]) {
+                analytics.questions[qIndex] = {
+                    questionText: question.questionText || "Untitled Question",
+                    totalResponses: 0,
+                    options: {},
+                };
+            }
+
+            analytics.questions[qIndex].totalResponses++;
+
+            // For dropdowns, each question has a single selected answer.
+            const rawLabel = (question.optionLabel ?? question.answer ?? "");
+            const label = typeof rawLabel === "string" ? rawLabel.trim() : String(rawLabel || "");
+            if (!label) return;
+
+            const optionId = label;
+
+            if (!analytics.questions[qIndex].options[optionId]) {
+                analytics.questions[qIndex].options[optionId] = {
+                    optionText: label,
+                    count: 0,
+                };
+            }
+
+            analytics.questions[qIndex].options[optionId].count++;
+        });
+    });
+
+    // Percentages per option, mirroring checklist logic
+    Object.values(analytics.questions).forEach(q => {
+        Object.values(q.options).forEach(option => {
+            option.percentage =
+                q.totalResponses === 0
+                    ? 0
+                    : (option.count / q.totalResponses) * 100;
+        });
+    });
+
+    // Time series: responses per day
+    responses.forEach(r => {
+        const day = dayjs(r.created).format("YYYY-MM-DD");
+        if (!analytics.timeSeries[day]) {
+            analytics.timeSeries[day] = 0;
+        }
+        analytics.timeSeries[day]++;
+    });
+
+    return analytics;
 }
 
 export async function getSampleRaterAnalytics(promptId) {

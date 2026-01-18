@@ -83,7 +83,8 @@ analyticsRouter.get("/notation/:promptId", authenticateToken, async (req, res) =
 });
 
 // AI-driven, non-prescriptive analysis bundle for a prompt
-analyticsRouter.get("/ai/:promptId", authenticateTokenAdmin, async (req, res) => {
+// Exposed to any authenticated user (not admin-only).
+analyticsRouter.get("/ai/:promptId", authenticateToken, async (req, res) => {
     try {
         const { promptId } = req.params;
         const analysis = await getPromptAIAnalysis(promptId);

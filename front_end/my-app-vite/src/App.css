@@ -299,7 +299,8 @@ progress {
 }
 
 .OpenResponse,
-.AdminAnalysisTextarea {
+.AdminAnalysisTextarea,
+.AiAnalysisTextarea {
   display: block;
   min-height: 3rem;
   border: black 1px solid;
@@ -321,29 +322,34 @@ progress {
 }
 
 .OpenResponse:hover,
-.AdminAnalysisTextarea:hover {
+.AdminAnalysisTextarea:hover,
+.AiAnalysisTextarea:hover {
   box-shadow: -2px 2px black;
 }
 
 .OpenResponse:focus,
-.AdminAnalysisTextarea:focus {
+.AdminAnalysisTextarea:focus,
+.AiAnalysisTextarea:focus {
   box-shadow: none;
 }
 
 .OpenResponse.no_hover:hover,
-.AdminAnalysisTextarea.no_hover:hover {
+.AdminAnalysisTextarea.no_hover:hover,
+.AiAnalysisTextarea.no_hover:hover {
   pointer-events: none;
   cursor: default !important;
   box-shadow: -4px 4px black !important;
 }
 
 .OpenResponse.no_hover:focus,
-.AdminAnalysisTextarea.no_hover:focus {
+.AdminAnalysisTextarea.no_hover:focus,
+.AiAnalysisTextarea.no_hover:focus {
   box-shadow: -4px 4px black !important;
 }
 
 .OpenResponse::-webkit-scrollbar,
-.AdminAnalysisTextarea::-webkit-scrollbar {
+.AdminAnalysisTextarea::-webkit-scrollbar,
+.AiAnalysisTextarea::-webkit-scrollbar {
   display: none; /* Safari and Chrome */
 }
 
@@ -650,7 +656,8 @@ div.progressContainer {
 }
 
 .OpenResponse:focus,
-.AdminAnalysisTextarea:focus {
+.AdminAnalysisTextarea:focus,
+.AiAnalysisTextarea:focus {
   outline: none;
 }
 
@@ -659,7 +666,8 @@ div.progressContainer {
 .CompletedText,
 #dropDownText,
 .ProcessingText,
-.AdminAnalysisHeading {
+.AdminAnalysisHeading,
+.AiAnalysisHeading {
   font-family: sans-serif;
   font-weight: lighter;
   font-size: 28px; 
@@ -669,7 +677,8 @@ div.progressContainer {
   padding-bottom: 1.5rem;
 }
 
-.AdminAnalysisContainer {
+.AdminAnalysisContainer,
+.AiAnalysisContainer {
   margin-left: auto;
   margin-right: auto;
   margin-bottom: 40px;  
@@ -1658,14 +1667,16 @@ select.dropDown {
 .EdgeBox,
 .charting,
 .mysql-picker,
-.AdminAnalysisContainer {
+.AdminAnalysisContainer,
+.AiAnalysisContainer {
   width: var(--element-width);
   transition: width .5s ease;
 }
 
 /* Inside the admin analysis section, the textarea should fill the container,
    not shrink to a nested var(--element-width) */
-.AdminAnalysisTextarea {
+.AdminAnalysisTextarea,
+.AiAnalysisTextarea {
   width: 100%;
   margin-left: 0;
   margin-right: 0;
@@ -1752,9 +1763,68 @@ select.dropDown {
 
 /* ---------- Calendar Root container ---------- */
 
-.mysql-picker {
+  .mysql-picker {
   margin-left: auto;
   margin-right: auto;
+}
+
+/* AI word/phrase bubble cloud */
+.AiWordBubblesContainer {
+  margin-top: 24px;
+}
+
+.AiWordBubblesHeader {
+  margin-bottom: 12px;
+}
+
+.AiWordBubblesCloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 1.75rem; /* extra space before questions section */
+}
+
+.AiWordBubble {
+  background-color: #000000;
+  color: #ffffff;
+  border-radius: 999px;
+  box-shadow: -4px 4px 0px #000000;
+  display: inline-block;
+  white-space: nowrap;
+  font-family: sans-serif;
+  font-weight: 400;
+}
+
+/* AI free-text summary (tones, motifs, absences, questions) */
+.AiSummaryContainer {
+  margin-top: 0; /* no extra space before summary inside card */
+  display: grid;
+  gap: 1.5rem;
+}
+
+.AiSummarySection {
+  border-radius: 16px;
+}
+
+.AiSummaryHeading {
+  font-family: sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.AiSummaryBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.AiSummaryText {
+  font-family: sans-serif;
+  font-weight: 300;
+  font-size: 0.9rem;
+  line-height: 1.4rem;
 }
   
 /* ---------- Trigger button (what you click to open) ---------- */

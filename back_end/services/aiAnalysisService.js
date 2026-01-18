@@ -8,7 +8,7 @@ import { connection } from '../app.js';
 
 export async function getPromptAIAnalysis(promptId) {
   const [rows] = await connection.query(
-    'SELECT analysis_json, template_id, analysis_version, created_at, updated_at FROM prompt_ai_analysis WHERE workshop_prompt_id = ? ORDER BY analysis_version DESC, updated_at DESC LIMIT 1',
+    'SELECT analysis_json, prompt_template_id AS template_id, analysis_version, created_at, updated_at FROM prompt_ai_analysis WHERE workshop_prompt_id = ? ORDER BY analysis_version DESC, updated_at DESC LIMIT 1',
     [promptId]
   );
 
@@ -50,11 +50,11 @@ export async function upsertPromptAIAnalysis({
   await connection.query(
     `
     INSERT INTO prompt_ai_analysis
-      (workshop_prompt_id, template_id, analysis_version, analysis_json)
+      (workshop_prompt_id, prompt_template_id, analysis_version, analysis_json)
     VALUES
       (?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
-      template_id = VALUES(template_id),
+      prompt_template_id = VALUES(prompt_template_id),
       analysis_version = VALUES(analysis_version),
       analysis_json = VALUES(analysis_json),
       updated_at = CURRENT_TIMESTAMP
@@ -73,8 +73,223 @@ function buildBaseSystemPrompt() {
   return `You analyze audience responses for an experimental theater workshop. Your job is to describe patterns in language and imagery without making value judgments or recommendations. You prioritize multiplicity and ambiguity. Never say what the piece should be; only describe what is present or absent.`;
 }
 
-export function buildShortResponsePrompt({ promptText, responses }) {
+// The following builders are intentionally very explicit so you can
+// tweak the wording for each analysis pass (bubbles, etc.).
+
+export function buildShortResponseWordBubblesPrompt({ promptText, responses }) {
   const system = buildBaseSystemPrompt();
+
+  const instructions = `You are analyzing open-text responses to a single prompt.
+Your task in this call is ONLY to identify notable words and short phrases.
+
+Requirements:
+- Focus on language that recurs or feels especially salient across multiple responses.
+- Prefer concrete nouns, verbs, and short 2–5 word phrases over long sentences.
+- Do NOT interpret or explain why they appear; just surface the language itself.
+- Do NOT rank or judge responses.
+
+Output JSON shape:
+{
+  "word_bubbles": {
+    "keywords": [ { "text": string, "weight": number } ],
+    "phrases": [ { "text": string, "weight": number } ]
+  }
+}
+
+Where weight is a number from 0 to 1 indicating relative salience.
+Return ONLY valid JSON matching this shape, with no extra keys and no commentary.`;
+
+  const user = {
+    role: 'user',
+    content: [
+      { type: 'text', text: instructions },
+      { type: 'text', text: `Prompt: ${promptText}` },
+      {
+        type: 'text',
+        text:
+          'Responses (each with an id):\n' +
+          responses.map((r) => `ID ${r.id}: ${r.text}`).join('\n'),
+      },
+    ],
+  };
+
+  return { system, messages: [user] };
+}
+
+export function buildShortResponseLabelsPrompt({ promptText, responses }) {
+  const system = buildBaseSystemPrompt();
+
+  const instructions = `You are analyzing open-text responses to a single prompt.
+Your task in this call is ONLY to propose neutral thematic labels and assign them to responses.
+
+Requirements:
+- Propose 3–6 short, neutral labels that describe recurring patterns in imagery, tone, or situation.
+  Examples of good labels: "Containment", "Rupture", "Witnessing", "Stalemate".
+- Labels must not describe quality (no "good", "bad", "strong", "weak").
+- For each label, select the response ids that clearly fit it; responses may belong to multiple labels.
+- It is fine for some responses to have no labels.
+
+Output JSON shape:
+{
+  "labels": {
+    "labels": [
+      {
+        "id": string,              // machine-friendly slug, e.g. "containment"
+        "display": string,         // human label, e.g. "Containment"
+        "description": string,     // 1-sentence description
+        "responseIds": number[]    // list of response ids that fit this label
+      }
+    ]
+  }
+}
+
+Return ONLY valid JSON matching this shape, with no extra keys and no commentary.`;
+
+  const user = {
+    role: 'user',
+    content: [
+      { type: 'text', text: instructions },
+      { type: 'text', text: `Prompt: ${promptText}` },
+      {
+        type: 'text',
+        text:
+          'Responses (each with an id):\n' +
+          responses.map((r) => `ID ${r.id}: ${r.text}`).join('\n'),
+      },
+    ],
+  };
+
+  return { system, messages: [user] };
+}
+
+export function buildShortResponseSimilaritiesPrompt({ promptText, responses }) {
+  const system = buildBaseSystemPrompt();
+
+  const instructions = `You are analyzing open-text responses to a single prompt.
+Your task in this call is ONLY to describe similarity relationships between responses.
+
+Requirements:
+- Think in terms of "echoes" or "clusters" rather than exact matches.
+- Identify pairs of responses that feel strongly related in imagery, tone, or situation.
+- For each pair, assign a similarity score from 0 to 1 (1 = extremely similar).
+- Optionally group responses into clusters when three or more are closely related.
+- Do NOT describe which responses are better or worse; focus only on similarity.
+
+Output JSON shape:
+{
+  "similarities": {
+    "pairs": [ { "a": number, "b": number, "score": number } ],
+    "clusters": [ { "clusterId": string, "responseIds": number[], "labelId": string | null } ]
+  }
+}
+
+Return ONLY valid JSON matching this shape, with no extra keys and no commentary.`;
+
+  const user = {
+    role: 'user',
+    content: [
+      { type: 'text', text: instructions },
+      { type: 'text', text: `Prompt: ${promptText}` },
+      {
+        type: 'text',
+        text:
+          'Responses (each with an id):\n' +
+          responses.map((r) => `ID ${r.id}: ${r.text}`).join('\n'),
+      },
+    ],
+  };
+
+  return { system, messages: [user] };
+}
+
+export function buildShortResponseSummaryPrompt({ promptText, responses }) {
+  const system = buildBaseSystemPrompt();
+
+  const instructions = `You are analyzing open-text responses to a single prompt.
+Your task in this call is ONLY to describe overall tones, motifs, absences, and open questions.
+
+Requirements:
+- Tones: short adjectives for the emotional or energetic feel (e.g. "tense", "hesitant", "playful").
+- Motifs: recurring images, objects, or situations (e.g. "doors", "breath", "waiting").
+- Absences: things that are strikingly missing compared to what might normally appear.
+- Questions: 2–5 open questions a director or facilitator might carry into rehearsal.
+- Do NOT recommend a specific interpretation or direction; keep everything suggestive, not prescriptive.
+
+Output JSON shape:
+{
+  "free_text_summary": {
+    "tones": string[],
+    "motifs": string[],
+    "absences": string[],
+    "questions": string[]
+  }
+}
+
+Return ONLY valid JSON matching this shape, with no extra keys and no commentary.`;
+
+  const user = {
+    role: 'user',
+    content: [
+      { type: 'text', text: instructions },
+      { type: 'text', text: `Prompt: ${promptText}` },
+      {
+        type: 'text',
+        text:
+          'Responses (each with an id):\n' +
+          responses.map((r) => `ID ${r.id}: ${r.text}`).join('\n'),
+      },
+    ],
+  };
+
+  return { system, messages: [user] };
+}
+
+// Secondary pass: synthesize existing analysis into a single concise paragraph.
+export function buildShortResponseSynthesisPrompt({ promptText, analysis }) {
+  const { word_bubbles, labels, similarities, free_text_summary } = analysis;
+
+  const topKeywords = (word_bubbles?.keywords || [])
+    .slice()
+    .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+    .slice(0, 5);
+
+  const topPhrases = (word_bubbles?.phrases || [])
+    .slice()
+    .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+    .slice(0, 5);
+
+  const topLabels = (labels?.labels || [])
+    .slice()
+    .sort((a, b) => (b.responseIds?.length || 0) - (a.responseIds?.length || 0))
+    .reverse()
+    .slice(0, 4);
+
+  const {
+    tones = [],
+    motifs = [],
+    absences = [],
+    questions = [],
+  } = free_text_summary || {};
+
+  const system = `${buildBaseSystemPrompt()}
+You are given an existing analysis of responses for one prompt. The analysis already contains:
+- A list of salient keywords and short phrases.
+- Neutral thematic labels.
+- Lists of tones, recurring motifs, notable absences, and open questions.
+
+Your task in this call is ONLY to synthesize that analysis into ONE concise paragraph (80-150 words) that:
+- Names the most important tones and emotional qualities.
+- Mentions 2-4 of the strongest recurring images/ideas/situations.
+- Briefly notes any striking absences or tensions that emerge.
+- Uses descriptive, non-prescriptive language (no advice, no value judgments).
+- Does not introduce new interpretations beyond what is clearly implied by the data.
+
+Output JSON shape:
+{
+  "concise_summary": string
+}
+
+Return ONLY valid JSON matching this shape, with no extra keys and no commentary.`;
 
   const user = {
     role: 'user',
@@ -82,50 +297,137 @@ export function buildShortResponsePrompt({ promptText, responses }) {
       {
         type: 'text',
         text:
-          'You are given one prompt and a list of anonymous responses. Your job is to describe patterns only. Return JSON with fields: word_bubbles, labels, free_text_summary as previously specced. Do NOT include any natural language outside the JSON.',
-      },
-      {
-        type: 'text',
-        text: `Prompt: ${promptText}`,
-      },
-      {
-        type: 'text',
-        text:
-          'Responses (each with an id):\n' +
-          responses
-            .map((r) => `ID ${r.id}: ${r.text}`)
-            .join('\n'),
+          `Prompt: ${promptText}` +
+          "\n\nExisting analysis (already aggregated, for context):\n" +
+          JSON.stringify(
+            {
+              keywords: topKeywords,
+              phrases: topPhrases,
+              labels: topLabels,
+              tones,
+              motifs,
+              absences,
+              questions,
+            },
+            null,
+            2
+          ),
       },
     ],
   };
 
-  return {
-    system,
-    messages: [user],
-  };
+  return { system, messages: [user] };
 }
 
 // TODO: add builders for MC, Checklist, DragAndDrop as needed.
 
-// ---- LLM CALL (PLACEHOLDER) ------------------------------------
+// ---- LLM CALL (OpenAI) -----------------------------------------
+// This implementation uses the OpenAI Chat Completions API.
+// It expects OPENAI_API_KEY in the environment.
+// Uses the global fetch available in recent Node versions.
+
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+// Model is read from the environment so you can experiment freely.
+// e.g. OPENAI_MODEL=gpt-5.2 or any other valid model.
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 
 async function callLLM(promptConfig) {
-  // TODO: integrate with your chosen LLM provider here.
-  // For now, return a stub shape so the rest of the pipeline can be wired
-  // and the UI can be developed without incurring model costs.
-  console.warn('callLLM is currently a stub; returning empty analysis.');
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('OPENAI_API_KEY is not set; returning empty analysis.');
+    return {
+      word_bubbles: { keywords: [], phrases: [] },
+      labels: { labels: [] },
+      similarities: { pairs: [], clusters: [] },
+      free_text_summary: {
+        tones: [],
+        motifs: [],
+        absences: [],
+        questions: [],
+      },
+    };
+  }
 
-  return {
-    word_bubbles: { keywords: [], phrases: [] },
-    labels: { labels: [] },
-    similarities: { pairs: [], clusters: [] },
-    free_text_summary: {
-      tones: [],
-      motifs: [],
-      absences: [],
-      questions: [],
-    },
+  const { system, messages } = promptConfig;
+
+  const body = {
+    model: OPENAI_MODEL,
+    messages: [
+      { role: 'system', content: system },
+      ...messages,
+    ],
+    temperature: 0.2,
   };
+
+  const res = await fetch(OPENAI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    console.error('OpenAI API error:', res.status, await res.text());
+    // Fail soft: return empty structure so UI does not break.
+    return {
+      word_bubbles: { keywords: [], phrases: [] },
+      labels: { labels: [] },
+      similarities: { pairs: [], clusters: [] },
+      free_text_summary: {
+        tones: [],
+        motifs: [],
+        absences: [],
+        questions: [],
+      },
+    };
+  }
+
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+
+  if (!content) {
+    console.warn('OpenAI response missing content; returning empty analysis.');
+    return {
+      word_bubbles: { keywords: [], phrases: [] },
+      labels: { labels: [] },
+      similarities: { pairs: [], clusters: [] },
+      free_text_summary: {
+        tones: [],
+        motifs: [],
+        absences: [],
+        questions: [],
+      },
+    };
+  }
+
+  // We instruct the model to respond with pure JSON, but be defensive
+  // in case it wraps it in backticks or text.
+  let jsonText = content.trim();
+
+  // Strip Markdown code fences if present
+  if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
+  }
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    return parsed;
+  } catch (e) {
+    console.error('Failed to parse OpenAI JSON content:', e, jsonText);
+    return {
+      word_bubbles: { keywords: [], phrases: [] },
+      labels: { labels: [] },
+      similarities: { pairs: [], clusters: [] },
+      free_text_summary: {
+        tones: [],
+        motifs: [],
+        absences: [],
+        questions: [],
+      },
+    };
+  }
 }
 
 // ---- HIGH-LEVEL ANALYSIS ENTRY POINT ---------------------------
@@ -163,24 +465,80 @@ export async function runPromptAIAnalysis({ promptId, templateId }) {
     };
   });
 
-  // For now, handle only free-text-ish templates via a simple projection
-  // and rely on the short-response builder.
+  // For now, handle only free-text-ish templates via a simple projection.
   const freeTextBodies = responses.map((r) => ({
     id: r.id,
     text: typeof r.parsed === 'string' ? r.parsed : JSON.stringify(r.parsed),
   }));
 
-  const promptConfig = buildShortResponsePrompt({
-    promptText:
-      promptRow.workshop_prompt_reference ||
-      (promptRow.workshop_prompt_options &&
-        typeof promptRow.workshop_prompt_options === 'string'
-        ? promptRow.workshop_prompt_options
-        : ''),
-    responses: freeTextBodies,
-  });
+  const promptText =
+    promptRow.workshop_prompt_reference ||
+    (promptRow.workshop_prompt_options &&
+      typeof promptRow.workshop_prompt_options === 'string'
+      ? promptRow.workshop_prompt_options
+      : '');
 
-  const analysis = await callLLM(promptConfig);
+  // Multiple, focused calls so you can iterate quickly on each analysis
+  // type (bubbles, labels, similarities, summary) independently.
+
+  const bubblesResult = await callLLM(
+    buildShortResponseWordBubblesPrompt({ promptText, responses: freeTextBodies })
+  );
+
+  const labelsResult = await callLLM(
+    buildShortResponseLabelsPrompt({ promptText, responses: freeTextBodies })
+  );
+
+  const similaritiesResult = await callLLM(
+    buildShortResponseSimilaritiesPrompt({ promptText, responses: freeTextBodies })
+  );
+
+  const summaryResult = await callLLM(
+    buildShortResponseSummaryPrompt({ promptText, responses: freeTextBodies })
+  );
+
+  const analysis = {
+    word_bubbles: bubblesResult.word_bubbles || { keywords: [], phrases: [] },
+    labels: labelsResult.labels || { labels: [] },
+    similarities: similaritiesResult.similarities || { pairs: [], clusters: [] },
+    free_text_summary:
+      summaryResult.free_text_summary || {
+        tones: [],
+        motifs: [],
+        absences: [],
+        questions: [],
+      },
+  };
+
+  // Second-stage synthesis: concise summary paragraph
+  let conciseSummary = '';
+  try {
+    const synthesisResult = await callLLM(
+      buildShortResponseSynthesisPrompt({
+        promptText,
+        analysis,
+      })
+    );
+
+    let parsed = synthesisResult;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch (e) {
+        console.error('Failed to parse synthesis JSON for prompt', promptId, e);
+        parsed = null;
+      }
+    }
+
+    if (parsed && typeof parsed.concise_summary === 'string') {
+      analysis.concise_summary = parsed.concise_summary;
+    } else {
+      analysis.concise_summary = '';
+    }
+  } catch (err) {
+    console.error('AI synthesis error for prompt', promptId, err);
+    analysis.concise_summary = '';
+  }
 
   await upsertPromptAIAnalysis({
     promptId,

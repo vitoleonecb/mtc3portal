@@ -5,7 +5,10 @@ import { analyticsRouter } from './analytics.js'
 import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config({ path: path.join(__dirname, '.env') });
 import express from 'express';
 import mysql from 'mysql2/promise';
@@ -103,7 +106,12 @@ app.get('/health', (req,res)=>res.json({ ok:true, env:{
   DB_HOST:process.env.DB_HOST, DB_DB:process.env.DB_DATABASE
 }}));
 
-app.listen(PORT, () => {
+// Start the HTTP server in normal app contexts. Scripts that only need
+// the DB pool (e.g. AI analysis scripts) can set DISABLE_APP_LISTEN=true
+// *before* importing any modules that depend on this file.
+if (!process.env.DISABLE_APP_LISTEN) {
+  app.listen(PORT, () => {
     console.log(`Server Listening on ${PORT}`);
-});
+  });
+}
 

@@ -31,6 +31,9 @@ import { format } from 'date-fns';
 import { DefaultBarChart } from './BarChartExample.jsx'
 import { GlowingLineChart } from './LineChartExample.jsx';
 import { GlowingBarVerticalChart } from "./components/ui/glowing-bar-vertical-chart.jsx";
+import { GlowingStrokeRadarChart } from "./components/ui/glowing-stroke-radar-chart.jsx";
+import { AiWordBubbles } from "./components/ui/ai-word-bubbles.jsx";
+import { AiSummarySections } from "./components/ui/ai-summary-sections.jsx";
   
 import { RandomBackgroundLayer } from "./components/RandomBackgroundLayer";
 
@@ -56,6 +59,11 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
   const [adminAnalysisError, setAdminAnalysisError] = useState("");
   const [adminAnalysisSavedAt, setAdminAnalysisSavedAt] = useState(null);
   const [adminAnalysisLocked, setAdminAnalysisLocked] = useState(false);
+
+  const [aiAnalysisText, setAiAnalysisText] = useState("");
+  const [aiAnalysisData, setAiAnalysisData] = useState(null);
+  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
+  const [aiAnalysisError, setAiAnalysisError] = useState("");
 
   const visibleResponses = isAdmin
     ? safeResponses
@@ -116,6 +124,50 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
   useAutosizeTextArea(adminAnalysisRef, adminAnalysis);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const fetchAiAnalysis = async () => {
+      if (!promptId) return;
+      setAiAnalysisLoading(true);
+      setAiAnalysisError("");
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/analytics/ai/${promptId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (cancelled) return;
+
+        if (!response.data) {
+          setAiAnalysisText("");
+          setAiAnalysisData(null);
+        } else {
+          // Keep both a raw JSON text view and the parsed object for charts.
+          setAiAnalysisData(response.data);
+          setAiAnalysisText(JSON.stringify(response.data, null, 2));
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        // 404 = no AI analysis yet; just hide the panel.
+        if (error?.response?.status === 404) {
+          setAiAnalysisText("");
+          setAiAnalysisData(null);
+        } else {
+          console.error("Fetch AI analysis error:", error);
+          setAiAnalysisError("Could not load AI analysis.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAiAnalysisLoading(false);
+        }
+      }
+    };
+
     const fetchPromptAnalytics = async () => {
       const promptTemplateType = (() => {
         switch (templateId) {
@@ -155,7 +207,12 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
 
     if (promptId && templateId) {
       fetchPromptAnalytics();
+      fetchAiAnalysis();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [promptId, templateId, accessToken]);
 
   const chartsByTemplate = {
@@ -175,6 +232,7 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
   
     dropdown: (
       <>
+        <DefaultBarChart analyticsData={analyticsData} />
         <GlowingLineChart analyticsData={analyticsData} />
       </>
     ),
@@ -319,6 +377,57 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {aiAnalysisData && (
+          <div className="AiAnalysisContainer">
+            <h2 className="AiAnalysisHeading">AI Analysis</h2>
+
+            {/* Single AI analysis card containing summary, charts, and questions */}
+            <div className="OpenResponse AiAnalysisTextarea">
+              {/* Concise theme summary */}
+              <AiSummarySections analysis={aiAnalysisData} />
+
+              {/* Theme distribution radar chart */}
+              <div className="AiAnalysisChartWrapper">
+                <GlowingStrokeRadarChart analysis={aiAnalysisData} />
+              </div>
+
+              {/* Salient words/phrases bubble cloud */}
+              <AiWordBubbles analysis={aiAnalysisData} />
+
+              {/* Key questions from the free-text summary */}
+              {Array.isArray(aiAnalysisData?.free_text_summary?.questions) &&
+                aiAnalysisData.free_text_summary.questions.length > 0 && (
+                  <div className="AiSummaryQuestions">
+                    <div className="AiSummaryBody">
+                      {aiAnalysisData.free_text_summary.questions.map(
+                        (q, idx) => (
+                          <p key={idx} className="AiSummaryText">
+                            {q}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              {(aiAnalysisLoading || aiAnalysisError) && (
+                <div className="AdminAnalysisControls">
+                  {aiAnalysisLoading && (
+                    <span className="status-text" role="status">
+                      Loading AI analysis…
+                    </span>
+                  )}
+                  {aiAnalysisError && (
+                    <span className="error-text" role="status">
+                      {aiAnalysisError}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
         
