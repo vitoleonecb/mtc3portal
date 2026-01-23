@@ -395,11 +395,55 @@ function isPixelPos(pos) {
   return !!pos && (pos.x > 1 || pos.y > 1 || pos.x < 0 || pos.y < 0);
 }
 
+// Build simple rectangular zones for a grid layout (rows x cols)
+function buildZonesFromGrid(grid) {
+  const rows = Math.max(1, grid?.rows || 1);
+  const cols = Math.max(1, grid?.cols || 1);
+
+  const zones = [];
+  const rowHeight = 1 / rows;
+  const colWidth = 1 / cols;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      zones.push({
+        id: `r${r + 1}c${c + 1}`,
+        label: grid.labels?.[r]?.[c] || `R${r + 1}C${c + 1}`,
+        xMin: c * colWidth,
+        xMax: (c + 1) * colWidth,
+        yMin: r * rowHeight,
+        yMax: (r + 1) * rowHeight,
+      });
+    }
+  }
+  return zones;
+}
+
+// Derive semantic meaning (zone or spectrum score) from a normalized position
+function deriveSemantics(pct, layout, zones) {
+  const semantics = {};
+  if (!pct) return semantics;
+
+  if (layout === 'x-spectrum') {
+    semantics.scoreX = clamp01(pct.x);
+  }
+
+  if (layout === 'grid-zones' && Array.isArray(zones)) {
+    const z = zones.find(z =>
+      pct.x >= z.xMin && pct.x <= z.xMax &&
+      pct.y >= z.yMin && pct.y <= z.yMax
+    );
+    if (z) semantics.zoneId = z.id;
+  }
+
+  return semantics;
+}
+
 /* ====================== component ====================== */
 export function DragAndDropArea({
   responseData,
   disabled,
-  dragOptions,          // expect: { options: [{ optionName, optionKey }...] }
+  dragOptions,          // expect: { layout, axes, grid, options: [...] }
   onInitialPositions,   // callback(snapshotArray)
   onUpdateResponse,     // callback(index, label, position, isFinal, keyName, meta)
 }) {
@@ -408,6 +452,16 @@ export function DragAndDropArea({
   const size = useConstraintSize(constraintRef, { freeze: isInteracting });
 
   const options = dragOptions?.options ?? [];
+  const layout = dragOptions?.layout || 'free';
+  const grid = dragOptions?.grid || null;
+
+  const zones = useMemo(() => {
+    if (layout === 'grid-zones' && grid) return buildZonesFromGrid(grid);
+    return null;
+  }, [layout, grid]);
+
+  const rows = layout === 'grid-zones' && grid ? Math.max(1, grid.rows || 1) : 0;
+  const cols = layout === 'grid-zones' && grid ? Math.max(1, grid.cols || 1) : 0;
 
   // Use stable keys provided by the editor (optionKey). If missing, fall back safely.
   const ids = useMemo(() => {
@@ -422,28 +476,45 @@ export function DragAndDropArea({
   // Normalized positions in state (0..1). Do NOT round here to avoid visible jolts.
   const [positionsPct, setPositionsPct] = useState({}); // { [key]: {x:0..1,y:0..1} }
 
-  /* -------- hydrate from responseData; migrate pixels -> normalized; clamp -------- */
+  /* -------- seed initial positions when nothing stored yet -------- */
+  useEffect(() => {
+    if (!options.length || !ids.length) return;
+    setPositionsPct(prev => {
+      if (Object.keys(prev).length > 0) return prev;
+      const init = {};
+      ids.forEach((id) => {
+        init[id] = {
+          x: 0.5,
+          y: layout === 'x-spectrum' ? 0.5 : 0.5,
+        };
+      });
+      return init;
+    });
+  }, [options.length, ids, layout]);
+
+  /* -------- hydrate from responseData; assume new shape (position + semantics) -------- */
   useEffect(() => {
     if (!Array.isArray(responseData) || responseData.length === 0) return;
 
     const init = {};
     for (const item of responseData) {
-      // prefer explicit keyName from stored responses; else map by index (legacy)
-      const key =
-        item?.keyName ??
-        (Number.isInteger(item?.index) && ids[item.index] ? ids[item.index] : null);
+      const key = item?.keyName ?? (Number.isInteger(item?.index) && ids[item.index] ? ids[item.index] : null);
       if (!key) continue;
 
-      const raw = item.position ?? item.answer;
+      const raw = item.position;
       if (!raw) continue;
 
       const pct = isPixelPos(raw) ? toPct(raw, size) : raw;
       if (!pct) continue;
 
-      init[key] = { x: clamp01(pct.x), y: clamp01(pct.y) };
+      // For x-spectrum, treat Y as visually/semantically fixed at center (0.5)
+      const xNorm = clamp01(pct.x);
+      const yNorm = layout === 'x-spectrum' ? 0.5 : clamp01(pct.y);
+
+      init[key] = { x: xNorm, y: yNorm };
     }
     if (Object.keys(init).length > 0) setPositionsPct(init);
-  }, [responseData, ids, size.w, size.h]);
+  }, [responseData, ids, size.w, size.h, layout]);
 
   /* -------- safety: if container resizes (when not frozen), keep values clamped -------- */
   useEffect(() => {
@@ -455,17 +526,22 @@ export function DragAndDropArea({
     });
   }, [size.w, size.h]);
 
-  /* -------- emit helper: normalized (quantized) + readable percent + label -------- */
+  /* -------- emit helper: normalized (quantized) + readable percent + label + semantics -------- */
   function emitUpdate(idx, id, pct) {
     const pos = { x: quantize(pct.x), y: quantize(pct.y) }; // nice-looking normalized numbers
     const display = { xPct: pct2(pct.x), yPct: pct2(pct.y) }; // e.g., { xPct: 42.13, yPct: 18.00 }
     const label = options[idx]?.optionName ?? "";             // your authored name
-    onUpdateResponse?.(idx, label, pos, false, id, { display });
+    const semantics = deriveSemantics(pct, layout, zones || undefined);
+    onUpdateResponse?.(idx, label, pos, false, id, { display, semantics });
   }
 
   const handlePositionChange = (id, idx, pixelPos) => {
-    const pct = toPct(pixelPos, size);
-    const clamped = { x: clamp01(pct?.x), y: clamp01(pct?.y) };
+    const rawPct = toPct(pixelPos, size) || { x: 0, y: 0 };
+
+    // Non-spectrum paths only. Spectrum uses SpectrumHandle with
+    // direct normalized X updates and ignores this hook.
+    const pct = rawPct;
+    const clamped = { x: clamp01(pct.x), y: clamp01(pct.y) };
 
     setPositionsPct((prev) => {
       const updated = { ...prev, [id]: clamped };
@@ -475,12 +551,14 @@ export function DragAndDropArea({
       if (Object.keys(updated).length === total && total > 0) {
         const snapshot = ids.map((k, i) => {
           const p = updated[k] ?? { x: 0, y: 0 };
+          const semantics = deriveSemantics(p, layout, zones || undefined);
           return {
             keyName: k,                                  // stable key from editor
             index: i,
             label: options[i]?.optionName ?? "",         // human-readable name
             position: { x: quantize(p.x), y: quantize(p.y) },
             display: { xPct: pct2(p.x), yPct: pct2(p.y) },
+            semantics,
           };
         });
         onInitialPositions?.(snapshot);
@@ -499,8 +577,63 @@ export function DragAndDropArea({
       ref={constraintRef}
       style={{ position: "relative", overflow: "hidden", boxSizing: "border-box" }}
     >
+      {/* Spectrum visual hint: center line + end labels */}
+      {layout === 'x-spectrum' && (
+        <>
+          <div className="DndSpectrumAxis" />
+          <div className="DndSpectrumLabel DndSpectrumLabelLeft">
+            {dragOptions?.axes?.x?.labelMin}
+          </div>
+          <div className="DndSpectrumLabel DndSpectrumLabelRight">
+            {dragOptions?.axes?.x?.labelMax}
+          </div>
+        </>
+      )}
+
+      {/* Grid zoning visual hint: horizontal and vertical dashed lines */}
+      {layout === 'grid-zones' && rows > 0 && cols > 0 && (
+        <>
+          {[...Array(Math.max(0, rows - 1))].map((_, r) => (
+            <div
+              key={`grid-h-${r}`}
+              className="DndGridLine DndGridLineH"
+              style={{ top: `${((r + 1) * 100) / rows}%` }}
+            />
+          ))}
+          {[...Array(Math.max(0, cols - 1))].map((_, c) => (
+            <div
+              key={`grid-v-${c}`}
+              className="DndGridLine DndGridLineV"
+              style={{ left: `${((c + 1) * 100) / cols}%` }}
+            />
+          ))}
+        </>
+      )}
+
       {options.map((opt, index) => {
         const id = ids[index];
+
+        // Spectrum layout uses a custom CSS/PointerEvents-based slider handle
+        if (layout === 'x-spectrum') {
+          const pct = positionsPct[id] || { x: 0.5, y: 0.5 };
+          return (
+            <SpectrumHandle
+              key={id}
+              id={id}
+              color={limitedColors[index]}
+              pctX={pct.x}
+              constraintRef={constraintRef}
+              disabled={disabled}
+              onChangeX={(xNorm) => {
+                const pctNorm = { x: clamp01(xNorm), y: 0.5 };
+                setPositionsPct(prev => ({ ...prev, [id]: pctNorm }));
+                emitUpdate(index, id, pctNorm);
+              }}
+            />
+          );
+        }
+
+        // All other layouts keep using the Framer Motion-based DragElement
         const defaultPx = toPx(positionsPct[id], size); // render in pixels (clamped)
 
         return (
@@ -526,6 +659,58 @@ export function DragAndDropArea({
   );
 }
 
+// Simple pointer-based horizontal slider handle for spectrum layout
+function SpectrumHandle({ id, color, pctX, constraintRef, disabled, onChangeX }) {
+  const handlePointerDown = (e) => {
+    if (disabled) return;
+    const el = constraintRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const updateFromClientX = (clientX) => {
+      const rel = (clientX - rect.left) / rect.width;
+      const clamped = clamp01(rel);
+      onChangeX(clamped);
+    };
+
+    // Prevent text selection while dragging across labels/axis
+    e.preventDefault();
+    document.body.classList.add('dnd-spectrum-dragging');
+
+    // Initial update on click-down
+    updateFromClientX(e.clientX);
+
+    const handleMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      updateFromClientX(moveEvent.clientX);
+    };
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      document.body.classList.remove('dnd-spectrum-dragging');
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+
+  return (
+    <div
+      className="dragElement"
+      style={{
+        position: 'absolute',
+        top: '50%',
+        left: `${clamp01(pctX) * 100}%`,
+        marginTop: -15,
+        transform: 'translateX(-50%)',
+        backgroundColor: color,
+        cursor: disabled ? 'default' : 'grab',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+      }}
+      onPointerDown={handlePointerDown}
+    />
+  );
+}
 
 
 export function NextButton({ onClick, text = "Next", style= {}, to=""}) {

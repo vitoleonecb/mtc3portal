@@ -157,24 +157,12 @@ export function ProgressBar({current, max}) {
     )
 }
 
-export function DragElement({ id, color, dragConstraints, onPositionChange, defaultPosition, disabled }) {
+export function DragElement({ id, color, dragConstraints, onPositionChange, defaultPosition, disabled, dragAxis, lockY }) {
     const ref = useRef(null);
 
-    // Get initial position once mounted
-    useEffect(() => {
-        if (!disabled) {
-          const el = ref.current;
-          if (el && onPositionChange) {
-              const rect = el.getBoundingClientRect();
-              const containerRect = el.offsetParent.getBoundingClientRect();
-              onPositionChange(id, {
-                  x: rect.left - containerRect.left,
-                  y: rect.top - containerRect.top,
-              });
-          }
-        }
-        
-    }, [disabled]);
+    // NOTE: We no longer derive initial positions from the DOM.
+    // DragAndDropArea seeds normalized positions itself so that
+    // layout is stable and independent of timing/measurement here.
 
     const handleDragEnd = () => {
         if (!disabled) {
@@ -191,16 +179,38 @@ export function DragElement({ id, color, dragConstraints, onPositionChange, defa
         }
     };
 
-    const positionStyle = disabled && defaultPosition
-      ? { position: 'absolute', left: defaultPosition.x, top: defaultPosition.y }
-      : {};
+    // Base positioning: when we have a locked Y (spectrum), always pin to that
+    // vertical coordinate. Otherwise, only use defaultPosition when disabled
+    // (read-only playback).
+    let positionStyle = {};
+    if (lockY) {
+      // Spectrum: vertically center on container midline regardless of height.
+      // We know .dragElement is 30px tall (see App.css), so margin-top:-15px
+      // centers it exactly on the 50% line.
+      positionStyle = { position: 'absolute', top: '50%', marginTop: -15 };
+      if (defaultPosition?.x != null) {
+        positionStyle.left = defaultPosition.x;
+      }
+    } else if (disabled && defaultPosition) {
+      positionStyle = { position: 'absolute', left: defaultPosition.x, top: defaultPosition.y };
+    }
+
+    // Limit drag axis when requested (e.g. spectrum => horizontal-only)
+    let dragProp = false;
+    if (!disabled) {
+      if (dragAxis === 'x' || dragAxis === 'y') dragProp = dragAxis;
+      else dragProp = true;
+    }
 
     return (
         <motion.div
             ref={ref}
             className="dragElement"
-            style={{ backgroundColor: color, ...positionStyle }}
-            drag={!disabled}
+            // x/y are always reset to 0 so that the canonical position is
+            // driven by left/top (via defaultPosition + clamping). Framer's
+            // drag only affects the transform during interaction.
+            style={{ backgroundColor: color, ...positionStyle, x: 0, y: 0 }}
+            drag={dragProp}
             dragMomentum={false}
             inertia={false}
             dragElastic={1}

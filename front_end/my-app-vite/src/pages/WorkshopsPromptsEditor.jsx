@@ -123,7 +123,15 @@ export function WorkshopPromptsEditor() {
                 case 8:
                     return { referenceText: '' };
                 case 6:
-                    return { options: [{ optionName: '' }]};
+                    // New drag-and-drop config with layout and options
+                    return {
+                        layout: 'free',
+                        axes: {},
+                        grid: null,
+                        options: [
+                            { optionId: `tmp_${Date.now()}`, optionName: '', optionKey: '' }
+                        ],
+                    };
             }
         })();
     

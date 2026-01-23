@@ -277,57 +277,176 @@ function uniquify(base, taken) {
   return u;
 }
 
+// Drag & Drop prompt editor now works with a richer layout config
+// supporting "free", "x-spectrum", and "grid-zones" layouts.
 export function CreateDragAndDropTemplate({ savedData, onChange }) {
-  const [options, setOptions] = useState(() => {
-    const base = Array.isArray(savedData?.options) && savedData.options.length
-      ? savedData.options
-      : [{ optionName: "", optionKey: "", optionId: makeId() }];
-    // ensure stable optionId, keep existing keys
-    return base.map(o => ({
-      optionId: o.optionId || makeId(),
-      optionName: o.optionName ?? "",
-      optionKey: o.optionKey ?? "", // will fill on blur/save
-    }));
+  // Full config object persisted to workshop_prompt_options
+  const [config, setConfig] = useState(() => {
+    if (savedData && Object.keys(savedData).length > 0) {
+      // Assume savedData is already a full config
+      // Ensure options carry stable ids/keys
+      const baseOpts = Array.isArray(savedData.options) && savedData.options.length
+        ? savedData.options
+        : [{ optionName: "", optionKey: "", optionId: makeId() }];
+
+      return {
+        layout: savedData.layout || 'free',
+        axes: savedData.axes || {},
+        grid: savedData.grid || null,
+        options: baseOpts.map(o => ({
+          optionId: o.optionId || makeId(),
+          optionName: o.optionName ?? "",
+          optionKey: o.optionKey ?? "",
+        })),
+      };
+    }
+
+    // Default: free placement with a single unnamed option
+    return {
+      layout: 'free',
+      axes: {},
+      grid: null,
+      options: [
+        { optionId: makeId(), optionName: "", optionKey: "" },
+      ],
+    };
   });
 
-  const sync = (next) => {
-    setOptions(next);
-    onChange({ options: next });
+  const sync = (nextConfig) => {
+    setConfig(nextConfig);
+    onChange(nextConfig);
   };
 
-  const handleChange = (idx, value) => {
-    sync(options.map((o,i) => i===idx ? { ...o, optionName: value } : o)); // no key change here
+  const updateOptionName = (idx, value) => {
+    const nextOpts = config.options.map((o, i) =>
+      i === idx ? { ...o, optionName: value } : o
+    );
+    sync({ ...config, options: nextOpts });
   };
 
-  const handleBlur = () => {
+  const handleBlurOptions = () => {
     // (re)build unique keys from names once per edit session
     const taken = new Set();
-    const next = options.map(o => {
+    const nextOpts = config.options.map(o => {
       const base = slug(o.optionName) || "item";
       const key = uniquify(base, taken);
       return { ...o, optionKey: key };
     });
-    sync(next);
+    sync({ ...config, options: nextOpts });
   };
 
-  const addName = () => {
-    sync([...options, { optionId: makeId(), optionName: "", optionKey: "" }]);
+  const addOption = () => {
+    const nextOpts = [
+      ...config.options,
+      { optionId: makeId(), optionName: "", optionKey: "" },
+    ];
+    sync({ ...config, options: nextOpts });
+  };
+
+  const handleLayoutChange = (layout) => {
+    sync({ ...config, layout });
+  };
+
+  const handleSpectrumAxisChange = (side, value) => {
+    sync({
+      ...config,
+      axes: {
+        ...(config.axes || {}),
+        x: {
+          ...(config.axes?.x || {}),
+          [side]: value,
+        },
+      },
+    });
+  };
+
+  const handleGridChange = (field, raw) => {
+    const num = Math.max(1, Number(raw) || 1);
+
+    // Ensure both dimensions have sensible defaults so we always
+    // get visible vertical lines even if the user only edits rows.
+    const baseGrid = config.grid || { rows: 1, cols: 5 };
+
+    sync({
+      ...config,
+      grid: {
+        ...baseGrid,
+        [field]: num,
+      },
+    });
   };
 
   return (
     <>
-      {options.map((o, i) => (
+      {/* Layout selector: free vs spectrum vs grid-zones */}
+      <select
+        value={config.layout || 'free'}
+        onChange={e => handleLayoutChange(e.target.value)}
+        className="textInput"
+      >
+        <option value="free">Free placement</option>
+        <option value="x-spectrum">Horizontal spectrum</option>
+        <option value="grid-zones">Grid of zones</option>
+      </select>
+
+      {/* Spectrum configuration */}
+      {config.layout === 'x-spectrum' && (
+        <div className="createChecklistQuestionContainer">
+          <input
+            type="text"
+            className="createTextInput"
+            placeholder="Left pole label (e.g. 'Strongly Disagree')"
+            value={config.axes?.x?.labelMin || ''}
+            onChange={e => handleSpectrumAxisChange('labelMin', e.target.value)}
+          />
+          <input
+            type="text"
+            className="createTextInput"
+            placeholder="Right pole label (e.g. 'Strongly Agree')"
+            value={config.axes?.x?.labelMax || ''}
+            onChange={e => handleSpectrumAxisChange('labelMax', e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* Grid configuration for zoning */}
+      {config.layout === 'grid-zones' && (
+        <div className="createChecklistQuestionContainer">
+          <input
+            type="number"
+            min={1}
+            max={10}
+            className="createTextInput"
+            placeholder="Number of rows"
+            value={config.grid?.rows || 1}
+            onChange={e => handleGridChange('rows', e.target.value)}
+          />
+          <input
+            type="number"
+            min={1}
+            max={10}
+            className="createTextInput"
+            placeholder="Number of columns"
+            value={config.grid?.cols || 5}
+            onChange={e => handleGridChange('cols', e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* Draggable item labels */}
+      {config.options.map((o, i) => (
         <input
-          key={o.optionId}                    // ← stable across typing
+          key={o.optionId}
           value={o.optionName}
-          onChange={e => handleChange(i, e.target.value)}
-          onBlur={handleBlur}                 // ← compute unique optionKey here
+          onChange={e => updateOptionName(i, e.target.value)}
+          onBlur={handleBlurOptions}
           className="textInput"
           placeholder="Enter a name"
           type="text"
         />
       ))}
-      <CreateButton handleClick={addName}/>
+
+      <CreateButton handleClick={addOption}/>
     </>
   );
 }

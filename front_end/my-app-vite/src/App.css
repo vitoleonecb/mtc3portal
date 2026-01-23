@@ -100,6 +100,11 @@ html {
   margin-top: 180px;
   margin-bottom: 0px;
   position: relative;
+  /* Reserve vertical space for the fixed ModuleNavigator bar so
+     bottom-of-page content (textareas, buttons, etc.) is never
+     hidden behind it, even when there are no community responses
+     rendered below the prompt. */
+  padding-bottom: 8rem; /* slightly larger than .moduleNavigatorContainer height (7rem) */
 }
 
 /* White column that hides background shapes behind main content */
@@ -454,9 +459,9 @@ div.progressContainer {
 
 /* Community Responses layout */
 .ProcessorContainer {
-  /* Reserve space so the fixed ModuleNavigator bar at the bottom
-     does not visually or interactively overlap the response scroller. */
-  padding-bottom: 8rem; /* slightly larger than .moduleNavigatorContainer height (7rem) */
+  /* Main body now has global bottom padding; keep a small local
+     buffer here so charts and cards still breathe above the nav. */
+  padding-bottom: 2rem;
 }
 
 .ProcessorScroller {
@@ -776,6 +781,68 @@ div.progressContainer {
   margin-left: auto;
   margin-right: auto;
   margin-bottom: 40px;
+}
+
+/* Minimal visual hints for drag-and-drop layouts */
+.DndSpectrumAxis {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 50%;
+  border-top: 1px dashed #D9D9D9;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.DndSpectrumLabel {
+  position: absolute;
+  bottom: 6px;
+  font-size: 0.75rem;
+  color: #555;
+  pointer-events: none;
+  max-width: 40%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.DndSpectrumLabelLeft {
+  left: 10px;
+  text-align: left;
+}
+
+.DndSpectrumLabelRight {
+  right: 10px;
+  text-align: right;
+}
+
+/* While dragging the spectrum slider, suspend text selection globally
+   so Safari/Chrome/Edge don't show selection highlights. */
+body.dnd-spectrum-dragging {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.DndGridLine {
+  position: absolute;
+  border-color: #E0E0E0;
+  border-style: dashed;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.DndGridLineH {
+  left: 0;
+  right: 0;
+  border-top-width: 1px;
+}
+
+.DndGridLineV {
+  top: 0;
+  bottom: 0;
+  border-left-width: 1px;
 }
 
 .StarContainer {

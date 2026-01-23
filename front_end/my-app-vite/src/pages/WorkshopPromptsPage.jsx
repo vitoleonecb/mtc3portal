@@ -281,12 +281,13 @@ export function WorkshopPromptsPage() {
         questionText = '',
         value = '',
         selected = false,
-        keyName = ''
+        keyName = '',
+        meta = undefined
         ) => {
 
             const currentTemplateId = promptsList[promptIndex]?.prompt_template_id;
 
-            console.log('HRC enter', {currentTemplateId, index, value, selected, keyName});
+            console.log('HRC enter', {currentTemplateId, index, value, selected, keyName, meta});
 
             switch (currentTemplateId) {
                 case 1: { // multiple choice
@@ -334,9 +335,16 @@ export function WorkshopPromptsPage() {
                 }
 
                 case 6: {
+                    // Drag-and-drop now stores normalized position plus semantics
                     setResponseData(prev => {
                         const updated = Array.isArray(prev) ? [...prev] : [];
-                        updated[index] = { index, answer: value, keyName };
+                        const base = {
+                            index,
+                            keyName,
+                            position: value,
+                        };
+                        const extras = meta && typeof meta === 'object' ? meta : {};
+                        updated[index] = { ...base, ...extras };
                         return updated;
                     });
                     break;
