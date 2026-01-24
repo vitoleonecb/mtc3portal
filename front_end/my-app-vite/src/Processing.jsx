@@ -453,6 +453,9 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin 
                 responseId={r.workshop_response_id}
                 initialAccepted={!!r.workshop_response_acceptance}
                 accessToken={accessToken}
+                // For drag-and-drop templates, pass along layout + axis labels
+                dndLayout={templateId === 6 ? analyticsData.layout : undefined}
+                dndAxes={templateId === 6 ? analyticsData.axes : undefined}
               />
             ))}
           </div>
@@ -470,7 +473,9 @@ export function ProcessorCard({
   isAdmin,
   responseId,
   initialAccepted,
-  accessToken
+  accessToken,
+  dndLayout,
+  dndAxes,
 }) {
   const [accepted, setAccepted] = useState(Boolean(initialAccepted));
   const [saving, setSaving] = useState(false);
@@ -563,13 +568,51 @@ export function ProcessorCard({
             return [];
           })();
 
-          const fmt = (v) =>
+          const fmtCoord = (v) =>
             v == null ? "—" : v <= 1 ? `${(v * 100).toFixed(0)}` : `${Math.round(v)}px`;
 
           const prettyFromKey = (k) => {
             if (!k) return "";
             const s = String(k).replace(/[-_]+/g, " ").trim();
             return s.charAt(0).toUpperCase() + s.slice(1);
+          };
+
+        const layout = dndLayout || "free";
+        const axisLabels = dndAxes?.x || {};
+
+        const describeSpectrum = (scoreX) => {
+          const pct = Math.round(scoreX * 100);
+          const left = axisLabels.labelMin || "Left";
+          const right = axisLabels.labelMax || "Right";
+
+          if (pct <= 10) return `Extremely ${left} (${pct})`;
+          if (pct <= 25) return `Strongly ${left} (${pct})`;
+          if (pct <= 40) return `Leaning ${left} (${pct})`;
+          if (pct <= 60) return `Balanced between ${left} and ${right} (${pct})`;
+          if (pct <= 75) return `Leaning ${right} (${pct})`;
+          if (pct <= 90) return `Strongly ${right} (${pct})`;
+          return `Extremely ${right} (${pct})`;
+        };
+
+        const formatLine = (item) => {
+          const label = item.label ?? prettyFromKey(item.keyName);
+          const semantics = item.semantics || {};
+
+          // Zone layout: show chosen zone label directly
+          if (semantics.zoneLabel) {
+            return `${label} — ${semantics.zoneLabel}`;
+          }
+
+          // Spectrum layout: map score into qualitative buckets
+          if (typeof semantics.scoreX === "number") {
+            const desc = describeSpectrum(semantics.scoreX);
+            return `${label} — ${desc}`;
+          }
+
+            // Free layout or legacy responses: fall back to coordinates
+            const x = item.position?.x;
+            const y = item.position?.y;
+            return `${label} — Y: ${fmtCoord(y)}, X: ${fmtCoord(x)}`;
           };
 
           return (
@@ -581,17 +624,9 @@ export function ProcessorCard({
                 {items
                   .filter((e) => e?.keyName && e.keyName !== "undefined")
                   .sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0))
-                  .map((e, idx) => {
-                    const x = e.position?.x;
-                    const y = e.position?.y;
-                    const label = e.label ?? prettyFromKey(e.keyName);
-
-                    return (
-                      <li key={e.keyName ?? idx}>
-                        {label} — Y: {fmt(y)}, X: {fmt(x)}
-                      </li>
-                    );
-                  })}
+                  .map((e, idx) => (
+                    <li key={e.keyName ?? idx}>{formatLine(e)}</li>
+                  ))}
               </ul>
             </div>
           );

@@ -433,7 +433,16 @@ function deriveSemantics(pct, layout, zones) {
       pct.x >= z.xMin && pct.x <= z.xMax &&
       pct.y >= z.yMin && pct.y <= z.yMax
     );
-    if (z) semantics.zoneId = z.id;
+    if (z) {
+      semantics.zoneId = z.id;
+      semantics.zoneLabel = z.label;
+      // Recover row/col indices from the id pattern r{row}c{col}
+      const m = /^r(\d+)c(\d+)$/.exec(z.id);
+      if (m) {
+        semantics.rowIndex = Number(m[1]) - 1; // 0-based
+        semantics.colIndex = Number(m[2]) - 1;
+      }
+    }
   }
 
   return semantics;
@@ -538,8 +547,8 @@ export function DragAndDropArea({
   const handlePositionChange = (id, idx, pixelPos) => {
     const rawPct = toPct(pixelPos, size) || { x: 0, y: 0 };
 
-    // Non-spectrum paths only. Spectrum uses SpectrumHandle with
-    // direct normalized X updates and ignores this hook.
+    // Legacy path for Framer-based drag (non-spectrum). Kept for
+    // compatibility but not used by the new pointer-based handles.
     const pct = rawPct;
     const clamped = { x: clamp01(pct.x), y: clamp01(pct.y) };
 
@@ -607,6 +616,21 @@ export function DragAndDropArea({
               style={{ left: `${((c + 1) * 100) / cols}%` }}
             />
           ))}
+
+          {/* Centered labels for each zone, using built zones metadata */}
+          {Array.isArray(zones) && zones.map((z) => {
+            const centerX = ((z.xMin + z.xMax) / 2) * 100;
+            const centerY = ((z.yMin + z.yMax) / 2) * 100;
+            return (
+              <div
+                key={`zone-label-${z.id}`}
+                className="DndZoneLabel"
+                style={{ left: `${centerX}%`, top: `${centerY}%` }}
+              >
+                {z.label}
+              </div>
+            );
+          })}
         </>
       )}
 
@@ -633,25 +657,24 @@ export function DragAndDropArea({
           );
         }
 
-        // All other layouts keep using the Framer Motion-based DragElement
-        const defaultPx = toPx(positionsPct[id], size); // render in pixels (clamped)
-
+        // Grid-zones and free layouts use a 2D pointer-based box handle
+        const pct = positionsPct[id] || { x: 0.5, y: 0.5 };
         return (
-          <DragElement
+          <BoxHandle
             key={id}
             id={id}
             color={limitedColors[index]}
-            dragConstraints={constraintRef}
-            dragMomentum={false}
-            dragElastic={0}
-            // If using Framer Motion under the hood, these prevent layout reflow animations:
-            initial={false}
-            layout={false}
-            onDragStart={() => setIsInteracting(true)}
-            onDragEnd={() => setIsInteracting(false)}
-            onPositionChange={(_, posPx) => handlePositionChange(id, index, posPx)}
-            defaultPosition={defaultPx}
+            pct={pct}
+            constraintRef={constraintRef}
             disabled={disabled}
+            onChange={(norm) => {
+              const clamped = {
+                x: clamp01(norm.x),
+                y: clamp01(norm.y),
+              };
+              setPositionsPct(prev => ({ ...prev, [id]: clamped }));
+              emitUpdate(index, id, clamped);
+            }}
           />
         );
       })}
@@ -702,6 +725,57 @@ function SpectrumHandle({ id, color, pctX, constraintRef, disabled, onChangeX })
         left: `${clamp01(pctX) * 100}%`,
         marginTop: -15,
         transform: 'translateX(-50%)',
+        backgroundColor: color,
+        cursor: disabled ? 'default' : 'grab',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+      }}
+      onPointerDown={handlePointerDown}
+    />
+  );
+}
+
+// 2D pointer-based box handle for grid-zones and free layouts
+function BoxHandle({ id, color, pct, constraintRef, disabled, onChange }) {
+  const handlePointerDown = (e) => {
+    if (disabled) return;
+    const el = constraintRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+
+    const updateFromClient = (clientX, clientY) => {
+      const relX = (clientX - rect.left) / rect.width;
+      const relY = (clientY - rect.top) / rect.height;
+      onChange({ x: relX, y: relY });
+    };
+
+    e.preventDefault();
+    document.body.classList.add('dnd-spectrum-dragging'); // reuse no-select class
+
+    updateFromClient(e.clientX, e.clientY);
+
+    const handleMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      updateFromClient(moveEvent.clientX, moveEvent.clientY);
+    };
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      document.body.classList.remove('dnd-spectrum-dragging');
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+
+  return (
+    <div
+      className="dragElement"
+      style={{
+        position: 'absolute',
+        left: `${clamp01(pct.x) * 100}%`,
+        top: `${clamp01(pct.y) * 100}%`,
+        transform: 'translate(-50%, -50%)',
         backgroundColor: color,
         cursor: disabled ? 'default' : 'grab',
         WebkitUserSelect: 'none',

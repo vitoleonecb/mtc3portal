@@ -277,6 +277,20 @@ function uniquify(base, taken) {
   return u;
 }
 
+// Ensure a rows×cols label grid, preserving existing labels where possible.
+function ensureLabelGrid(rows, cols, prevLabels) {
+  const result = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      const existing = prevLabels?.[r]?.[c] ?? '';
+      row.push(existing);
+    }
+    result.push(row);
+  }
+  return result;
+}
+
 // Drag & Drop prompt editor now works with a richer layout config
 // supporting "free", "x-spectrum", and "grid-zones" layouts.
 export function CreateDragAndDropTemplate({ savedData, onChange }) {
@@ -366,13 +380,19 @@ export function CreateDragAndDropTemplate({ savedData, onChange }) {
     // Ensure both dimensions have sensible defaults so we always
     // get visible vertical lines even if the user only edits rows.
     const baseGrid = config.grid || { rows: 1, cols: 5 };
+    const nextGrid = {
+      ...baseGrid,
+      [field]: num,
+    };
+
+    // Keep label grid in sync with rows/cols so zone labels editing is stable.
+    const rows = Math.max(1, nextGrid.rows || 1);
+    const cols = Math.max(1, nextGrid.cols || 1);
+    nextGrid.labels = ensureLabelGrid(rows, cols, nextGrid.labels || baseGrid.labels);
 
     sync({
       ...config,
-      grid: {
-        ...baseGrid,
-        [field]: num,
-      },
+      grid: nextGrid,
     });
   };
 
@@ -430,6 +450,47 @@ export function CreateDragAndDropTemplate({ savedData, onChange }) {
             value={config.grid?.cols || 5}
             onChange={e => handleGridChange('cols', e.target.value)}
           />
+
+          {/* Zone labels editor: one input per cell */}
+          {(() => {
+            const rows = Math.max(1, config.grid?.rows || 1);
+            const cols = Math.max(1, config.grid?.cols || 1);
+            const labels = ensureLabelGrid(rows, cols, config.grid?.labels);
+
+            const handleLabelChange = (r, c, value) => {
+              const nextLabels = labels.map((row, ri) =>
+                row.map((cell, ci) => (ri === r && ci === c ? value : cell))
+              );
+              sync({
+                ...config,
+                grid: {
+                  ...(config.grid || {}),
+                  rows,
+                  cols,
+                  labels: nextLabels,
+                },
+              });
+            };
+
+            return (
+              <div className="DndZoneLabelsEditor">
+                {labels.map((row, r) => (
+                  <div key={r} className="DndZoneLabelsRow">
+                    {row.map((cell, c) => (
+                      <input
+                        key={c}
+                        type="text"
+                        className="createTextInput DndZoneLabelInput"
+                        placeholder={`Zone ${r + 1}-${c + 1}`}
+                        value={cell}
+                        onChange={e => handleLabelChange(r, c, e.target.value)}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 

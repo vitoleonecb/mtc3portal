@@ -4,15 +4,31 @@ import time
 import requests
 from dotenv import load_dotenv
 from utils.auth import login
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:
+    # Fallback for older openai versions if necessary, 
+    # but the code below uses the new client-based API.
+    # It's better to upgrade: pip install --upgrade openai
+    import openai
+    class OpenAI:
+        def __init__(self, api_key):
+            openai.api_key = api_key
+            self.chat = self.Chat()
+        class Chat:
+            def __init__(self):
+                self.completions = self.Completions()
+            class Completions:
+                def create(self, **kwargs):
+                    return openai.ChatCompletion.create(**kwargs)
 
 # Load environment variables
 load_dotenv()
 
 # CONFIG
 workshop_id = 2
-module_id = 56
-pid = 61
+module_id = 66
+pid = 80
 
 API_BASE = os.getenv("API_BASE")
 EMAIL = os.getenv("EMAIL")
@@ -95,17 +111,17 @@ def generate_short_answers(prompt):
     )
 
     try:
-        response = client.responses.create(
-            model="gpt-4.1-mini",
-            input=[
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_output_tokens=250,
+            max_tokens=250,
             temperature=0.8,
         )
 
-        text = response.output_text.strip()
+        text = response.choices[0].message.content.strip()
 
         # Fallback safety
         if not text:
@@ -177,14 +193,14 @@ def generate_notation(prompt):
             "content": f"REFERENCE TEXT:\n{reference}"
         })
 
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=input_blocks,
-        max_output_tokens=90,
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=input_blocks,
+        max_tokens=90,
         temperature=1.1,
     )
 
-    return response.output_text.strip()
+    return response.choices[0].message.content.strip()
 
 def generate_response(prompt):
     t = prompt["prompt_template_id"]
@@ -242,35 +258,91 @@ def generate_response(prompt):
         return generate_short_answers(prompt)
 
     if t == 6:
+        # Drag-and-drop: honor layout (free / x-spectrum / grid-zones) and emit
+        # normalized positions plus semantics for analytics.
+        opts = opts or {}
+        layout = opts.get("layout", "free")
+        grid = opts.get("grid") or {}
         items = opts.get("options", [])
         final = []
 
-        total = max(len(items) - 1, 1)
+        # Precompute grid metadata if present
+        rows = max(int(grid.get("rows") or 0), 0) if isinstance(grid, dict) else 0
+        cols = max(int(grid.get("cols") or 0), 0) if isinstance(grid, dict) else 0
 
         for idx, item in enumerate(items):
             label = item.get("optionName", f"Item {idx + 1}")
+            # Prefer stable optionKey from editor if present; otherwise fall back to slug
+            key_name = item.get("optionKey") or f"{label.lower().replace(' ', '-')}-{idx}"
 
-            # vertical ordering with light randomness
-            y = (idx / total) + random.uniform(-0.03, 0.03)
-            y = min(max(y, 0), 1)
+            semantics = {}
 
-            # mostly centered x with jitter
-            x = 0.5 + random.uniform(-0.05, 0.05)
-            x = min(max(x, 0), 1)
+            if layout == "x-spectrum":
+                # One-dimensional spectrum: lock Y at center and spread X across [0,1]
+                x = random.random()
+                y = 0.5
+                semantics["scoreX"] = round(x, 3)
 
-            final.append({
+            elif layout == "grid-zones" and rows > 0 and cols > 0:
+                # Choose a random cell and place handle within that zone
+                r = random.randint(1, rows)
+                c = random.randint(1, cols)
+
+                row_height = 1.0 / rows
+                col_width = 1.0 / cols
+
+                x_min = (c - 1) * col_width
+                x_max = c * col_width
+                y_min = (r - 1) * row_height
+                y_max = r * row_height
+
+                x = random.uniform(x_min, x_max)
+                y = random.uniform(y_min, y_max)
+
+                zone_id = f"r{r}c{c}"
+                zone_label = None
+                labels = grid.get("labels") if isinstance(grid, dict) else None
+                if isinstance(labels, list) and 1 <= r <= len(labels):
+                    row_labels = labels[r - 1]
+                    if isinstance(row_labels, list) and 1 <= c <= len(row_labels):
+                        zone_label = row_labels[c - 1]
+                if not zone_label:
+                    zone_label = f"R{r}C{c}"
+
+                semantics.update({
+                    "zoneId": zone_id,
+                    "zoneLabel": zone_label,
+                    "rowIndex": r - 1,
+                    "colIndex": c - 1,
+                })
+
+            else:
+                # Free layout: simple 2D scatter in [0,1] x [0,1]
+                x = random.random()
+                y = random.random()
+
+            pos = {
+                "x": round(x, 3),
+                "y": round(y, 3),
+            }
+            display = {
+                "xPct": round(x * 100, 1),
+                "yPct": round(y * 100, 1),
+            }
+
+            entry = {
                 "index": idx,
-                "label": label,
-                "keyName": f"{label.lower().replace(' ', '-')}-{idx}",
-                "position": {
-                    "x": round(x, 3),
-                    "y": round(y, 3)
-                },
-                "display": {
-                    "xPct": round(x * 100, 1),
-                    "yPct": round(y * 100, 1)
-                }
-            })
+                "keyName": key_name,
+                "position": pos,
+                "display": display,
+            }
+
+            if label:
+                entry["label"] = label
+            if semantics:
+                entry["semantics"] = semantics
+
+            final.append(entry)
 
         return final
 

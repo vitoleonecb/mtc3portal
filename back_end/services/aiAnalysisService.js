@@ -321,6 +321,93 @@ Return ONLY valid JSON matching this shape, with no extra keys and no commentary
 
 // TODO: add builders for MC, Checklist, DragAndDrop as needed.
 
+// ----------------- DnD-specific AI prompt builders -----------------
+
+function buildDragAndDropSpectrumPrompt({ promptText, analytics }) {
+  const axis = analytics.axes?.x || analytics.axes?.X || {};
+  const labelMin = axis.labelMin || 'Left';
+  const labelMax = axis.labelMax || 'Right';
+
+  const system =
+    'You are an expert theatre facilitator and data analyst. ' +
+    'You analyze how participants position items along conceptual spectrums. ' +
+    'You respond ONLY with JSON following the specified schema.';
+
+  const user = {
+    role: 'user',
+    content: [
+      {
+        type: 'text',
+        text:
+          'The prompt asked participants to place items along a 1D spectrum between "' +
+          labelMin + '" (0.0) and "' + labelMax + '" (1.0).\n' +
+          'Below is aggregated data by item (token). Each token has a mean score, standard deviation, and bucketed counts.\n' +
+          'Prompt text (if any): ' + (promptText || '(none provided)') + '\n' +
+          'Analytics JSON:\n' + JSON.stringify(analytics, null, 2) + '\n\n' +
+          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": [], "questions": []}}.\n' +
+          'Interpret "tones" as short descriptors of how items cluster on the spectrum, "motifs" as repeated placement patterns,\n' +
+          '"absences" as notable gaps or underused regions on the spectrum, and "questions" as prompts a facilitator might ask.'
+      },
+    ],
+  };
+
+  return { system, messages: [user] };
+}
+
+function buildDragAndDropZonesPrompt({ promptText, analytics }) {
+  const system =
+    'You are an expert theatre facilitator and data analyst. ' +
+    'You analyze how participants place items into named spatial zones. ' +
+    'You respond ONLY with JSON following the specified schema.';
+
+  const user = {
+    role: 'user',
+    content: [
+      {
+        type: 'text',
+        text:
+          'The prompt asked participants to drag items (tokens) into a grid of named zones (cells).\n' +
+          'Below is aggregated data per zone and per token. Zones often correspond to areas of the stage or set.\n' +
+          'Prompt text (if any): ' + (promptText || '(none provided)') + '\n' +
+          'Analytics JSON:\n' + JSON.stringify(analytics, null, 2) + '\n\n' +
+          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": [], "questions": []}}.\n' +
+          'Interpret "tones" as short descriptors of overall placement feel (e.g., most items cluster downstage left),\n' +
+          '"motifs" as repeated patterns in how tokens and zones relate (e.g., certain characters always share a zone),\n' +
+          '"absences" as zones or token-zone combinations that are rarely used, and "questions" as prompts a facilitator might ask.'
+      },
+    ],
+  };
+
+  return { system, messages: [user] };
+}
+
+function buildDragAndDropFreePrompt({ promptText, analytics }) {
+  const system =
+    'You are an expert theatre facilitator and data analyst. ' +
+    'You analyze how participants place items freely on a 2D stage map. ' +
+    'You respond ONLY with JSON following the specified schema.';
+
+  const user = {
+    role: 'user',
+    content: [
+      {
+        type: 'text',
+        text:
+          'The prompt asked participants to drag items (tokens) freely within a 2D rectangular space (normalized 0–1 x/y).\n' +
+          'Below is aggregated data per token, including centroids and individual points.\n' +
+          'Prompt text (if any): ' + (promptText || '(none provided)') + '\n' +
+          'Analytics JSON:\n' + JSON.stringify(analytics, null, 2) + '\n\n' +
+          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": [], "questions": []}}.\n' +
+          'Interpret "tones" as overall spatial feel (e.g., characters cluster upstage right),\n' +
+          '"motifs" as repeated spatial patterns (e.g., pairs of tokens that tend to be near each other),\n          ' +
+          '"absences" as empty or underused areas in the space, and "questions" as prompts a facilitator might ask.'
+      },
+    ],
+  };
+
+  return { system, messages: [user] };
+}
+
 // ---- LLM CALL (OpenAI) -----------------------------------------
 // This implementation uses the OpenAI Chat Completions API.
 // It expects OPENAI_API_KEY in the environment.
@@ -465,12 +552,6 @@ export async function runPromptAIAnalysis({ promptId, templateId }) {
     };
   });
 
-  // For now, handle only free-text-ish templates via a simple projection.
-  const freeTextBodies = responses.map((r) => ({
-    id: r.id,
-    text: typeof r.parsed === 'string' ? r.parsed : JSON.stringify(r.parsed),
-  }));
-
   const promptText =
     promptRow.workshop_prompt_reference ||
     (promptRow.workshop_prompt_options &&
@@ -478,67 +559,117 @@ export async function runPromptAIAnalysis({ promptId, templateId }) {
       ? promptRow.workshop_prompt_options
       : '');
 
-  // Multiple, focused calls so you can iterate quickly on each analysis
-  // type (bubbles, labels, similarities, summary) independently.
-
-  const bubblesResult = await callLLM(
-    buildShortResponseWordBubblesPrompt({ promptText, responses: freeTextBodies })
-  );
-
-  const labelsResult = await callLLM(
-    buildShortResponseLabelsPrompt({ promptText, responses: freeTextBodies })
-  );
-
-  const similaritiesResult = await callLLM(
-    buildShortResponseSimilaritiesPrompt({ promptText, responses: freeTextBodies })
-  );
-
-  const summaryResult = await callLLM(
-    buildShortResponseSummaryPrompt({ promptText, responses: freeTextBodies })
-  );
-
-  const analysis = {
-    word_bubbles: bubblesResult.word_bubbles || { keywords: [], phrases: [] },
-    labels: labelsResult.labels || { labels: [] },
-    similarities: similaritiesResult.similarities || { pairs: [], clusters: [] },
-    free_text_summary:
-      summaryResult.free_text_summary || {
-        tones: [],
-        motifs: [],
-        absences: [],
-        questions: [],
-      },
-  };
-
-  // Second-stage synthesis: concise summary paragraph
+  let analysis;
   let conciseSummary = '';
-  try {
-    const synthesisResult = await callLLM(
-      buildShortResponseSynthesisPrompt({
-        promptText,
-        analysis,
-      })
+
+  // 1) Try a DnD-aware path for drag-and-drop prompts (template_id = 6).
+  if (Number(promptRow.prompt_template_id) === 6) {
+    try {
+      const { getDragAndDropAnalytics } = await import('./analyticsService.js');
+      const dndAnalytics = await getDragAndDropAnalytics(promptId);
+
+      let dndPromptConfig;
+      if (dndAnalytics.mode === 'spectrum') {
+        dndPromptConfig = buildDragAndDropSpectrumPrompt({ promptText, analytics: dndAnalytics });
+      } else if (dndAnalytics.mode === 'zones') {
+        dndPromptConfig = buildDragAndDropZonesPrompt({ promptText, analytics: dndAnalytics });
+      } else {
+        dndPromptConfig = buildDragAndDropFreePrompt({ promptText, analytics: dndAnalytics });
+      }
+
+      const dndResult = await callLLM(dndPromptConfig);
+
+      analysis = {
+        word_bubbles: { keywords: [], phrases: [] },
+        labels: { labels: [] },
+        similarities: { pairs: [], clusters: [] },
+        free_text_summary:
+          dndResult.free_text_summary || {
+            tones: [],
+            motifs: [],
+            absences: [],
+            questions: [],
+          },
+      };
+
+      // Optional concise synthesis using the same summarizer as short responses.
+      try {
+        const synthesisResult = await callLLM(
+          buildShortResponseSynthesisPrompt({
+            promptText,
+            analysis,
+          })
+        );
+        conciseSummary =
+          synthesisResult?.free_text_summary?.summary ||
+          synthesisResult?.free_text_summary?.paragraph ||
+          '';
+      } catch (e) {
+        console.warn('DnD AI synthesis failed for prompt', promptId, e);
+        conciseSummary = '';
+      }
+    } catch (e) {
+      console.warn('DnD AI pipeline failed for prompt', promptId, e, '– falling back to generic analysis.');
+      analysis = undefined;
+      conciseSummary = '';
+    }
+  }
+
+  // 2) Fallback: original short-response style pipeline for all other templates
+  //    or when the DnD-specific path above fails.
+  if (!analysis) {
+    const freeTextBodies = responses.map((r) => ({
+      id: r.id,
+      text: typeof r.parsed === 'string' ? r.parsed : JSON.stringify(r.parsed),
+    }));
+
+    const bubblesResult = await callLLM(
+      buildShortResponseWordBubblesPrompt({ promptText, responses: freeTextBodies })
     );
 
-    let parsed = synthesisResult;
-    if (typeof parsed === 'string') {
-      try {
-        parsed = JSON.parse(parsed);
-      } catch (e) {
-        console.error('Failed to parse synthesis JSON for prompt', promptId, e);
-        parsed = null;
-      }
-    }
+    const labelsResult = await callLLM(
+      buildShortResponseLabelsPrompt({ promptText, responses: freeTextBodies })
+    );
 
-    if (parsed && typeof parsed.concise_summary === 'string') {
-      analysis.concise_summary = parsed.concise_summary;
-    } else {
-      analysis.concise_summary = '';
+    const similaritiesResult = await callLLM(
+      buildShortResponseSimilaritiesPrompt({ promptText, responses: freeTextBodies })
+    );
+
+    const summaryResult = await callLLM(
+      buildShortResponseSummaryPrompt({ promptText, responses: freeTextBodies })
+    );
+
+    analysis = {
+      word_bubbles: bubblesResult.word_bubbles || { keywords: [], phrases: [] },
+      labels: labelsResult.labels || { labels: [] },
+      similarities: similaritiesResult.similarities || { pairs: [], clusters: [] },
+      free_text_summary:
+        summaryResult.free_text_summary || {
+          tones: [],
+          motifs: [],
+          absences: [],
+          questions: [],
+        },
+    };
+
+    try {
+      const synthesisResult = await callLLM(
+        buildShortResponseSynthesisPrompt({
+          promptText,
+          analysis,
+        })
+      );
+      conciseSummary =
+        synthesisResult?.free_text_summary?.summary ||
+        synthesisResult?.free_text_summary?.paragraph ||
+        '';
+    } catch (err) {
+      console.error('AI synthesis error for prompt', promptId, err);
+      conciseSummary = '';
     }
-  } catch (err) {
-    console.error('AI synthesis error for prompt', promptId, err);
-    analysis.concise_summary = '';
   }
+
+  analysis.free_text_summary.concise_summary = conciseSummary;
 
   await upsertPromptAIAnalysis({
     promptId,

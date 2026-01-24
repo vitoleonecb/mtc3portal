@@ -287,8 +287,6 @@ export function WorkshopPromptsPage() {
 
             const currentTemplateId = promptsList[promptIndex]?.prompt_template_id;
 
-            console.log('HRC enter', {currentTemplateId, index, value, selected, keyName, meta});
-
             switch (currentTemplateId) {
                 case 1: { // multiple choice
                     setResponseData(prev => {

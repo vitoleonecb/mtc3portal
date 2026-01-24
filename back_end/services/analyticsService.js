@@ -204,8 +204,236 @@ async function getTimeSeriesOnlyAnalytics(promptId) {
     return analytics;
 }
 
+// Layout-aware analytics for drag-and-drop prompts
+// ---------------- Drag-and-drop layout-specific aggregators -----------------
+
+function computeSpectrumAnalytics(base, responses) {
+  // scores per token; fallback to position.x when semantics.scoreX missing
+  const perToken = {}; // token -> { scores: number[] }
+
+  responses.forEach(r => {
+    const items = Array.isArray(r.content) ? r.content : (r.content ? [r.content] : []);
+    items.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const token = item.keyName || item.label || 'unknown';
+      const s = item.semantics || {};
+      const raw = (typeof s.scoreX === 'number') ? s.scoreX : item.position?.x;
+      if (typeof raw !== 'number') return;
+      const score = Math.min(Math.max(raw, 0), 1);
+      if (!perToken[token]) perToken[token] = { scores: [] };
+      perToken[token].scores.push(score);
+    });
+  });
+
+  const tokens = {};
+  Object.entries(perToken).forEach(([token, data]) => {
+    const scores = data.scores;
+    if (!scores.length) return;
+    const n = scores.length;
+    const sum = scores.reduce((a, b) => a + b, 0);
+    const mean = sum / n;
+    const variance = scores.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+    const stddev = Math.sqrt(variance);
+
+    // Bucket scores into 5 equal-width buckets
+    const buckets = [0, 0, 0, 0, 0];
+    scores.forEach(v => {
+      const idx = Math.min(4, Math.floor(v * 5));
+      buckets[idx]++;
+    });
+
+    tokens[token] = {
+      count: n,
+      mean,
+      stddev,
+      buckets: buckets.map((c, i) => ({
+        index: i,
+        rangeMin: i / 5,
+        rangeMax: (i + 1) / 5,
+        count: c,
+      })),
+    };
+  });
+
+  return {
+    ...base,
+    mode: 'spectrum',
+    tokens,
+  };
+}
+
+function computeZoneAnalytics(base, responses) {
+  const zoneCounts = {};        // zoneLabel -> count
+  const zoneCountsById = {};    // zoneId -> count
+  const perTokenZone = {};      // token -> { zoneLabel -> count }
+
+  responses.forEach(r => {
+    const items = Array.isArray(r.content) ? r.content : (r.content ? [r.content] : []);
+    items.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const token = item.keyName || item.label || 'unknown';
+      const s = item.semantics || {};
+      const zoneId = s.zoneId || null;
+      const zoneLabel = s.zoneLabel || zoneId || 'unknown';
+      if (!zoneLabel) return;
+
+      zoneCounts[zoneLabel] = (zoneCounts[zoneLabel] || 0) + 1;
+      if (zoneId) zoneCountsById[zoneId] = (zoneCountsById[zoneId] || 0) + 1;
+
+      if (!perTokenZone[token]) perTokenZone[token] = {};
+      perTokenZone[token][zoneLabel] = (perTokenZone[token][zoneLabel] || 0) + 1;
+    });
+  });
+
+  // Normalize for percentages
+  const totalZonePlacements = Object.values(zoneCounts).reduce((a, b) => a + b, 0) || 1;
+
+  const zones = Object.entries(zoneCounts).map(([label, count]) => ({
+    zoneLabel: label,
+    count,
+    percentage: (count / totalZonePlacements) * 100,
+  }));
+
+  const tokens = {};
+  Object.entries(perTokenZone).forEach(([token, zmap]) => {
+    const total = Object.values(zmap).reduce((a, b) => a + b, 0) || 1;
+    tokens[token] = {
+      total,
+      zones: Object.entries(zmap).map(([label, count]) => ({
+        zoneLabel: label,
+        count,
+        percentage: (count / total) * 100,
+      })),
+    };
+  });
+
+  return {
+    ...base,
+    mode: 'zones',
+    zones,
+    tokens,
+  };
+}
+
+function computeFreeAnalytics(base, responses) {
+  const perToken = {}; // token -> { points: {x,y}[] }
+
+  responses.forEach(r => {
+    const items = Array.isArray(r.content) ? r.content : (r.content ? [r.content] : []);
+    items.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const token = item.keyName || item.label || 'unknown';
+      const pos = item.position || item.semantics || {};
+      if (typeof pos.x !== 'number' || typeof pos.y !== 'number') return;
+      const point = {
+        x: Math.min(Math.max(pos.x, 0), 1),
+        y: Math.min(Math.max(pos.y, 0), 1),
+      };
+      if (!perToken[token]) perToken[token] = { points: [] };
+      perToken[token].points.push(point);
+    });
+  });
+
+  const tokens = {};
+  Object.entries(perToken).forEach(([token, data]) => {
+    const pts = data.points;
+    if (!pts.length) return;
+    const n = pts.length;
+    const sum = pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+    const centroid = { x: sum.x / n, y: sum.y / n };
+
+    tokens[token] = {
+      count: n,
+      centroid,
+      // Raw points for scatter/heatmap if needed
+      points: pts,
+    };
+  });
+
+  return {
+    ...base,
+    mode: 'free',
+    tokens,
+  };
+}
+
 export async function getDragAndDropAnalytics(promptId) {
-    return getTimeSeriesOnlyAnalytics(promptId);
+    // 1) Load prompt config to determine layout and grid metadata
+    const [[promptRow]] = await connection.query(
+      `SELECT prompt_template_id, workshop_prompt_options
+       FROM workshop_prompts
+       WHERE workshop_prompt_id = ?`,
+      [promptId]
+    );
+
+    if (!promptRow) {
+      return { promptId, layout: 'unknown', totalResponses: 0, timeSeries: {} };
+    }
+
+    const templateId = Number(promptRow.prompt_template_id);
+    let layout = 'free';
+    let gridMeta = null;
+    let axisMeta = null;
+
+    if (promptRow.workshop_prompt_options) {
+      const opts = safeParse(promptRow.workshop_prompt_options);
+      if (opts && typeof opts === 'object') {
+        if (opts.layout) layout = opts.layout;
+        if (opts.grid && typeof opts.grid === 'object') {
+          gridMeta = {
+            rows: Number(opts.grid.rows || 0),
+            cols: Number(opts.grid.cols || 0),
+            labels: Array.isArray(opts.grid.labels) ? opts.grid.labels : null,
+          };
+        }
+        if (opts.axes && typeof opts.axes === 'object') {
+          axisMeta = opts.axes;
+        }
+      }
+    }
+
+    // 2) Fetch accepted responses for this prompt
+    const [rows] = await connection.query(
+      `
+      SELECT workshop_response_content, workshop_response_created
+      FROM workshop_responses
+      WHERE workshop_prompt_id = ?
+        AND workshop_response_acceptance = 1
+      `,
+      [promptId]
+    );
+
+    const responses = rows.map(r => ({
+      content: safeParse(r.workshop_response_content),
+      created: r.workshop_response_created,
+    }));
+
+    const base = {
+      promptId,
+      templateId,
+      layout,
+      grid: gridMeta,
+      axes: axisMeta,
+      totalResponses: responses.length,
+      timeSeries: {},
+    };
+
+    // 3) Record time series (common to all layouts)
+    responses.forEach(r => {
+      const day = dayjs(r.created).format("YYYY-MM-DD");
+      base.timeSeries[day] = (base.timeSeries[day] || 0) + 1;
+    });
+
+    if (layout === 'x-spectrum') {
+      return computeSpectrumAnalytics(base, responses);
+    }
+
+    if (layout === 'grid-zones') {
+      return computeZoneAnalytics(base, responses);
+    }
+
+    // default: free layout
+    return computeFreeAnalytics(base, responses);
 }
 
 export async function getShortResponseAnalytics(promptId) {

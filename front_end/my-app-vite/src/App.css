@@ -816,6 +816,20 @@ div.progressContainer {
   text-align: right;
 }
 
+/* Zone labels centered within each grid cell */
+.DndZoneLabel {
+  position: absolute;
+  font-size: 0.75rem;
+  color: #555;
+  pointer-events: none;
+  max-width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
 /* While dragging the spectrum slider, suspend text selection globally
    so Safari/Chrome/Edge don't show selection highlights. */
 body.dnd-spectrum-dragging {
@@ -1220,6 +1234,21 @@ rect:hover {
   box-shadow: -4px 4px black;
   padding: 1rem;
   margin-bottom: 30px;
+}
+
+/* Editor grid for zone labels */
+.DndZoneLabelsEditor {
+  margin-top: 1rem;
+}
+
+.DndZoneLabelsRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.DndZoneLabelInput {
+  flex: 1;
 }
 
 .passwordInput {
