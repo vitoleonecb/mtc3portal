@@ -235,12 +235,40 @@ workshopsRouter.post('/rsvp/create', authenticateToken, async (req, res, next) =
     }
 });
 
-// PUT RSVP Status
+// PUT RSVP Status (confirm / unconfirm toggle)
+// Body: { confirmed: boolean }
 workshopsRouter.put('/:workshopid/rsvp/:userid/update', async (req, res, next) => {
     try {
         const { workshopid, userid } = req.params;
-        const [response] = await connection.query('UPDATE workshop_rsvps SET rsvp_confirmation_status = "confirmed" WHERE user_id = ? AND workshop_id = ?',[userid, workshopid]);
-        res.status(201).send('RSVP Confirmed Successfully');
+        const { confirmed } = req.body || {};
+
+        // Map boolean-ish values. When unconfirming, reset the column to its
+        // database DEFAULT to avoid enum/NOT NULL issues without knowing the
+        // exact schema.
+        const shouldConfirm = confirmed === true || confirmed === 1 || confirmed === '1';
+
+        let response;
+        if (shouldConfirm) {
+            [response] = await connection.query(
+                'UPDATE workshop_rsvps SET rsvp_confirmation_status = "confirmed" WHERE user_id = ? AND workshop_id = ?',
+                [userid, workshopid]
+            );
+        } else {
+            [response] = await connection.query(
+                'UPDATE workshop_rsvps SET rsvp_confirmation_status = DEFAULT WHERE user_id = ? AND workshop_id = ?',
+                [userid, workshopid]
+            );
+        }
+
+        if (response.affectedRows === 0) {
+            return res.status(404).send('RSVP not found');
+        }
+
+        return res.status(200).json({
+            user_id: Number(userid),
+            workshop_id: Number(workshopid),
+            confirmed: shouldConfirm
+        });
     } catch (error) {
         res.status(500).send(`Server Error: ${error}`);
     }
@@ -267,7 +295,7 @@ workshopsRouter.get('/:workshopid/rsvp/:userid', authenticateToken, async (req, 
         const { userid, workshopid } = req.params;
 
         const [response] = await connection.query(
-            'SELECT u.first_name AS first_name, u.username AS username, w.workshop_name AS workshop_name, w.workshop_description AS workshop_description, w.workshop_date AS workshop_date, w.workshop_location AS workshop_location, w.workshop_public AS workshop_public, wr.rsvp_confirmation_status AS rsvp_confirmation_status FROM workshops w JOIN workshop_rsvps wr ON (w.workshop_id = wr.workshop_id) JOIN users u ON (wr.user_id = u.user_id) WHERE w.workshop_id = ? AND u.user_id = ?',
+'SELECT u.first_name AS first_name, u.username AS username, u.avatar_config AS avatar_config, w.workshop_name AS workshop_name, w.workshop_description AS workshop_description, w.workshop_date AS workshop_date, w.workshop_location AS workshop_location, w.workshop_public AS workshop_public, wr.rsvp_confirmation_status AS rsvp_confirmation_status FROM workshops w JOIN workshop_rsvps wr ON (w.workshop_id = wr.workshop_id) JOIN users u ON (wr.user_id = u.user_id) WHERE w.workshop_id = ? AND u.user_id = ?',
             [workshopid, userid]
         );
         res.status(203).send(response);
@@ -330,7 +358,7 @@ workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid', authenti
     }
 });
 
-// GET Attendance For Workshop
+// GET Attendance For Workshop (admin view)
 workshopsRouter.get('/:workshopid/attendance', authenticateTokenAdmin, async (req, res, next) => {
     try {
         const { workshopid } = req.params;
@@ -338,6 +366,20 @@ workshopsRouter.get('/:workshopid/attendance', authenticateTokenAdmin, async (re
         res.status(200).send(workshopAttendance);
     } catch (error) {
         res.status(500).send(error);
+    }
+});
+
+// GET confirmed attendees for a workshop (for avatar strip)
+workshopsRouter.get('/:workshopid/attendees', authenticateToken, async (req, res) => {
+    try {
+        const { workshopid } = req.params;
+        const [rows] = await connection.query(
+'SELECT wr.user_id, u.username, u.first_name, u.last_name, u.avatar_config FROM workshop_rsvps wr JOIN users u ON (wr.user_id = u.user_id) WHERE wr.workshop_id = ? AND wr.rsvp_confirmation_status = "confirmed"',
+            [workshopid]
+        );
+        res.status(200).json(rows);
+    } catch (error) {
+        res.status(500).send(`Server Error: ${error}`);
     }
 });
 
@@ -584,21 +626,51 @@ workshopsRouter.patch('/:responseId/response/acceptance', authenticateTokenAdmin
 
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/automated', authenticateTokenAdmin, async (req, res, next) => {
     try {
-        
         const { workshopid, moduleid, promptid } = req.params;
-        const { workshop_response_content, user_id } = req.body;
-        
-        const [response] = await connection.query('INSERT INTO workshop_responses (workshop_response_content, user_id, workshop_prompt_id) VALUES (?, ?, ?)',[JSON.stringify(workshop_response_content), user_id, promptid]);
-        
-        const [rsvpAccomplishmentRows] = await connection.query('SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]);
-        const [userAccomplishmentRows] = await connection.query('SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]);
+        const { workshop_response_content, user_id, testing, workshop_response_created } = req.body;
+
+        const content = JSON.stringify(workshop_response_content);
+
+        let insertQuery;
+        let insertParams;
+
+        // For testing runs, allow overriding the created timestamp so that
+        // seeded responses can be distributed across a fixed date window.
+        if (testing && workshop_response_created) {
+            insertQuery = `
+                INSERT INTO workshop_responses
+                    (workshop_response_content, user_id, workshop_prompt_id, workshop_response_created)
+                VALUES (?, ?, ?, ?)
+            `;
+            insertParams = [content, user_id, promptid, workshop_response_created];
+        } else {
+            insertQuery = `
+                INSERT INTO workshop_responses
+                    (workshop_response_content, user_id, workshop_prompt_id)
+                VALUES (?, ?, ?)
+            `;
+            insertParams = [content, user_id, promptid];
+        }
+
+        const [response] = await connection.query(insertQuery, insertParams);
+
+        const [rsvpAccomplishmentRows] = await connection.query(
+            'SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]
+        );
+        const [userAccomplishmentRows] = await connection.query(
+            'SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]
+        );
         
         if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
-            const rsvpCreateResponse = await connection.query('INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',[user_id, workshopid]);
-            res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
+            const rsvpCreateResponse = await connection.query(
+                'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',
+                [user_id, workshopid]
+            );
+            return res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
         }
-        res.status(201).send(response);
+
+        return res.status(201).send(response);
     } catch (error) {
-        res.status(500).send(`Server Error: ${error}`);
+        return res.status(500).send(`Server Error: ${error}`);
     }
 });

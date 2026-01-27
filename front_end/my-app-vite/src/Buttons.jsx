@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect }from 'react';
-import { DragElement, ArrowSVG, Star, BackArrowSVG, CheckBox, LockSVG, EyeSVG, ForwardArrowIcon } from './Icons';
+import { DragElement, ArrowSVG, Star, BackArrowSVG, CheckBox, LockSVG, EyeSVG, ForwardArrowIcon, LocationIcon, ClockIcon, AvatarCircle, AVATAR_COLORS } from './Icons';
 import classNames from 'classnames';
 import { motion } from 'framer-motion';
 import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
@@ -837,14 +837,163 @@ export function CreateButton({ handleClick }) {
     );
 }
 
+// Shared row for "when" / "where" styles
+export function WhenWhereRow({ icon, label }) {
+  return (
+    <div className="whenWhereRow">
+      <span className="whenWhereIcon">{icon}</span>
+      <span className="whenWhereText">{label}</span>
+    </div>
+  );
+}
+
+// Horizontal strip of attendee avatars
+export function AttendeeAvatarStrip({ attendees, currentUserId }) {
+  if (!Array.isArray(attendees) || attendees.length === 0) return null;
+
+  // Put current user first, then others
+  const sorted = [...attendees].sort((a, b) => {
+    const aSelf = Number(a.user_id) === Number(currentUserId);
+    const bSelf = Number(b.user_id) === Number(currentUserId);
+    if (aSelf && !bSelf) return -1;
+    if (!aSelf && bSelf) return 1;
+    return 0;
+  });
+
+  const showFade = sorted.length > 3;
+
+  // Scroll + drag behavior (mirrors Processing.jsx ProcessorScroller)
+  const scrollerRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragScrollLeftRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleHorizontalWheel = (e) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    // If vertical wheel movement dominates, translate it into horizontal scroll
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }
+  };
+
+  const handlePointerDown = (e) => {
+    // Enable click-and-drag only for mouse pointers so touch/trackpads behave natively
+    if (e.pointerType !== 'mouse') return;
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    dragStartXRef.current = e.clientX;
+    dragScrollLeftRef.current = el.scrollLeft;
+    el.setPointerCapture?.(e.pointerId);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDraggingRef.current) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    e.preventDefault();
+
+    const speed = 2; // >1 = faster scrolling, <1 = slower
+    const dx = e.clientX - dragStartXRef.current;
+    el.scrollLeft = dragScrollLeftRef.current - dx * speed;
+  };
+
+  const endDrag = (e) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    scrollerRef.current?.releasePointerCapture?.(e.pointerId);
+  };
+
+  return (
+    <div className="AttendeeStripWrapper">
+      <div
+        className={`AttendeeStripViewport${isDragging ? ' is-dragging' : ''}`}
+        ref={scrollerRef}
+        onWheel={handleHorizontalWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerLeave={endDrag}
+      >
+        <div className="AttendeeStrip">
+          {sorted.map((a) => {
+          const isSelf = Number(a.user_id) === Number(currentUserId);
+          const seed = a.username || a.first_name || String(a.user_id);
+          const displayName = a.first_name || a.username || `User ${a.user_id}`;
+
+          // Derive avatar props from stored avatar_config when present
+          let avatarProps = {};
+          if (a.avatar_config) {
+            try {
+              let cfg = typeof a.avatar_config === 'string'
+                ? JSON.parse(a.avatar_config)
+                : a.avatar_config;
+
+              if (cfg) {
+                const {
+                  rings,
+                  strokeWidth,
+                  backgroundColorIndex,
+                  ringColorIndices,
+                  centerColorIndex,
+                } = cfg;
+
+                const palette = AVATAR_COLORS;
+                const maxRings = 6;
+                const safeRings = Math.max(1, Math.min(rings ?? 1, maxRings));
+                const backgroundColor = palette[(backgroundColorIndex ?? 0) % palette.length];
+                const ringColors = Array.from({ length: safeRings }, (_, i) => {
+                  const idx = ringColorIndices?.[i] ?? 0;
+                  return palette[idx % palette.length];
+                });
+                const centerColor = palette[(centerColorIndex ?? 0) % palette.length];
+
+                avatarProps = {
+                  rings: safeRings,
+                  strokeWidth: strokeWidth ?? 2,
+                  backgroundColor,
+                  ringColors,
+                  centerColor,
+                };
+              }
+            } catch (e) {
+              console.error('Invalid avatar_config for attendee', a.user_id, e);
+            }
+          }
+
+          return (
+            <div
+              key={a.user_id}
+              className={isSelf ? 'AttendeeAvatar AttendeeAvatar--self' : 'AttendeeAvatar'}
+              title={displayName}
+            >
+              <AvatarCircle seed={seed} size={32} {...avatarProps} />
+            </div>
+          );
+        })}
+        </div>
+      </div>
+      {/* Fade-out overlay that starts around the last visible avatar */}
+      {showFade && <div className="AttendeeStripFade" aria-hidden="true" />}
+    </div>
+  );
+}
+
 export function WorkshopCard({ workshopName, workshopLocation, workshopDate, workshopDescription, decoration }) {
   return (
     <>
       <div className="workshopCardContainer">
         <div>
           <h1 className="workshopCardName">{workshopName}</h1>
-          <span id="buttonText">{"When: " + workshopDate}</span>
-          <span id="buttonText">{"Where: " + workshopLocation}</span>
+          <WhenWhereRow icon={<ClockIcon size={14} />} label={workshopDate} />
+          <WhenWhereRow icon={<LocationIcon size={14} />} label={workshopLocation} />
           <span id="workshopCardDescription">{workshopDescription}</span>
         </div>
 

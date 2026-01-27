@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import datetime
 import requests
 from dotenv import load_dotenv
 from utils.auth import login
@@ -27,8 +28,8 @@ load_dotenv()
 
 # CONFIG
 workshop_id = 2
-module_id = 66
-pid = 80
+module_id = 63
+pid = 71
 
 API_BASE = os.getenv("API_BASE")
 EMAIL = os.getenv("EMAIL")
@@ -391,17 +392,31 @@ def generate_response(prompt):
     # DEFAULT
     return {}
 
+
+def random_timestamp_aug_window(year=2024):
+    """Return a random timestamp between August 23 and August 28 (inclusive)
+    in the given year, with a random time of day."""
+    start = datetime.datetime(year, 8, 23, 0, 0, 0)
+    end = datetime.datetime(year, 8, 28, 23, 59, 59)
+    total_seconds = int((end - start).total_seconds())
+    offset = random.randint(0, total_seconds)
+    ts = start + datetime.timedelta(seconds=offset)
+    return ts.strftime("%Y-%m-%d %H:%M:%S")
+
+
 for user in usersList:
+    created_at = random_timestamp_aug_window()
     response = requests.post(
         f"{API_BASE}/workshops/{workshop_id}/modules/{module_id}/prompts/{pid}/automated",
-        json={ 
-            "workshop_response_content": generate_response(prompt), 
-            "user_id": user['user_id'] 
+        json={
+            "workshop_response_content": generate_response(prompt),
+            "user_id": user["user_id"],
+            "testing": True,
+            "workshop_response_created": created_at,
         },
-        headers=AUTH
+        headers=AUTH,
     )
 
     print(response.text)
     print(response.status_code)
     time.sleep(2)
-

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 
 export function CheckBox(props) {
     return (
@@ -64,6 +65,181 @@ export function EyeSVG() {
         stroke="black" strokeLinecap="round" fill="none"/>
       <circle cx="11.5" cy="11.5" r="2.5" fill="black"/>
     </svg>
+  );
+}
+
+// Minimal location pin used for "Where" labels (teardrop with inner circle)
+export function LocationIcon({ size = 16 }) {
+  return (
+    <svg
+      width={size}
+      height={size + 4}
+      viewBox="0 0 16 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M8 19 C8 19 2 12.5 2 8 C2 4.686 4.239 2.5 8 2.5 C11.761 2.5 14 4.686 14 8 C14 12.5 8 19 8 19 Z"
+        stroke="black"
+        strokeWidth="1"
+        fill="none"
+      />
+      <circle cx="8" cy="8" r="2" stroke="black" strokeWidth="1" fill="none" />
+    </svg>
+  );
+}
+
+// Minimal clock used for "When" labels (your Option C)
+export function ClockIcon({ size = 16 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="8" cy="8" r="6.5" stroke="black" strokeWidth="1" fill="none" />
+      <path d="M8 8 L11 7" stroke="black" strokeWidth="1" strokeLinecap="round" />
+      <path d="M8 8 L8 4.5" stroke="black" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// --- Avatar generator -------------------------------------------------
+
+// Simple deterministic hash from string -> 32-bit int
+function hashString(str = "") {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0; // force 32-bit
+  }
+  return Math.abs(h);
+}
+
+// Shared avatar color palette used across the app (RSVP, registration, etc.)
+export const AVATAR_COLORS = [
+  "#994242",
+  "#D2A478",
+  "#57A15E",
+  "#D9D9D9",
+  "#FFFFFF",
+  "#000000",
+];
+
+/**
+ * AvatarCircle
+ *
+ * Configurable avatar generator based on a seed string and a small
+ * configuration object. By default we derive colors from the seed,
+ * but callers (e.g. registration) can control:
+ *   - rings: how many stroke circles to draw
+ *   - strokeWidth: thickness of those circles
+ *   - backgroundColor: fill color of the outer disc
+ *   - ringColors: array of stroke colors for each ring layer
+ *   - centerColor: fill color for a small inner disc (layer 7)
+ */
+export function AvatarCircle({
+  seed = "",
+  size = 40,
+  rings = 2,
+  strokeWidth = 2,
+  backgroundColor,
+  ringColors,
+  centerColor,
+  colors, // optional custom palette fallback for legacy callers
+}) {
+  const palette = Array.isArray(colors) && colors.length > 0 ? colors : AVATAR_COLORS;
+  const hash = hashString(seed || "");
+
+  const baseIndex = Math.abs(hash) % palette.length;
+
+  // Resolve background color: explicit prop wins, otherwise hashed palette
+  const resolvedBackground = backgroundColor || palette[baseIndex];
+
+  // Resolve per-ring colors. If a ringColors[i] is provided, use it; otherwise
+  // fall back to cycling through the palette for a bit of automatic variety.
+  const resolvedRingColors = [];
+  for (let i = 0; i < rings; i++) {
+    if (Array.isArray(ringColors) && ringColors[i]) {
+      resolvedRingColors.push(ringColors[i]);
+    } else {
+      resolvedRingColors.push(palette[(baseIndex + 1 + i) % palette.length]);
+    }
+  }
+
+  // Resolve center dot color: explicit first, then a palette offset
+  const resolvedCenter = centerColor || palette[(baseIndex + 3) % palette.length];
+
+  const center = size / 2;
+  const outerRadius = size / 2 - strokeWidth; // leave padding equal to stroke width
+
+  // Build ring radii from outside in
+  const ringRadii = [];
+  for (let i = 0; i < rings; i++) {
+    const r = outerRadius - i * (strokeWidth + size * 0.06);
+    if (r > strokeWidth * 1.5) {
+      ringRadii.push(r);
+    }
+  }
+
+  const innerDotRadius = Math.max(strokeWidth * 1.4, outerRadius * 0.15);
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Base filled circle */}
+      <circle cx={center} cy={center} r={outerRadius} fill={resolvedBackground} />
+
+      {/* Configurable rings, using resolved per-layer colors */}
+      {ringRadii.map((r, idx) => (
+        <circle
+          key={idx}
+          cx={center}
+          cy={center}
+          r={r}
+          stroke={resolvedRingColors[idx]}
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+      ))}
+
+      {/* Inner filled circle (layer 7) */}
+      <circle cx={center} cy={center} r={innerDotRadius} fill={resolvedCenter} />
+    </svg>
+  );
+}
+
+/**
+ * Small header button that shows the current user's avatar and
+ * links to the profile/settings page. Sized to match the menu
+ * icon tile (3rem square) so the two feel like a pair.
+ */
+export function AccountAvatarButton() {
+  let seed = "User";
+
+  if (typeof window !== 'undefined') {
+    const accessToken = localStorage.getItem('accessToken');
+    if (typeof accessToken === 'string' && accessToken.trim() !== '') {
+      try {
+        const decoded = jwtDecode(accessToken);
+        seed = decoded?.username || decoded?.email || String(decoded?.user_id || 'User');
+      } catch (err) {
+        console.error('Invalid token while building account avatar:', err);
+      }
+    }
+  }
+
+  return (
+    <Link to="/profile" className="menuIcon accountMenuIcon" aria-label="Account settings">
+      <AvatarCircle seed={seed} size={32} />
+    </Link>
   );
 }
 

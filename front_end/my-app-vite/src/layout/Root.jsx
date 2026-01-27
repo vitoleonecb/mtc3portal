@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { Outlet, useLocation, useMatch } from 'react-router-dom';
 
-import { MenuBarIcon } from '../Icons.jsx';
+import { MenuBarIcon, AccountAvatarButton } from '../Icons.jsx';
 import { NextButton } from '../Buttons.jsx';
 import { ProgressBar } from '../Icons.jsx';
 import { ProgressContext } from '../context/ProgressContext';
@@ -14,8 +14,15 @@ export function Root() {
   const { state: progressState, moduleStatus } = useContext(ProgressContext);
 
   const isEditor = pathname.includes('prompts/edit');
-  const isProcessing = moduleStatus === 'processing';
   const isPromptReader = useMatch('workshops/:workshopId/modules/:moduleId/prompts/:promptId');
+
+  // In "open" phase we show the progress bar; in other phases (processing,
+  // completed, etc.) we hide it but still treat the route as a reader.
+  const isOpenPhaseReader = !!(isPromptReader && moduleStatus === 'open');
+
+  const showProgressBar = isOpenPhaseReader && !isEditor;
+  const showSubmitButton = isEditor;
+  const showAvatar = !isOpenPhaseReader; // hide avatar only during open-phase reader
  
   return (
     <>
@@ -34,20 +41,31 @@ export function Root() {
         className="menuBarIconContainer"
         style={{
           display: 'grid',
-          gridTemplateColumns: isEditor
-            ? '1fr 1fr'
-            : isPromptReader
-            ? '1fr 5fr'
-            : 'auto'
+          gridTemplateColumns:
+            showSubmitButton && showAvatar
+              ? 'auto 1fr auto'   // editor: menu, submit, avatar
+              : showSubmitButton && !showAvatar
+              ? 'auto 1fr'        // editor edge-case without avatar (unused today)
+              : showProgressBar && !showAvatar
+              ? 'auto 1fr'        // open reader: menu + progress bar only
+              : showAvatar
+              ? 'auto 1fr auto'   // default pages: menu, spacer, avatar
+              : 'auto',
+          alignItems: 'center'
         }}
       >
         <MenuBarIcon />
-        {isEditor && (
+
+        {/* Middle column: submit button (editor) or progress bar (open reader) */}
+        {showSubmitButton && (
           <NextButton text="Submit" onClick={() => submitHandler && submitHandler()} />
         )}
-        {isPromptReader && !isEditor && !isProcessing && (
+        {showProgressBar && (
           <ProgressBar current={progressState.current} max={progressState.max} />
         )}
+
+        {/* Right column: account avatar (hidden only in open-phase reader) */}
+        {showAvatar && <AccountAvatarButton />}
       </div>
 
       <div className="body">

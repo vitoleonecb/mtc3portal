@@ -45,6 +45,12 @@
   transition-timing-function: ease;
 }
 
+/* Variant used when the menuIcon tile holds an avatar instead of
+   hamburger bars. Keep sizing identical but remove vertical gap. */
+.accountMenuIcon {
+  gap: 0;
+}
+
 li {
   list-style-type: none;
 }
@@ -526,8 +532,9 @@ div.progressContainer {
 
 .EdgeBox {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
+  /* Three-column layout; slightly narrower right column for avatar/button */
+  grid-template-columns: 3fr 3fr 2fr;
+  grid-template-rows: auto auto auto;
   margin-left: auto;
   margin-right: auto;
   margin-top: 40px;
@@ -538,6 +545,7 @@ div.progressContainer {
   background-color: white;
   height: auto;
   padding: 1rem;
+  align-items: center;
 }
 
 .workshopCardContainer:hover {
@@ -548,7 +556,10 @@ div.progressContainer {
   transition: ease .3s;
 }
 
-.workshopCardContainer:hover svg path {
+.workshopCardContainer:hover svg path,
+.workshopCardContainer:hover svg circle,
+.workshopCardContainer:hover svg line,
+.workshopCardContainer:hover svg polyline {
   stroke: white;
 }
 
@@ -590,6 +601,123 @@ div.progressContainer {
   text-align: left;
   margin-right: auto;
   width: 90%;
+}
+
+/* When/Where row used in workshop and RSVP cards */
+.whenWhereRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 1rem;
+  margin-bottom: 4px;
+}
+
+/* Attendee avatar strip (horizontal scroll)
+   Wrapper is a fixed-width viewport; inner viewport div scrolls
+   horizontally so the fade overlay can stay pinned to the right. */
+.AttendeeStripWrapper {
+  position: relative;
+  margin-right: 1.75rem; /* leave breathing room before confirm button */
+  flex: 1 1 auto;        /* allow strip to grow and create overflow vs. button */
+  min-width: 0;          /* required for flex children to actually overflow */
+  max-width: 100%;
+}
+
+/* Scrollable viewport. This is the element whose scrollLeft we
+   manipulate for wheel + drag; it clips horizontally but not the
+   outer wrapper, so the fade is anchored. */
+.AttendeeStripViewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.AttendeeStripViewport::-webkit-scrollbar {
+  height: 0;
+}
+
+.AttendeeStrip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;  /* vertically center avatars vs. confirm button */
+  gap: 0.5rem;
+  padding: 0;           /* avoid extra vertical offset vs. button */
+  width: max-content;   /* let content define width so it can overflow */
+}
+
+.AttendeeStrip::-webkit-scrollbar {
+  height: 0;
+}
+
+/* Right-edge fade that begins roughly halfway over the last visible avatar */
+.AttendeeStripFade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 16px; /* approx half an avatar width */
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, #ffffff 100%);
+}
+
+.AttendeeAvatar {
+  flex: 0 0 auto;
+  display: flex;          /* shrink-wrap around the SVG only */
+  align-items: center;
+  justify-content: center;
+  line-height: 0;         /* remove inline box above/below the SVG */
+}
+
+.AttendeeAvatar svg {
+  display: block;         /* remove extra baseline gap inside the wrapper */
+}
+
+.AttendeeAvatar--self {
+  padding: 2px;                 /* create internal space for the border ring */
+  border-radius: 999px;
+  border: 2px solid #D2A478;    /* highlight current user without relying on outer shadow */
+  box-shadow: none;
+}
+
+.whenWhereIcon svg {
+  display: block;
+}
+
+.whenWhereText {
+  font-size: 0.9rem;
+}
+
+/* RSVP card-specific typography */
+.RSVPTitle {
+  /* Reuse workshopCardName base styles but tighten spacing for RSVP card */
+  margin-top: 0;
+  margin-bottom: 20px; /* space below the title */
+  margin-left: 0;      /* remove left indent on RSVP titles */
+}
+
+.RSVPDetailText {
+  font-size: 0.9rem;
+  display: block;
+  margin-left: 1rem;
+  margin-right: auto;
+  margin-bottom: 15px;
+  text-align: left;
+  width: 90%;
+}
+
+/* Inside RSVP text block, align all text under the title (no extra indent) */
+.RSVPTextBlock .RSVPDetailText {
+  margin-left: 0;
+}
+
+.RSVPTextBlock .whenWhereRow {
+  margin-left: 0;
+}
+
+/* Override workshopCardName defaults inside RSVP */
+.RSVPTextBlock .workshopCardName {
+  margin-left: 0;
+  margin-right: 0;
+  width: auto;
 }
 
 .MainNavCardDesc {
@@ -1288,6 +1416,13 @@ rect:hover {
   width: 80%;
 }
 
+/* RSVP-specific variant without large outer margins */
+.RSVPConfirmButtonContainer {
+  display: block;
+  margin: 0;
+  width: auto;
+}
+
 .logInButton {
   display: block;
   padding: 1rem;
@@ -1302,12 +1437,31 @@ rect:hover {
   font-size: .9rem;
 }
 
+/* RSVP confirm/unconfirm button: keep global styling but ensure
+   label is perfectly centered within the pill without affecting
+   other .logInButton usages. */
+.RSVPConfirmButtonContainer .logInButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.5rem; /* horizontal only; vertical centering handled by flex */
+}
+
 .logInButton:hover {
   background-color: rgb(0, 0, 0);
   color: white;
   box-shadow: none;
   cursor: pointer;
   transition: ease .4s;
+}
+
+/* Pressed/active state variant for RSVP confirmed */
+.logInButton.logInButton--pressed,
+.logInButton.logInButton--pressed:hover {
+  background-color: #000000;
+  color: #ffffff;
+  box-shadow: none;
+  border-color: #000000;
 }
 
 .logInButton:focus {
@@ -1489,6 +1643,71 @@ rect:hover {
 
 .logInForm {
   margin-top: 80px;
+}
+
+/* Registration avatar builder: separate step in registration flow */
+.RegistrationAvatarBuilder {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 24px;
+}
+
+.RegistrationAvatarPreview {
+  flex: 0 0 auto;
+}
+
+.RegistrationAvatarText {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.RegistrationAvatarControls {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.RegistrationAvatarControlRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.RegistrationAvatarControlLabel {
+  min-width: 90px;
+}
+
+.RegistrationAvatarCounterButton {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid #000000;
+  background-color: #ffffff;
+  box-shadow: -2px 2px black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.RegistrationAvatarCounterValue {
+  min-width: 24px;
+  text-align: center;
+}
+
+.RegistrationAvatarColorSwatch {
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid #000000;
 }
 
 

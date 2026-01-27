@@ -59,7 +59,7 @@ usersRouter.post("/login", async (req, res) => {
     
         // 1️⃣ Look up the user
         const [[user]] = await connection.query(
-        "SELECT user_id, email, username, first_name, last_name, user_password, user_type FROM users WHERE email = ? LIMIT 1",
+        "SELECT user_id, email, username, first_name, last_name, user_password, user_type, avatar_config FROM users WHERE email = ? LIMIT 1",
         [email]
         );
     
@@ -146,13 +146,25 @@ usersRouter.post('', authenticateToken, async (req, res, next) => {
 usersRouter.post('/registration', async (req, res, next) => {
     try {
         console.log(req.body);
-        const {username, email, first_name, last_name, user_password, user_type, user_phone} = req.body;
+        const {username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config} = req.body;
         const [userNameRows] = await connection.query('SELECT * FROM users WHERE username = ?', [username]);
         const [emailRows] = await connection.query('SELECT * FROM users WHERE email = ?', [email]);
         if (userNameRows.length > 0 || emailRows.length > 0) {
             return res.status(400).send('username or email already exists');
         }
-        const [response] = await connection.query('INSERT INTO users (username, email, first_name, last_name, user_password, user_type, user_phone) VALUES (?, ?, ?, ?, ?, ?, ?)',[username, email, first_name, last_name, user_password, user_type, user_phone]);
+        const [response] = await connection.query(
+            'INSERT INTO users (username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                username,
+                email,
+                first_name,
+                last_name,
+                user_password,
+                user_type,
+                user_phone,
+                avatar_config ? JSON.stringify(avatar_config) : null,
+            ]
+        );
         res.status(201).send(response);
     } catch (error) {
         res.status(500).send(`Internal Server Error: ${error}`);
