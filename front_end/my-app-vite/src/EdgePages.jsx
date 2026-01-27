@@ -125,12 +125,14 @@ export function RSVP() {
                     const parsed = typeof rsvpData.avatar_config === 'string'
                       ? JSON.parse(rsvpData.avatar_config)
                       : rsvpData.avatar_config;
+                    console.log('[RSVP] Loaded avatar_config from API:', parsed);
                     setAvatarConfig(parsed || null);
                   } catch (e) {
                     console.error('Invalid avatar_config on RSVP:', e);
                     setAvatarConfig(null);
                   }
                 } else {
+                  console.log('[RSVP] No avatar_config on RSVP payload');
                   setAvatarConfig(null);
                 }
 

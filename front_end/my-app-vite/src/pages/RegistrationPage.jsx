@@ -22,6 +22,9 @@ export function RegistrationPage() {
 
     const handleSubmit = async () => {
         try {
+            // Debug: log the exact avatar_config we are about to persist
+            console.log('[Registration] Submitting avatar_config:', avatarConfig);
+
             const response = await axios.post(`${import.meta.env.VITE_API_URL}/users/registration`,
             {
                 username: formData['userName'],

@@ -74,8 +74,21 @@ usersRouter.post("/login", async (req, res) => {
     
         // 3️⃣ Define role flag
         const isAdmin = user.user_type === "admin";
+
+        // 4️⃣ Normalize avatar_config from DB (string → JSON object)
+        let avatarConfig = null;
+        if (user.avatar_config) {
+            try {
+                avatarConfig = typeof user.avatar_config === 'string'
+                    ? JSON.parse(user.avatar_config)
+                    : user.avatar_config;
+            } catch (err) {
+                console.error('Invalid avatar_config on login:', err);
+                avatarConfig = null;
+            }
+        }
     
-        // 4️⃣ Create JWT payload
+        // 5️⃣ Create JWT payload (include avatar_config so frontend header can match registration)
         const payload = {
             user_id: user.user_id,
             email: user.email,
@@ -83,15 +96,16 @@ usersRouter.post("/login", async (req, res) => {
             first_name: user.first_name,
             last_name: user.last_name,
             user_type: user.user_type,
-            is_admin: isAdmin
+            is_admin: isAdmin,
+            avatar_config: avatarConfig,
         };
     
-        // 5️⃣ Sign the token
+        // 6️⃣ Sign the token
         const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
             expiresIn: "1h"
         });
     
-        // 6️⃣ Send response
+        // 7️⃣ Send response (including avatar_config for convenience)
         res.status(200).json({
             message: "Login successful",
             accessToken,
@@ -102,7 +116,8 @@ usersRouter.post("/login", async (req, res) => {
                 first_name: user.first_name,
                 last_name: user.last_name,
                 user_type: user.user_type,
-                is_admin: isAdmin
+                is_admin: isAdmin,
+                avatar_config: avatarConfig,
             }
         });
     } catch (error) {

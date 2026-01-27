@@ -936,6 +936,8 @@ export function AttendeeAvatarStrip({ attendees, currentUserId }) {
                 ? JSON.parse(a.avatar_config)
                 : a.avatar_config;
 
+              console.log('[AttendeeStrip] avatar_config for user', a.user_id, cfg);
+
               if (cfg) {
                 const {
                   rings,

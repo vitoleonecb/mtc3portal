@@ -175,13 +175,15 @@ export function AvatarCircle({
   const center = size / 2;
   const outerRadius = size / 2 - strokeWidth; // leave padding equal to stroke width
 
-  // Build ring radii from outside in
+  // Build ring radii from outside in. We intentionally keep all
+  // configured rings, even on smaller sizes, so a 6-circle avatar
+  // looks consistent between the large registration preview and
+  // smaller header/RSVP icons.
   const ringRadii = [];
   for (let i = 0; i < rings; i++) {
     const r = outerRadius - i * (strokeWidth + size * 0.06);
-    if (r > strokeWidth * 1.5) {
-      ringRadii.push(r);
-    }
+    // Clamp at a minimum positive radius so inner rings don't vanish.
+    ringRadii.push(Math.max(r, strokeWidth * 0.75));
   }
 
   const innerDotRadius = Math.max(strokeWidth * 1.4, outerRadius * 0.15);
@@ -223,13 +225,44 @@ export function AvatarCircle({
  */
 export function AccountAvatarButton() {
   let seed = "User";
+  let avatarProps = {};
 
   if (typeof window !== 'undefined') {
     const accessToken = localStorage.getItem('accessToken');
     if (typeof accessToken === 'string' && accessToken.trim() !== '') {
       try {
         const decoded = jwtDecode(accessToken);
-        seed = decoded?.username || decoded?.email || String(decoded?.user_id || 'User');
+        console.log('[Header] Decoded token avatar_config:', decoded?.avatar_config);
+        seed = decoded?.username || decoded?.first_name || decoded?.email || String(decoded?.user_id || 'User');
+
+        const cfg = decoded?.avatar_config;
+        if (cfg) {
+          const {
+            rings,
+            strokeWidth,
+            backgroundColorIndex,
+            ringColorIndices,
+            centerColorIndex,
+          } = cfg;
+
+          const palette = AVATAR_COLORS;
+          const maxRings = 6;
+          const safeRings = Math.max(1, Math.min(rings ?? 1, maxRings));
+          const backgroundColor = palette[(backgroundColorIndex ?? 0) % palette.length];
+          const ringColors = Array.from({ length: safeRings }, (_, i) => {
+            const idx = ringColorIndices?.[i] ?? 0;
+            return palette[idx % palette.length];
+          });
+          const centerColor = palette[(centerColorIndex ?? 0) % palette.length];
+
+          avatarProps = {
+            rings: safeRings,
+            strokeWidth: strokeWidth ?? 2,
+            backgroundColor,
+            ringColors,
+            centerColor,
+          };
+        }
       } catch (err) {
         console.error('Invalid token while building account avatar:', err);
       }
@@ -238,7 +271,7 @@ export function AccountAvatarButton() {
 
   return (
     <Link to="/profile" className="menuIcon accountMenuIcon" aria-label="Account settings">
-      <AvatarCircle seed={seed} size={32} />
+      <AvatarCircle seed={seed} size={32} {...avatarProps} />
     </Link>
   );
 }
