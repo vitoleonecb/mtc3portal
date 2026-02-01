@@ -340,13 +340,18 @@ function buildDragAndDropSpectrumPrompt({ promptText, analytics }) {
         type: 'text',
         text:
           'The prompt asked participants to place items along a 1D spectrum between "' +
-          labelMin + '" (0.0) and "' + labelMax + '" (1.0).\n' +
-          'Below is aggregated data by item (token). Each token has a mean score, standard deviation, and bucketed counts.\n' +
-          'Prompt text (if any): ' + (promptText || '(none provided)') + '\n' +
-          'Analytics JSON:\n' + JSON.stringify(analytics, null, 2) + '\n\n' +
-          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": [], "questions": []}}.\n' +
-          'Interpret "tones" as short descriptors of how items cluster on the spectrum, "motifs" as repeated placement patterns,\n' +
-          '"absences" as notable gaps or underused regions on the spectrum, and "questions" as prompts a facilitator might ask.'
+          labelMin + '" (0.0) and "' + labelMax + '" (1.0).\\n' +
+          'You may see the word "token" in the data; it just means an item.\\n' +
+          'Do NOT use the words "token" or "tokens" in your output. Say "items" or "elements" instead.\\n' +
+          'Below is aggregated data by item. Each one has a mean score, standard deviation, and bucketed counts.\\n' +
+          'Prompt text (if any): ' + (promptText || '(none provided)') + '\\n' +
+          'Analytics JSON:\\n' + JSON.stringify(analytics, null, 2) + '\\n\\n' +
+          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": []}}.\\n' +
+          'Keep every entry in these lists short and concrete (ideally under 12 words).\\n' +
+          'Use at most 4 items per list; leave a list empty if nothing is clear.\\n' +
+          'Avoid metaphor and evaluative language; describe only what is present.\\n' +
+          'Interpret "tones" as short descriptors of how items cluster on the spectrum and "motifs" as repeated placement patterns,\\n' +
+          'and use "absences" for notable gaps or underused regions on the spectrum.'
       },
     ],
   };
@@ -366,14 +371,19 @@ function buildDragAndDropZonesPrompt({ promptText, analytics }) {
       {
         type: 'text',
         text:
-          'The prompt asked participants to drag items (tokens) into a grid of named zones (cells).\n' +
-          'Below is aggregated data per zone and per token. Zones often correspond to areas of the stage or set.\n' +
-          'Prompt text (if any): ' + (promptText || '(none provided)') + '\n' +
-          'Analytics JSON:\n' + JSON.stringify(analytics, null, 2) + '\n\n' +
-          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": [], "questions": []}}.\n' +
-          'Interpret "tones" as short descriptors of overall placement feel (e.g., most items cluster downstage left),\n' +
-          '"motifs" as repeated patterns in how tokens and zones relate (e.g., certain characters always share a zone),\n' +
-          '"absences" as zones or token-zone combinations that are rarely used, and "questions" as prompts a facilitator might ask.'
+          'The prompt asked participants to drag items into a grid of named zones (cells).\\n' +
+          'You may see the word "token" in the data; it just means an item.\\n' +
+          'Do NOT use the words "token" or "tokens" in your output. Say "items" or "elements" instead.\\n' +
+          'Below is aggregated data per zone and per item. Zones often correspond to areas of the stage or set.\\n' +
+          'Prompt text (if any): ' + (promptText || '(none provided)') + '\\n' +
+          'Analytics JSON:\\n' + JSON.stringify(analytics, null, 2) + '\\n\\n' +
+          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": []}}.\\n' +
+          'Keep every entry in these lists short and concrete (ideally under 12 words).\\n' +
+          'Use at most 4 items per list; leave a list empty if nothing is clear.\\n' +
+          'Avoid metaphor and evaluative language; describe only what is present.\\n' +
+          'Interpret "tones" as short descriptors of overall placement feel (for example, most items clustering in one area),\\n' +
+          '"motifs" as repeated patterns in how items and zones relate (for example, certain characters always sharing a zone),\\n' +
+          'and "absences" as zones or item–zone combinations that are rarely used.'
       },
     ],
   };
@@ -393,19 +403,225 @@ function buildDragAndDropFreePrompt({ promptText, analytics }) {
       {
         type: 'text',
         text:
-          'The prompt asked participants to drag items (tokens) freely within a 2D rectangular space (normalized 0–1 x/y).\n' +
-          'Below is aggregated data per token, including centroids and individual points.\n' +
-          'Prompt text (if any): ' + (promptText || '(none provided)') + '\n' +
-          'Analytics JSON:\n' + JSON.stringify(analytics, null, 2) + '\n\n' +
-          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": [], "questions": []}}.\n' +
-          'Interpret "tones" as overall spatial feel (e.g., characters cluster upstage right),\n' +
-          '"motifs" as repeated spatial patterns (e.g., pairs of tokens that tend to be near each other),\n          ' +
-          '"absences" as empty or underused areas in the space, and "questions" as prompts a facilitator might ask.'
+          'The prompt asked participants to drag items freely within a 2D rectangular space (normalized 0–1 x/y).\\n' +
+          'You may see the word "token" in the data; it just means an item.\\n' +
+          'Do NOT use the words "token" or "tokens" in your output. Say "items" or "elements" instead.\\n' +
+          'Below is aggregated data per item, including centroids and individual points.\\n' +
+          'Prompt text (if any): ' + (promptText || '(none provided)') + '\\n' +
+          'Analytics JSON:\\n' + JSON.stringify(analytics, null, 2) + '\\n\\n' +
+          'Return a JSON object with this shape: {"free_text_summary": {"tones": [], "motifs": [], "absences": []}}.\\n' +
+          'Keep every entry in these lists short and concrete (ideally under 12 words).\\n' +
+          'Use at most 4 items per list; leave a list empty if nothing is clear.\\n' +
+          'Avoid metaphor and evaluative language; describe only what is present.\\n' +
+          'Interpret "tones" as overall spatial feel (for example, characters clustering in one region),\\n' +
+          '"motifs" as repeated spatial patterns (for example, two elements often ending up near each other),\\n' +
+          'and "absences" as empty or underused areas in the space.'
       },
     ],
   };
 
   return { system, messages: [user] };
+}
+
+// ----------------- Numeric DnD similarity helpers -----------------
+
+function buildNumericDnDSimilarities({ responses, layout }) {
+  // Normalize layout string
+  const mode = layout || 'free';
+
+  // Collect a stable list of token keys across all responses
+  const tokenSet = new Set();
+  const perResponseItems = new Map(); // id -> items[]
+
+  responses.forEach((r) => {
+    const items = Array.isArray(r.parsed)
+      ? r.parsed
+      : (r.parsed ? [r.parsed] : []);
+    perResponseItems.set(r.id, items);
+
+    items.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      const key = item.keyName || item.label;
+      if (key) tokenSet.add(String(key));
+    });
+  });
+
+  const tokenKeys = Array.from(tokenSet).sort();
+  const vectors = new Map(); // id -> number[]
+
+  if (tokenKeys.length === 0 || responses.length === 0) {
+    return {
+      similarities: { pairs: [], clusters: [] },
+      unusualness: {},
+    };
+  }
+
+  if (mode === 'x-spectrum') {
+    // Each token gets a scalar scoreX in [0,1]
+    responses.forEach((r) => {
+      const items = perResponseItems.get(r.id) || [];
+      const vec = [];
+      tokenKeys.forEach((token) => {
+        const item = items.find((it) => {
+          if (!it || typeof it !== 'object') return false;
+          const key = it.keyName || it.label;
+          return key && String(key) === token;
+        }) || {};
+        const s = item.semantics || {};
+        let score = typeof s.scoreX === 'number' ? s.scoreX : item.position?.x;
+        if (typeof score !== 'number' || !Number.isFinite(score)) score = 0.5;
+        score = Math.min(Math.max(score, 0), 1);
+        vec.push(score);
+      });
+      vectors.set(r.id, vec);
+    });
+  } else if (mode === 'grid-zones') {
+    // Tokens are placed into categorical zones; compare based on zone match
+    const zoneSet = new Set();
+    responses.forEach((r) => {
+      const items = perResponseItems.get(r.id) || [];
+      items.forEach((item) => {
+        const s = item?.semantics || {};
+        const zl = s.zoneLabel || s.zoneId;
+        if (zl) zoneSet.add(String(zl));
+      });
+    });
+    const zoneLabels = Array.from(zoneSet).sort();
+    const noneIndex = zoneLabels.length; // extra bucket for "no placement"
+
+    responses.forEach((r) => {
+      const items = perResponseItems.get(r.id) || [];
+      const vec = [];
+      tokenKeys.forEach((token) => {
+        const item = items.find((it) => {
+          if (!it || typeof it !== 'object') return false;
+          const key = it.keyName || it.label;
+          return key && String(key) === token;
+        }) || {};
+        const s = item.semantics || {};
+        const zl = s.zoneLabel || s.zoneId;
+        let idx = zl ? zoneLabels.indexOf(String(zl)) : -1;
+        if (idx === -1) idx = noneIndex;
+        // Normalize to [0,1] so Euclidean distance behaves reasonably
+        const norm = noneIndex > 0 ? idx / noneIndex : 0;
+        vec.push(norm);
+      });
+      vectors.set(r.id, vec);
+    });
+  } else {
+    // Free layout: use per-token centroid-like positions (x,y) per response
+    responses.forEach((r) => {
+      const items = perResponseItems.get(r.id) || [];
+      const vec = [];
+      tokenKeys.forEach((token) => {
+        const item = items.find((it) => {
+          if (!it || typeof it !== 'object') return false;
+          const key = it.keyName || it.label;
+          return key && String(key) === token;
+        }) || {};
+        const pos = item.position || item.semantics || {};
+        let x = typeof pos.x === 'number' ? pos.x : 0.5;
+        let y = typeof pos.y === 'number' ? pos.y : 0.5;
+        x = Math.min(Math.max(x, 0), 1);
+        y = Math.min(Math.max(y, 0), 1);
+        vec.push(x, y);
+      });
+      vectors.set(r.id, vec);
+    });
+  }
+
+  const ids = Array.from(vectors.keys());
+  const pairs = [];
+  const distanceSums = {}; // id -> sum of distances to others
+  const distanceCounts = {}; // id -> how many
+
+  ids.forEach((id) => {
+    distanceSums[id] = 0;
+    distanceCounts[id] = 0;
+  });
+
+  const euclidean01 = (a, b) => {
+    const len = Math.min(a.length, b.length);
+    if (!len) return 0;
+    let sumSq = 0;
+    for (let i = 0; i < len; i++) {
+      const d = (a[i] ?? 0) - (b[i] ?? 0);
+      sumSq += d * d;
+    }
+    const dist = Math.sqrt(sumSq);
+    // Normalize by sqrt(len) so max distance stays ~1 when components are in [0,1]
+    return dist / Math.sqrt(len);
+  };
+
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const idA = ids[i];
+      const idB = ids[j];
+      const vA = vectors.get(idA) || [];
+      const vB = vectors.get(idB) || [];
+      const dist = euclidean01(vA, vB);
+      const score = Math.max(0, Math.min(1, 1 - dist));
+
+      pairs.push({ a: idA, b: idB, score });
+
+      distanceSums[idA] += dist;
+      distanceSums[idB] += dist;
+      distanceCounts[idA] += 1;
+      distanceCounts[idB] += 1;
+    }
+  }
+
+  const unusualness = {};
+  ids.forEach((id) => {
+    const n = distanceCounts[id] || 0;
+    unusualness[id] = n > 0 ? distanceSums[id] / n : 0;
+  });
+
+  // Simple clustering: connect responses whose similarity >= 0.8
+  const threshold = 0.8;
+  const adjacency = new Map();
+  ids.forEach((id) => adjacency.set(id, []));
+
+  pairs.forEach((p) => {
+    if (p.score >= threshold) {
+      adjacency.get(p.a).push(p.b);
+      adjacency.get(p.b).push(p.a);
+    }
+  });
+
+  const visited = new Set();
+  const clusters = [];
+
+  ids.forEach((id) => {
+    if (visited.has(id)) return;
+    const stack = [id];
+    const component = [];
+    visited.add(id);
+
+    while (stack.length) {
+      const curr = stack.pop();
+      component.push(curr);
+      (adjacency.get(curr) || []).forEach((nbr) => {
+        if (!visited.has(nbr)) {
+          visited.add(nbr);
+          stack.push(nbr);
+        }
+      });
+    }
+
+    if (component.length > 1) {
+      clusters.push({
+        clusterId: `cluster-${clusters.length + 1}`,
+        responseIds: component.map((x) => Number(x)),
+        labelId: null,
+      });
+    }
+  });
+
+  return {
+    similarities: { pairs, clusters },
+    unusualness,
+  };
 }
 
 // ---- LLM CALL (OpenAI) -----------------------------------------
@@ -568,13 +784,25 @@ export async function runPromptAIAnalysis({ promptId, templateId }) {
       const { getDragAndDropAnalytics } = await import('./analyticsService.js');
       const dndAnalytics = await getDragAndDropAnalytics(promptId);
 
+      // Build numeric similarity graph + unusualness from raw responses
+      const { similarities: dndSimilarities, unusualness } = buildNumericDnDSimilarities({
+        responses,
+        layout: dndAnalytics.layout,
+      });
+
+      const analyticsForLLM = {
+        ...dndAnalytics,
+        similarities: dndSimilarities,
+        unusualness,
+      };
+
       let dndPromptConfig;
       if (dndAnalytics.mode === 'spectrum') {
-        dndPromptConfig = buildDragAndDropSpectrumPrompt({ promptText, analytics: dndAnalytics });
+        dndPromptConfig = buildDragAndDropSpectrumPrompt({ promptText, analytics: analyticsForLLM });
       } else if (dndAnalytics.mode === 'zones') {
-        dndPromptConfig = buildDragAndDropZonesPrompt({ promptText, analytics: dndAnalytics });
+        dndPromptConfig = buildDragAndDropZonesPrompt({ promptText, analytics: analyticsForLLM });
       } else {
-        dndPromptConfig = buildDragAndDropFreePrompt({ promptText, analytics: dndAnalytics });
+        dndPromptConfig = buildDragAndDropFreePrompt({ promptText, analytics: analyticsForLLM });
       }
 
       const dndResult = await callLLM(dndPromptConfig);
@@ -582,14 +810,17 @@ export async function runPromptAIAnalysis({ promptId, templateId }) {
       analysis = {
         word_bubbles: { keywords: [], phrases: [] },
         labels: { labels: [] },
-        similarities: { pairs: [], clusters: [] },
+        similarities: dndSimilarities,
         free_text_summary:
           dndResult.free_text_summary || {
             tones: [],
             motifs: [],
             absences: [],
-            questions: [],
           },
+        drag_and_drop: {
+          ...dndAnalytics,
+          unusualness,
+        },
       };
 
       // Optional concise synthesis using the same summarizer as short responses.
@@ -601,6 +832,7 @@ export async function runPromptAIAnalysis({ promptId, templateId }) {
           })
         );
         conciseSummary =
+          synthesisResult?.concise_summary ||
           synthesisResult?.free_text_summary?.summary ||
           synthesisResult?.free_text_summary?.paragraph ||
           '';
@@ -669,7 +901,17 @@ export async function runPromptAIAnalysis({ promptId, templateId }) {
     }
   }
 
+  // Attach concise summary in a backward-compatible way
+  if (!analysis.free_text_summary) {
+    analysis.free_text_summary = {
+      tones: [],
+      motifs: [],
+      absences: [],
+      questions: [],
+    };
+  }
   analysis.free_text_summary.concise_summary = conciseSummary;
+  analysis.concise_summary = conciseSummary;
 
   await upsertPromptAIAnalysis({
     promptId,

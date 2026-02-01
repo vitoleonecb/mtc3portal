@@ -21,10 +21,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-export function GlowingLineChart({ analyticsData = {} }) {
+export function GlowingLineChart({ analyticsData = {}, promptId }) {
   const timeSeries = analyticsData.timeSeries ?? {};
 
-  console.log(`Time Series Data: ${JSON.stringify(timeSeries)}`);
+  console.log(`LineChart promptId=${promptId} timeSeries=${JSON.stringify(timeSeries)}`);
 
   if (Object.keys(timeSeries).length === 0) return null;
 

@@ -14,7 +14,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-const AnswerBar = ({ x, y, width, height, payload }) => {
+export const AnswerBar = ({ x, y, width, height, payload }) => {
   const padding = 16;
   const clipId = `clip-${payload.answer.replace(/\s+/g, "-")}`;
 

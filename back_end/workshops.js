@@ -637,36 +637,44 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/automated
         // For testing runs, allow overriding the created timestamp so that
         // seeded responses can be distributed across a fixed date window.
         if (testing && workshop_response_created) {
+            // For seeded/testing responses, always mark them as accepted (1)
+            // so they flow straight into analytics.
             insertQuery = `
                 INSERT INTO workshop_responses
-                    (workshop_response_content, user_id, workshop_prompt_id, workshop_response_created)
-                VALUES (?, ?, ?, ?)
+                    (workshop_response_content, user_id, workshop_prompt_id, workshop_response_created, workshop_response_acceptance)
+                VALUES (?, ?, ?, ?, 1)
             `;
             insertParams = [content, user_id, promptid, workshop_response_created];
         } else {
             insertQuery = `
                 INSERT INTO workshop_responses
-                    (workshop_response_content, user_id, workshop_prompt_id)
-                VALUES (?, ?, ?)
+                    (workshop_response_content, user_id, workshop_prompt_id, workshop_response_acceptance)
+                VALUES (?, ?, ?, 1)
             `;
             insertParams = [content, user_id, promptid];
         }
 
         const [response] = await connection.query(insertQuery, insertParams);
 
-        const [rsvpAccomplishmentRows] = await connection.query(
-            'SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]
-        );
-        const [userAccomplishmentRows] = await connection.query(
-            'SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]
-        );
-        
-        if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
-            const rsvpCreateResponse = await connection.query(
-                'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',
-                [user_id, workshopid]
+        // For automated seeding/testing runs, we *only* want to create
+        // workshop_responses rows and push them into analytics — we do **not**
+        // want to auto-create RSVPs, since those should be driven by real
+        // user completion flows or a separate batch-RSVP script.
+        if (!testing) {
+            const [rsvpAccomplishmentRows] = await connection.query(
+                'SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]
             );
-            return res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
+            const [userAccomplishmentRows] = await connection.query(
+                'SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]
+            );
+            
+            if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
+                const rsvpCreateResponse = await connection.query(
+                    'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',
+                    [user_id, workshopid]
+                );
+                return res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
+            }
         }
 
         return res.status(201).send(response);

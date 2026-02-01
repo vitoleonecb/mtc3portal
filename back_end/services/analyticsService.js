@@ -255,16 +255,66 @@ function computeSpectrumAnalytics(base, responses) {
     };
   });
 
+  // Global distribution summary (for AI + UI hints)
+  let leftLeaningCount = 0;
+  let rightLeaningCount = 0;
+  let balancedCount = 0;
+
+  Object.values(tokens).forEach((t) => {
+    if (!Number.isFinite(t.mean)) return;
+    if (t.mean < 1 / 3) leftLeaningCount += 1;
+    else if (t.mean > 2 / 3) rightLeaningCount += 1;
+    else balancedCount += 1;
+  });
+
+  // Aggregate bucket occupancy across all tokens to find underused regions
+  const totalBucketCounts = [0, 0, 0, 0, 0];
+  Object.values(tokens).forEach((t) => {
+    t.buckets.forEach((b, i) => {
+      totalBucketCounts[i] += b.count;
+    });
+  });
+
+  const totalBucketSum = totalBucketCounts.reduce((a, b) => a + b, 0) || 1;
+  const underusedRanges = [];
+  let currentRange = null;
+  const threshold = 0.02; // ~2% of placements considered "near zero"
+
+  totalBucketCounts.forEach((count, i) => {
+    const pct = count / totalBucketSum;
+    if (pct < threshold) {
+      const rangeMin = i / 5;
+      const rangeMax = (i + 1) / 5;
+      if (!currentRange) {
+        currentRange = { rangeMin, rangeMax };
+      } else {
+        currentRange.rangeMax = rangeMax;
+      }
+    } else if (currentRange) {
+      underusedRanges.push(currentRange);
+      currentRange = null;
+    }
+  });
+  if (currentRange) {
+    underusedRanges.push(currentRange);
+  }
+
   return {
     ...base,
     mode: 'spectrum',
     tokens,
+    summary: {
+      leftLeaningCount,
+      rightLeaningCount,
+      balancedCount,
+      underusedRanges,
+    },
   };
 }
 
 function computeZoneAnalytics(base, responses) {
   const zoneCounts = {};        // zoneLabel -> count
-  const zoneCountsById = {};    // zoneId -> count
+  const zoneCountsById = {};    // zoneId -> count (currently unused but kept for future)
   const perTokenZone = {};      // token -> { zoneLabel -> count }
 
   responses.forEach(r => {
@@ -297,14 +347,41 @@ function computeZoneAnalytics(base, responses) {
   const tokens = {};
   Object.entries(perTokenZone).forEach(([token, zmap]) => {
     const total = Object.values(zmap).reduce((a, b) => a + b, 0) || 1;
+    const perZone = Object.entries(zmap).map(([label, count]) => ({
+      zoneLabel: label,
+      count,
+      percentage: (count / total) * 100,
+    }));
+
+    // Sort to expose primary / secondary zones for this token
+    const sorted = perZone.slice().sort((a, b) => b.count - a.count);
+
     tokens[token] = {
       total,
-      zones: Object.entries(zmap).map(([label, count]) => ({
-        zoneLabel: label,
-        count,
-        percentage: (count / total) * 100,
-      })),
+      zones: perZone,
+      primaryZone: sorted[0] || null,
+      secondaryZone: sorted[1] || null,
     };
+  });
+
+  // Zones that are rarely used overall (cold spots)
+  const coldZones = zones.filter((z) => z.percentage < 5);
+
+  // For each zone, which tokens most often appear there (leaders)
+  const zoneLeaders = {};
+  Object.entries(tokens).forEach(([token, info]) => {
+    info.zones.forEach((z) => {
+      const key = z.zoneLabel;
+      if (!zoneLeaders[key]) zoneLeaders[key] = [];
+      zoneLeaders[key].push({ token, count: z.count });
+    });
+  });
+
+  Object.keys(zoneLeaders).forEach((zoneLabel) => {
+    zoneLeaders[zoneLabel] = zoneLeaders[zoneLabel]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3) // keep top 3 tokens per zone to avoid bloat
+      .map((entry) => entry.token);
   });
 
   return {
@@ -312,6 +389,10 @@ function computeZoneAnalytics(base, responses) {
     mode: 'zones',
     zones,
     tokens,
+    summary: {
+      coldZones,
+      zoneLeaders,
+    },
   };
 }
 
@@ -342,18 +423,76 @@ function computeFreeAnalytics(base, responses) {
     const sum = pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
     const centroid = { x: sum.x / n, y: sum.y / n };
 
+    // Average radial distance from centroid (spread)
+    const avgDistanceFromCentroid = pts.reduce((acc, p) => {
+      const dx = p.x - centroid.x;
+      const dy = p.y - centroid.y;
+      return acc + Math.sqrt(dx * dx + dy * dy);
+    }, 0) / n;
+
+    // Bounding box of all points for this token
+    const bounds = pts.reduce(
+      (acc, p) => ({
+        minX: Math.min(acc.minX, p.x),
+        maxX: Math.max(acc.maxX, p.x),
+        minY: Math.min(acc.minY, p.y),
+        maxY: Math.max(acc.maxY, p.y),
+      }),
+      { minX: 1, maxX: 0, minY: 1, maxY: 0 }
+    );
+
     tokens[token] = {
       count: n,
       centroid,
+      avgDistanceFromCentroid,
+      bounds,
       // Raw points for scatter/heatmap if needed
       points: pts,
     };
   });
 
+  // Build a coarse global heatmap (3x3 grid) over all points
+  const rows = 3;
+  const cols = 3;
+  const cells = [];
+  const allPoints = Object.values(perToken).flatMap((t) => t.points);
+  const cellCounts = Array.from({ length: rows * cols }, () => 0);
+
+  allPoints.forEach((p) => {
+    const r = Math.min(rows - 1, Math.max(0, Math.floor(p.y * rows)));
+    const c = Math.min(cols - 1, Math.max(0, Math.floor(p.x * cols)));
+    const idx = r * cols + c;
+    cellCounts[idx] += 1;
+  });
+
+  const totalPoints = allPoints.length || 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      const count = cellCounts[idx];
+      cells.push({
+        row: r,
+        col: c,
+        count,
+        percentage: (count / totalPoints) * 100,
+      });
+    }
+  }
+
+  const coldCells = cells.filter((cell) => cell.percentage < 5);
+
   return {
     ...base,
     mode: 'free',
     tokens,
+    heatmap: {
+      rows,
+      cols,
+      cells,
+    },
+    summary: {
+      coldCells,
+    },
   };
 }
 

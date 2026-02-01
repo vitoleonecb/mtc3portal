@@ -10,7 +10,7 @@ export function HomePage() {
     return (
         <>
             <Heading1 text="Machine Theater Collective" style={{ textAlign: "center" }}/>
-            <Heading2 text="A theater company powered by community imagination and software."/>
+            <Heading2 text="A theater company powered by imagination and software."/>
             <NextButton text="Try Module"/>
             <Link to="login" className="linkNoUnderLine cardLink">
                 <NextButton text="Log In"/>

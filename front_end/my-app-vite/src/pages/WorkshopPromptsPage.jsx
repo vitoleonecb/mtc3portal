@@ -42,6 +42,8 @@ export function WorkshopPromptsPage() {
     const userId = decodedToken?.user_id;
     const [isAdmin, setIsAdmin] = useState(false);
     const [allResponses, setAllResponses] = useState(null);
+    const [currentUserResponseId, setCurrentUserResponseId] = useState(null);
+    const [currentUserName, setCurrentUserName] = useState("");
     const [RSVPStatus, setRSVPStatus] = useState(undefined);
     const [promptsList, setPromptsList] = useState([]);
     const [remainingModules, setRemainingModules] = useState(0);
@@ -238,8 +240,22 @@ export function WorkshopPromptsPage() {
                         }
                     )
 
-                    setAllResponses(allResponsesResponse.data);
-		            console.log(allResponsesResponse.data);
+                    const responsesData = allResponsesResponse.data || [];
+                    setAllResponses(responsesData);
+		            console.log(responsesData);
+
+                    // Locate the current user's response row (if any)
+                    if (userId != null) {
+                      const mine = responsesData.find(r => Number(r.user_id) === Number(userId));
+                      if (mine) {
+                        setCurrentUserResponseId(mine.workshop_response_id);
+                        const fullName = `${mine.first_name || ''} ${mine.last_name || ''}`.trim();
+                        setCurrentUserName(fullName || mine.username || "");
+                      } else {
+                        setCurrentUserResponseId(null);
+                        setCurrentUserName("");
+                      }
+                    }
                 }
 
                 if (me.data?.response) {
@@ -523,7 +539,17 @@ export function WorkshopPromptsPage() {
 
     const renderResponses = () => {
         if (!prompt) return <div>Loading...</div>;
-            return <ResponseProcessor promptId={promptId} allResponses={allResponses} isAdmin={isAdmin} templateId={prompt.prompt_template_id}/>;
+            return (
+              <ResponseProcessor
+                promptId={promptId}
+                allResponses={allResponses}
+                isAdmin={isAdmin}
+                templateId={prompt.prompt_template_id}
+                promptOptions={prompt.workshop_prompt_options}
+                currentUserResponseId={currentUserResponseId}
+                currentUserName={currentUserName}
+              />
+            );
         }
 
     console.log(`Prompt Mode: ${promptMode}`);

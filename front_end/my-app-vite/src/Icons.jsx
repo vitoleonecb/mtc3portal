@@ -106,6 +106,46 @@ export function ClockIcon({ size = 16 }) {
   );
 }
 
+// Small "AI sparkle" icon used next to similarity tags
+export function AiSimilarityIcon({ size = 18 }) {
+  const stroke = "#57A15E";
+  const strokeWidth = 1;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 18 18"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* central node */}
+      <circle cx="9" cy="9" r="1.4" stroke={stroke} strokeWidth={strokeWidth} fill="none" />
+
+      {/* orbiting nodes */}
+      <circle cx="4" cy="6" r="1" stroke={stroke} strokeWidth={strokeWidth} fill="none" />
+      <circle cx="14" cy="5" r="1" stroke={stroke} strokeWidth={strokeWidth} fill="none" />
+      <circle cx="6" cy="13" r="1" stroke={stroke} strokeWidth={strokeWidth} fill="none" />
+
+      {/* connections */}
+      <path
+        d="M5 6.5 L7.5 8.3 M13 5.5 L10.2 8.1 M7 12.5 L8.4 10.2"
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+
+      {/* small sparkle */}
+      <path
+        d="M14.5 11 L15 12.5 L16.5 13 L15 13.5 L14.5 15 L14 13.5 L12.5 13 L14 12.5 Z"
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 // --- Avatar generator -------------------------------------------------
 
 // Simple deterministic hash from string -> 32-bit int

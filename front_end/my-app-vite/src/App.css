@@ -8,11 +8,9 @@
 
 .headerBackground {
   background-color: #FFFFFF;
-  height: 7rem;
   z-index: 999;
   position: fixed;
   top: 0;
-  width: 100%;
 }
 
 .QuestionProcessing {
@@ -26,6 +24,8 @@
   opacity: 1;
 }
 
+.ResponseContentContainer {
+}
 
 .menuIcon {
   width: 3rem;
@@ -248,8 +248,8 @@ svg.forwardArrow {
 }
 
 .checkBox {
-  margin-left: 1rem;
   margin-right: auto;
+    margin-left: .5rem;
   border: 1px solid black;
   height: 12px;
   width: 12px;
@@ -498,8 +498,7 @@ div.progressContainer {
 
 .ProcessorResponseContainer {
   display: grid;
-  grid-template-columns: 6fr 1fr;
-  align-items: center;
+  grid-template-columns: 1fr;
   border: black 1px solid;
   border-radius: 20px;
   box-shadow: -4px 4px black;
@@ -546,6 +545,7 @@ div.progressContainer {
   height: auto;
   padding: 1rem;
   align-items: center;
+  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .workshopCardContainer:hover {
@@ -553,7 +553,6 @@ div.progressContainer {
   background-color: #000000;
   box-shadow: none;
   cursor: pointer;
-  transition: ease .3s;
 }
 
 .workshopCardContainer:hover svg path,
@@ -680,6 +679,7 @@ div.progressContainer {
 
 .whenWhereIcon svg {
   display: block;
+  transition: stroke 0.3s ease, fill 0.3s ease;
 }
 
 .whenWhereText {
@@ -735,7 +735,6 @@ div.progressContainer {
 
 #KeyItemText {
   font-size: 1rem;
-  left-margin: 0.5rem;
 }
 
 #multipleChoiceText {
@@ -750,16 +749,18 @@ div.progressContainer {
   }
 
 .Heading1 {
-  margin-bottom: 40px;
-  margin-top: 60px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-top: 40px;
+  margin-left: auto;  
+  margin-bottom: 20px;
+  margin-right: auto; 
   font-family: sans-serif;
   font-weight: lighter;
-  font-size: 45px;
+  font-size: 40px;
   background-color: white;
-  padding: 7px;
-  border-radius: 30px;   
+  padding: 0px 0px;
+  border-radius: 16px;
+  width: fit-content;
+  box-shadow: -4px 0px white;  
 }
 
 .Heading2 {
@@ -1983,7 +1984,8 @@ select.dropDown {
 .charting,
 .mysql-picker,
 .AdminAnalysisContainer,
-.AiAnalysisContainer {
+.AiAnalysisContainer,
+.headerBackground {
   width: var(--element-width);
   transition: width .5s ease;
 }

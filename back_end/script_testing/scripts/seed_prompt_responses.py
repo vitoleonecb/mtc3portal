@@ -28,8 +28,8 @@ load_dotenv()
 
 # CONFIG
 workshop_id = 2
-module_id = 63
-pid = 71
+module_id = 67
+pid = 81
 
 API_BASE = os.getenv("API_BASE")
 EMAIL = os.getenv("EMAIL")
@@ -393,19 +393,43 @@ def generate_response(prompt):
     return {}
 
 
-def random_timestamp_aug_window(year=2024):
-    """Return a random timestamp between August 23 and August 28 (inclusive)
-    in the given year, with a random time of day."""
-    start = datetime.datetime(year, 8, 23, 0, 0, 0)
-    end = datetime.datetime(year, 8, 28, 23, 59, 59)
+# --- SEEDING WINDOW CONFIG -------------------------------------------------
+# We want exactly 5 days on the X axis for seeded analytics. Configure that
+# window here. For example: Aug 23–27 inclusive.
+SEED_YEAR = 2024
+SEED_MONTH = 8
+SEED_START_DAY = 23
+SEED_DAYS = 5  # number of distinct calendar days to cover
+
+
+def random_timestamp_for_day(year: int, month: int, day: int) -> str:
+    """Return a random timestamp within a single calendar day."""
+    start = datetime.datetime(year, month, day, 0, 0, 0)
+    end = datetime.datetime(year, month, day, 23, 59, 59)
     total_seconds = int((end - start).total_seconds())
     offset = random.randint(0, total_seconds)
     ts = start + datetime.timedelta(seconds=offset)
     return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
-for user in usersList:
-    created_at = random_timestamp_aug_window()
+# Precompute one random timestamp per seed day so we can guarantee
+# coverage (at least one response per day on the X axis).
+SEED_DAY_TIMESTAMPS = [
+    random_timestamp_for_day(SEED_YEAR, SEED_MONTH, SEED_START_DAY + i)
+    for i in range(SEED_DAYS)
+]
+
+
+for idx, user in enumerate(usersList):
+    # Ensure the first SEED_DAYS users each claim a distinct day so the
+    # chart always has at least one response on every day in the window.
+    if idx < SEED_DAYS:
+        created_at = SEED_DAY_TIMESTAMPS[idx]
+    else:
+        # Remaining users are evenly/randomly distributed across the same
+        # 5-day window so counts vary but coverage stays fixed.
+        created_at = random.choice(SEED_DAY_TIMESTAMPS)
+
     response = requests.post(
         f"{API_BASE}/workshops/{workshop_id}/modules/{module_id}/prompts/{pid}/automated",
         json={
@@ -417,6 +441,5 @@ for user in usersList:
         headers=AUTH,
     )
 
-    print(response.text)
-    print(response.status_code)
+    print(created_at, response.status_code, response.text)
     time.sleep(2)
