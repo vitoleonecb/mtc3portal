@@ -27,6 +27,7 @@ import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 import { Link, useParams, useNavigate, Outlet, useLocation, useMatch } from 'react-router-dom';
 import { format } from 'date-fns';
+import QRCode from 'react-qr-code';
 
 export function FinalPrompt() {
 	return (
@@ -77,6 +78,7 @@ export function RSVP() {
     const [rsvpConfirmed, setRsvpConfirmed] = useState(false);
     const [attendees, setAttendees] = useState([]);
     const [avatarConfig, setAvatarConfig] = useState(null);
+    const [checkinToken, setCheckinToken] = useState(null);
     const accessToken = localStorage.getItem('accessToken');
 
     const { workshopId, userId } = useParams();
@@ -118,6 +120,7 @@ export function RSVP() {
                 setWorkshopDate(formatDate(rsvpData.workshop_date));
                 setWorkshopLocation(rsvpData.workshop_location);
                 setWorkshopPublic(rsvpData.workshop_public);
+                setCheckinToken(rsvpData.checkin_token || null);
 
                 // Normalize avatar_config from DB (can be JSON or string)
                 if (rsvpData.avatar_config) {
@@ -169,6 +172,10 @@ export function RSVP() {
 
     const avatarSeed = username || firstName || String(userId || "");
 
+    const checkinUrl = checkinToken
+      ? `${window.location.origin}/rsvp/checkin/${encodeURIComponent(checkinToken)}`
+      : null;
+
     // If we have a stored avatar_config, derive colors from palette
     let avatarProps = {};
     if (avatarConfig) {
@@ -202,13 +209,19 @@ export function RSVP() {
     return (
         <>
             <div className="EdgeBox">
-                {/* Row 1: text block (cols 1-2) + avatar (col 3) aligned to top */}
+                {/* Row 1: title (cols 1-2) + avatar (col 3) aligned to top */}
                 <div
                   className="RSVPTextBlock"
                   style={{ gridColumn: "1 / 3", gridRow: "1" }}
                 >
                   <h1 className="workshopCardName RSVPTitle">{titleText}</h1>
+                </div>
 
+                {/* Row 2: full-width RSVP details (extend under avatar into col 3) */}
+                <div
+                  className="RSVPTextBlock"
+                  style={{ gridColumn: "1 / 4", gridRow: "2" }}
+                >
                   {workshopDescription && (
                     <p className="RSVPDetailText">
                       {workshopDescription}
@@ -222,6 +235,29 @@ export function RSVP() {
                     {workshopPublic ? 'Public Workshop' : 'In Studio'}
                   </p>
                 </div>
+
+                {/* Row 3: centered QR code spanning full width */}
+                {checkinUrl && (
+                  <div
+                    style={{
+                      gridColumn: "1 / 4",
+                      gridRow: "3",
+                      marginBottom: "15px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div style={{ maxWidth: 192, marginLeft: "auto", marginRight: "auto" }}>
+                      <QRCode
+                        value={checkinUrl}
+                        size={192}
+                        style={{ width: '100%', height: 'auto' }}
+                      />
+                    </div>
+                  </div>
+                )}
 
         <div
           style={{
@@ -238,11 +274,11 @@ export function RSVP() {
           />
         </div>
 
-                {/* Row 2: shared container – avatars on left, button on right, vertically centered */}
+                {/* Row 4: shared container – avatars on left, button on right, vertically centered */}
                 <div
                   style={{
                     gridColumn: "1 / 4",
-                    gridRow: "2",
+                    gridRow: "4",
                     marginTop: "0.75rem",
                     display: "flex",
                     alignItems: "center",

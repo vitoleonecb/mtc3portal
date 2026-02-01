@@ -533,7 +533,8 @@ div.progressContainer {
   display: grid;
   /* Three-column layout; slightly narrower right column for avatar/button */
   grid-template-columns: 3fr 3fr 2fr;
-  grid-template-rows: auto auto auto;
+  /* Four rows: title row, details row, QR row, footer row (avatars + button) */
+  grid-template-rows: auto auto auto auto;
   margin-left: auto;
   margin-right: auto;
   margin-top: 40px;

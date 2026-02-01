@@ -289,18 +289,177 @@ workshopsRouter.get('/:workshopid/rsvp/:userid/status', authenticateToken, async
     }
 });
 
-// GET RSVP
+// GET RSVP (digital RSVP view)
 workshopsRouter.get('/:workshopid/rsvp/:userid', authenticateToken, async (req, res, next) => {
     try {
         const { userid, workshopid } = req.params;
 
-        const [response] = await connection.query(
+        const [rows] = await connection.query(
 'SELECT u.first_name AS first_name, u.username AS username, u.avatar_config AS avatar_config, w.workshop_name AS workshop_name, w.workshop_description AS workshop_description, w.workshop_date AS workshop_date, w.workshop_location AS workshop_location, w.workshop_public AS workshop_public, wr.rsvp_confirmation_status AS rsvp_confirmation_status FROM workshops w JOIN workshop_rsvps wr ON (w.workshop_id = wr.workshop_id) JOIN users u ON (wr.user_id = u.user_id) WHERE w.workshop_id = ? AND u.user_id = ?',
             [workshopid, userid]
         );
-        res.status(203).send(response);
+
+        if (!rows || rows.length === 0) {
+            return res.status(404).send('RSVP not found');
+        }
+
+        let checkinToken = null;
+        try {
+            checkinToken = jwt.sign(
+                {
+                    workshop_id: Number(workshopid),
+                    user_id: Number(userid),
+                    type: 'rsvp_checkin',
+                },
+                process.env.ACCESS_TOKEN_SECRET,
+                { expiresIn: '7d' }
+            );
+        } catch (err) {
+            console.error('Error generating RSVP check-in token:', err);
+        }
+
+        const payload = [{
+            ...rows[0],
+            checkin_token: checkinToken,
+        }];
+
+        res.status(203).send(payload);
     } catch (error) {
         res.status(500).send(`Server Error: ${error}`)
+    }
+});
+
+// GET RSVP check-in preview (admin-only, opened from QR link)
+workshopsRouter.get('/rsvp/checkin/:token', authenticateTokenAdmin, async (req, res) => {
+    try {
+        const { token } = req.params;
+        let decoded;
+
+        try {
+            decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        } catch (err) {
+            console.error('Invalid or expired RSVP check-in token:', err);
+            return res.status(400).json({ ok: false, error: 'Invalid or expired token' });
+        }
+
+        if (!decoded || decoded.type !== 'rsvp_checkin') {
+            return res.status(400).json({ ok: false, error: 'Invalid token payload' });
+        }
+
+        const workshopId = Number(decoded.workshop_id);
+        const userId = Number(decoded.user_id);
+
+        const [rows] = await connection.query(
+            'SELECT wr.user_id, wr.workshop_id, u.first_name, u.last_name, u.username, u.avatar_config, w.workshop_name, w.workshop_description, w.workshop_date, w.workshop_location, wr.rsvp_confirmation_status, wr.checked_in, wr.checked_in_at FROM workshop_rsvps wr JOIN users u ON (wr.user_id = u.user_id) JOIN workshops w ON (wr.workshop_id = w.workshop_id) WHERE wr.workshop_id = ? AND wr.user_id = ?',
+            [workshopId, userId]
+        );
+
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ ok: false, error: 'RSVP not found' });
+        }
+
+        const row = rows[0];
+        const alreadyCheckedIn = !!row.checked_in;
+
+        return res.status(200).json({
+            ok: true,
+            attendee: {
+                user_id: row.user_id,
+                first_name: row.first_name,
+                last_name: row.last_name,
+                username: row.username,
+            },
+            workshop: {
+                workshop_id: row.workshop_id,
+                name: row.workshop_name,
+                description: row.workshop_description,
+                date: row.workshop_date,
+                location: row.workshop_location,
+            },
+            rsvp: {
+                confirmation_status: row.rsvp_confirmation_status,
+            },
+            alreadyCheckedIn,
+            checkedInAt: row.checked_in_at,
+        });
+    } catch (error) {
+        console.error('RSVP check-in preview error:', error);
+        return res.status(500).json({ ok: false, error: 'Server error' });
+    }
+});
+
+// POST RSVP check-in (admin-only, used by scanner and confirm page)
+workshopsRouter.post('/rsvp/checkin/:token', authenticateTokenAdmin, async (req, res) => {
+    try {
+        const { token } = req.params;
+        let decoded;
+
+        try {
+            decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        } catch (err) {
+            console.error('Invalid or expired RSVP check-in token (POST):', err);
+            return res.status(400).json({ ok: false, error: 'Invalid or expired token' });
+        }
+
+        if (!decoded || decoded.type !== 'rsvp_checkin') {
+            return res.status(400).json({ ok: false, error: 'Invalid token payload' });
+        }
+
+        const workshopId = Number(decoded.workshop_id);
+        const userId = Number(decoded.user_id);
+
+        // Fetch current attendance state
+        const [rows] = await connection.query(
+            'SELECT wr.user_id, wr.workshop_id, u.first_name, u.last_name, u.username, u.avatar_config, w.workshop_name, w.workshop_description, w.workshop_date, w.workshop_location, wr.rsvp_confirmation_status, wr.checked_in, wr.checked_in_at FROM workshop_rsvps wr JOIN users u ON (wr.user_id = u.user_id) JOIN workshops w ON (wr.workshop_id = w.workshop_id) WHERE wr.workshop_id = ? AND wr.user_id = ?',
+            [workshopId, userId]
+        );
+
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ ok: false, error: 'RSVP not found' });
+        }
+
+        const row = rows[0];
+        const alreadyCheckedIn = !!row.checked_in;
+
+        if (!alreadyCheckedIn) {
+            await connection.query(
+                'UPDATE workshop_rsvps SET checked_in = 1, checked_in_at = NOW() WHERE workshop_id = ? AND user_id = ?',
+                [workshopId, userId]
+            );
+        }
+
+        // Re-fetch to get updated timestamp
+        const [updatedRows] = await connection.query(
+            'SELECT wr.user_id, wr.workshop_id, u.first_name, u.last_name, u.username, u.avatar_config, w.workshop_name, w.workshop_description, w.workshop_date, w.workshop_location, wr.rsvp_confirmation_status, wr.checked_in, wr.checked_in_at FROM workshop_rsvps wr JOIN users u ON (wr.user_id = u.user_id) JOIN workshops w ON (wr.workshop_id = w.workshop_id) WHERE wr.workshop_id = ? AND wr.user_id = ?',
+            [workshopId, userId]
+        );
+
+        const updated = updatedRows[0];
+
+        return res.status(200).json({
+            ok: true,
+            attendee: {
+                user_id: updated.user_id,
+                first_name: updated.first_name,
+                last_name: updated.last_name,
+                username: updated.username,
+            },
+            workshop: {
+                workshop_id: updated.workshop_id,
+                name: updated.workshop_name,
+                description: updated.workshop_description,
+                date: updated.workshop_date,
+                location: updated.workshop_location,
+            },
+            rsvp: {
+                confirmation_status: updated.rsvp_confirmation_status,
+            },
+            alreadyCheckedIn: alreadyCheckedIn,
+            checkedInAt: updated.checked_in_at,
+        });
+    } catch (error) {
+        console.error('RSVP check-in POST error:', error);
+        return res.status(500).json({ ok: false, error: 'Server error' });
     }
 });
 

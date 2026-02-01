@@ -20,6 +20,8 @@ import { DropDown } from './Buttons';
 import { ProgressProvider } from './context/ProgressContext';
 import { RSVP } from './EdgePages';
 import { OverlayProvider } from './context/OverlayContext.jsx';
+import { RsvpCheckinPage } from './pages/RsvpCheckinPage.jsx';
+import { RsvpScanner } from './pages/RsvpScanner.jsx';
 
 function App() {
   const router = createBrowserRouter(
@@ -31,6 +33,8 @@ function App() {
         <Route path="login" element={ <LogInPage /> } />
         <Route path="register" element={ <RegistrationPage /> } />
         <Route path="workshops/:workshopId/rsvp/:userId" element={ <RSVP /> } />
+        <Route path="rsvp/checkin/:token" element={ <RsvpCheckinPage /> } />
+        <Route path="admin/rsvp-scan" element={ <RsvpScanner /> } />
         <Route path="workshops/create" element={ <WorkshopCreateForm /> } />
         <Route path="workshops" element={ <WorkshopsPage /> } />
         <Route index element={<HomePage />} />
