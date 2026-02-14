@@ -20,7 +20,8 @@ import { OpenResponse,
     NextButton,
     YesNoButton,
     WorkshopCard,
-    CreateButton } from './Buttons.jsx';
+    CreateButton,
+    DropDown } from './Buttons.jsx';
 import { Heading1, Heading2, PromptInstruction, Completedheading, PendingHeading , OpenHeading , ProcessingHeading } from './Headings.jsx';
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
@@ -291,6 +292,10 @@ function ensureLabelGrid(rows, cols, prevLabels) {
   return result;
 }
 
+// Layout display names and their corresponding config values
+const LAYOUT_OPTIONS = ['Free placement', 'Horizontal spectrum', 'Grid of zones'];
+const LAYOUT_VALUES = ['free', 'x-spectrum', 'grid-zones'];
+
 // Drag & Drop prompt editor now works with a richer layout config
 // supporting "free", "x-spectrum", and "grid-zones" layouts.
 export function CreateDragAndDropTemplate({ savedData, onChange }) {
@@ -357,7 +362,9 @@ export function CreateDragAndDropTemplate({ savedData, onChange }) {
     sync({ ...config, options: nextOpts });
   };
 
-  const handleLayoutChange = (layout) => {
+  const handleLayoutChange = (displayName) => {
+    const index = LAYOUT_OPTIONS.indexOf(displayName);
+    const layout = index >= 0 ? LAYOUT_VALUES[index] : 'free';
     sync({ ...config, layout });
   };
 
@@ -396,18 +403,19 @@ export function CreateDragAndDropTemplate({ savedData, onChange }) {
     });
   };
 
+  // Get display name for current layout value
+  const currentLayoutIndex = LAYOUT_VALUES.indexOf(config.layout || 'free');
+  const currentLayoutDisplay = currentLayoutIndex >= 0 ? LAYOUT_OPTIONS[currentLayoutIndex] : 'Free placement';
+
   return (
     <>
       {/* Layout selector: free vs spectrum vs grid-zones */}
-      <select
-        value={config.layout || 'free'}
-        onChange={e => handleLayoutChange(e.target.value)}
-        className="textInput"
-      >
-        <option value="free">Free placement</option>
-        <option value="x-spectrum">Horizontal spectrum</option>
-        <option value="grid-zones">Grid of zones</option>
-      </select>
+      <DropDown
+        options={LAYOUT_OPTIONS}
+        onSelect={handleLayoutChange}
+        responseData={{ answer: currentLayoutDisplay }}
+        disabled={false}
+      />
 
       {/* Spectrum configuration */}
       {config.layout === 'x-spectrum' && (

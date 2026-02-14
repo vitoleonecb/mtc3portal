@@ -1,6 +1,9 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import {authenticateTokenAdmin, authenticateToken, connection} from './app.js'; 
+import bcrypt from 'bcrypt';
+import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
+
+const SALT_ROUNDS = 10;
 
 export const usersRouter = express.Router();
 
@@ -54,22 +57,23 @@ usersRouter.post("/login", async (req, res) => {
         const { email, password } = req.body;
     
         if (!email || !password) {
-            return res.status(400).json({ message: "Email and password are required." });
+            return res.status(400).json({ message: "Email/username and password are required." });
         }
     
-        // 1️⃣ Look up the user
+        // 1️⃣ Look up the user by email OR username
         const [[user]] = await connection.query(
-        "SELECT user_id, email, username, first_name, last_name, user_password, user_type, avatar_config FROM users WHERE email = ? LIMIT 1",
-        [email]
+        "SELECT user_id, email, username, first_name, last_name, user_password, user_type, avatar_config FROM users WHERE email = ? OR username = ? LIMIT 1",
+        [email, email]
         );
     
         if (!user) {
-            return res.status(401).json({ message: "Invalid email or password." });
+            return res.status(401).json({ message: "Invalid email/username or password." });
         }
     
-        // 2️⃣ Compare passwords (no hash in this schema)
-        if (user.user_password !== password) {
-            return res.status(401).json({ message: "Invalid email or password." });
+        // 2️⃣ Compare passwords using bcrypt
+        const passwordMatch = await bcrypt.compare(password, user.user_password);
+        if (!passwordMatch) {
+            return res.status(401).json({ message: "Invalid email/username or password." });
         }
     
         // 3️⃣ Define role flag
@@ -158,6 +162,28 @@ usersRouter.post('', authenticateToken, async (req, res, next) => {
     }
 });
 
+// Check if email already exists (for registration validation)
+usersRouter.get('/email/:email/exists', async (req, res) => {
+    try {
+        const { email } = req.params;
+        const [rows] = await connection.query('SELECT 1 FROM users WHERE email = ? LIMIT 1', [email]);
+        res.status(200).json({ exists: rows.length > 0 });
+    } catch (error) {
+        res.status(500).json({ message: `Internal Server Error: ${error}` });
+    }
+});
+
+// Check if username already exists (for registration validation)
+usersRouter.get('/username/:username/exists', async (req, res) => {
+    try {
+        const { username } = req.params;
+        const [rows] = await connection.query('SELECT 1 FROM users WHERE username = ? LIMIT 1', [username]);
+        res.status(200).json({ exists: rows.length > 0 });
+    } catch (error) {
+        res.status(500).json({ message: `Internal Server Error: ${error}` });
+    }
+});
+
 usersRouter.post('/registration', async (req, res, next) => {
     try {
         console.log(req.body);
@@ -167,6 +193,10 @@ usersRouter.post('/registration', async (req, res, next) => {
         if (userNameRows.length > 0 || emailRows.length > 0) {
             return res.status(400).send('username or email already exists');
         }
+        
+        // Hash the password before storing
+        const hashedPassword = await bcrypt.hash(user_password, SALT_ROUNDS);
+        
         const [response] = await connection.query(
             'INSERT INTO users (username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
@@ -174,7 +204,7 @@ usersRouter.post('/registration', async (req, res, next) => {
                 email,
                 first_name,
                 last_name,
-                user_password,
+                hashedPassword,
                 user_type,
                 user_phone,
                 avatar_config ? JSON.stringify(avatar_config) : null,

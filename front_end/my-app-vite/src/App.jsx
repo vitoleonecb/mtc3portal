@@ -2,6 +2,8 @@ import './App.css';
 import { RouterProvider, createBrowserRouter, createRoutesFromElements, Route } from "react-router-dom";
 
 import { WorkshopPromptsEditor } from './pages/WorkshopsPromptsEditor';
+import { WorkshopMaterialsEditor } from './pages/WorkshopMaterialsEditor.jsx';
+import { WorkshopMaterialsViewer } from './pages/WorkshopMaterialsViewer.jsx';
 import { HomePage } from './pages/HomePage.jsx';
 import { NavPage } from './pages/NavPage';
 import { DocumentationPage } from './pages/DocumentationPage';
@@ -30,6 +32,8 @@ function App() {
         <Route path="workshops/:workshopId/modules" element={ <WorkshopModules /> } />
         <Route path="workshops/:workshopId/modules/:moduleId/prompts/:promptId" element={ <WorkshopPromptsPage /> } />
         <Route path="workshops/:workshopId/modules/:moduleId/prompts/edit" element={ <WorkshopPromptsEditor /> } />
+        <Route path="workshops/:workshopId/materials" element={ <WorkshopMaterialsViewer /> } />
+        <Route path="workshops/:workshopId/materials/edit" element={ <WorkshopMaterialsEditor /> } />
         <Route path="login" element={ <LogInPage /> } />
         <Route path="register" element={ <RegistrationPage /> } />
         <Route path="workshops/:workshopId/rsvp/:userId" element={ <RSVP /> } />

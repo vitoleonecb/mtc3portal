@@ -542,11 +542,53 @@ workshopsRouter.get('/:workshopid/attendees', authenticateToken, async (req, res
     }
 });
 
+// GET per-workshop analysis completion status (admin-only)
+// Returns whether every prompt in a workshop has non-empty admin analysis.
+workshopsRouter.get('/:workshopid/analysis-status', authenticateTokenAdmin, async (req, res) => {
+    try {
+        const { workshopid } = req.params;
+
+        // Count total prompts under this workshop
+        const [[{ total_prompts }]] = await connection.query(
+            `SELECT COUNT(*) AS total_prompts
+             FROM workshop_prompts wp
+             JOIN workshop_modules wm ON wp.workshop_module_id = wm.workshop_module_id
+             WHERE wm.workshop_id = ?`,
+            [workshopid]
+        );
+
+        // Count prompts with a non-empty admin analysis
+        const [[{ analyzed_prompts }]] = await connection.query(
+            `SELECT COUNT(*) AS analyzed_prompts
+             FROM workshop_prompts wp
+             JOIN workshop_modules wm ON wp.workshop_module_id = wm.workshop_module_id
+             WHERE wm.workshop_id = ?
+               AND wp.workshop_prompt_admin_analysis IS NOT NULL
+               AND TRIM(wp.workshop_prompt_admin_analysis) <> ''`,
+            [workshopid]
+        );
+
+        const total = Number(total_prompts) || 0;
+        const analyzed = Number(analyzed_prompts) || 0;
+        const allPromptsAnalyzed = total > 0 && analyzed === total;
+
+        return res.status(200).json({
+            workshopId: Number(workshopid),
+            totalPrompts: total,
+            analyzedPrompts: analyzed,
+            allPromptsAnalyzed,
+        });
+    } catch (error) {
+        console.error('Workshop analysis-status error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // POST Workshop
 workshopsRouter.post('', authenticateTokenAdmin, async (req, res, next) => {
     try {
         const { workshop_name, workshop_description, workshop_location, workshop_date, workshop_public } = req.body;
-        const [response] = await connection.query('INSERT INTO workshops (workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, workshop_public) VALUES (?, ?, ?, ?, ?)', [workshop_name, workshop_description, workshop_location, workshop_date, workshop_public]);
+        const [response] = await connection.query('INSERT INTO workshops (workshop_name, workshop_description, workshop_location, workshop_date, workshop_public) VALUES (?, ?, ?, ?, ?)', [workshop_name, workshop_description, workshop_location, workshop_date, workshop_public]);
         res.status(204).send(`Workshop "${workshop_name}" created successfully`);
     } catch (error) {
         res.status(500).send(`Internal Server Error: ${error}`);

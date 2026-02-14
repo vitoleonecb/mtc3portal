@@ -1,20 +1,22 @@
-import { productionsRouter } from './productions.js';
-import { workshopsRouter } from './workshops.js';
-import { usersRouter } from './users.js';
-import { analyticsRouter } from './analytics.js'
+import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import mysql from 'mysql2/promise';
+import jwt from 'jsonwebtoken';
+import morgan from 'morgan';
+import cors from 'cors';
+
+import { usersRouter } from './users.js';
+import { workshopsRouter } from './workshops.js';
+import { productionsRouter } from './productions.js';
+import { analyticsRouter } from "./analytics.js";
+import { materialsRouter } from "./materials.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '.env') });
-import express from 'express';
-import mysql from 'mysql2/promise';
-import jwt from 'jsonwebtoken';
-import morgan from 'morgan';
-import cors from 'cors';
 
 export const connection = mysql.createPool({
   host: process.env.DB_HOST,
@@ -39,18 +41,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/workshops', workshopsRouter);
 app.use('/api/productions', productionsRouter);
 app.use('/api/analytics', analyticsRouter);
-
-app.get('/health', (req, res) => {
-  res.json({
-    ok: true,
-    env: {
-      PORT: process.env.PORT,
-      HAS_ACCESS_SECRET: !!process.env.ACCESS_TOKEN_SECRET,
-      DB_HOST: process.env.DB_HOST,
-      DB_DB: process.env.DB_DATABASE
-    }
-  });
-});
+app.use('/api/materials', materialsRouter);
 
 export async function authenticateToken(req, res, next) {
     await verifyToken(req, res, next, false);

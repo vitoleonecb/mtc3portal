@@ -787,11 +787,12 @@ function BoxHandle({ id, color, pct, constraintRef, disabled, onChange }) {
 }
 
 
-export function NextButton({ onClick, text = "Next", style= {}, to=""}) {
+export function NextButton({ onClick, text = "Next", style= {}, to="", disabled = false, children }) {
     
     const navigate = useNavigate();
 
     const handleClick = (e) => {
+      if (disabled) return;
       console.log('CLICK:', { to });
       if (onClick) onClick(e);
       if (to) navigate(to);
@@ -800,7 +801,13 @@ export function NextButton({ onClick, text = "Next", style= {}, to=""}) {
     
     return (
         <div style={style} className="logInButtonContainer linkNoUnderLine cardLink">
-            <button onClick={handleClick} className="logInButton">{text}</button>
+            <button 
+                onClick={handleClick} 
+                className={`logInButton ${disabled ? 'logInButtonDisabled' : ''}`}
+                disabled={disabled}
+            >
+                {children || text}
+            </button>
         </div>
     );
 }

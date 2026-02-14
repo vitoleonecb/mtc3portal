@@ -36,6 +36,7 @@ export function WorkshopModules() {
     const [moduleCreateFormData, setModuleCreateFormData] = useState({moduleName: ''});
     const [moduleCreated, setModuleCreated] = useState(false);
     const [workshopName, setWorkshopName] = useState('Untitled');
+    const [hasMaterials, setHasMaterials] = useState(false);
     const { setModuleStatus } = useContext(ProgressContext);
 
     const { workshopId, moduleId } = useParams();
@@ -58,6 +59,31 @@ export function WorkshopModules() {
     const location = useLocation();
 
     const navigate = useNavigate();
+
+    const handleMaterialsClick = async () => {
+        try {
+            const res = await axios.get(
+                `${import.meta.env.VITE_API_URL}/workshops/${workshopId}/analysis-status`,
+                {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                }
+            );
+            if (res.data?.allPromptsAnalyzed) {
+                // If materials already exist, go to the read-only viewer;
+                // otherwise drop the admin into the editor to create some.
+                if (hasMaterials) {
+                    navigate(`/workshops/${workshopId}/materials`);
+                } else {
+                    navigate(`/workshops/${workshopId}/materials/edit`);
+                }
+            } else {
+                alert('Finish admin analysis for all prompts before working with workshop materials.');
+            }
+        } catch (error) {
+            console.error('Check analysis-status error', error);
+            alert('Could not verify analysis status for this workshop.');
+        }
+    };
 
     useEffect(() => {
         const fetchRSVPStatus = async () => {
@@ -166,7 +192,7 @@ export function WorkshopModules() {
     }, [moduleCreated, location.pathname]);
 
     useEffect(() => {
-	const fetchAdminStatus = async () => {
+    	const fetchAdminStatus = async () => {
 		try {
 			const response = await axios.get(`${import.meta.env.VITE_API_URL}/users/${userId}/isadmin`,{
 				headers: {
@@ -181,6 +207,30 @@ export function WorkshopModules() {
 	};
 	fetchAdminStatus();
     },[userId]);
+
+    // Check whether any materials exist for this workshop so we can
+    // switch the button label between "Create" and "View".
+    useEffect(() => {
+        if (!isAdmin) return;
+
+        const fetchMaterials = async () => {
+            try {
+                const res = await axios.get(
+                    `${import.meta.env.VITE_API_URL}/materials/workshops/${workshopId}`,
+                    {
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                    }
+                );
+                const rows = Array.isArray(res.data) ? res.data : [];
+                setHasMaterials(rows.length > 0);
+            } catch (error) {
+                console.error('Check materials existence error', error);
+                setHasMaterials(false);
+            }
+        };
+
+        fetchMaterials();
+    }, [isAdmin, workshopId, accessToken, moduleCreated]);
 
     const completedModulesExists = modules.some((module) => module.workshop_module_status === 'completed');
     const openModulesExists = modules.some((module) => module.workshop_module_status === 'open');
@@ -242,7 +292,12 @@ export function WorkshopModules() {
         return <div>loading...</div>
     }
 
-    if (completedModulesExists === false && openModulesExists === false && pendingModulesExists === false) {
+    if (
+        completedModulesExists === false &&
+        openModulesExists === false &&
+        pendingModulesExists === false &&
+        processingModulesExists === false
+    ) {
         return (
         <>
             <Heading1 text={workshopName}/>
@@ -256,7 +311,7 @@ export function WorkshopModules() {
                         onChange={handleChange}
                         value={moduleCreateFormData.moduleName}
                         onKeyDown={(event) => {event.key === 'Enter' && handleSubmit()}}
-                        className='emailInput'
+                        className='textInput'
                         maxLength={20}
                     />
                 </>
@@ -269,6 +324,16 @@ export function WorkshopModules() {
         <>
             
             <Heading1 text={workshopName}/>
+            {isAdmin && (
+                <div className="logInButtonContainer" style={{ marginTop: 0 }}>
+                    <button
+                        className="logInButton"
+                        onClick={handleMaterialsClick}
+                    >
+                        {hasMaterials ? 'View Materials' : 'Create Materials'}
+                    </button>
+                </div>
+            )}
 
             {openModulesExists && (
                 <>

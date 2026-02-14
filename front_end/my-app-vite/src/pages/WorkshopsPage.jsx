@@ -246,17 +246,18 @@ export function WorkshopsPage() {
             
             <Heading1 text="Workshops" />
             {workshopsList.map((workshop) => (
-                <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine cardLink">
+                <div key={workshop.workshop_id} className="cardLink">
+                  <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
                     <WorkshopCard
-                            key={workshop.workshop_id}
-                            workshopName={workshop.workshop_name} 
-                            workshopDescription={workshop.workshop_description} 
-                            workshopDate={formatDate(workshop.workshop_date)} 
-                            workshopLocation={workshop.workshop_location}
-                            decoration={getWorkshopDecoration(workshop.workshop_id)}
-                        />
-                </Link>))
-            }
+                      workshopName={workshop.workshop_name}
+                      workshopDescription={workshop.workshop_description}
+                      workshopDate={formatDate(workshop.workshop_date)}
+                      workshopLocation={workshop.workshop_location}
+                      decoration={getWorkshopDecoration(workshop.workshop_id)}
+                    />
+                  </Link>
+                </div>
+            ))}
 
             {isAdmin && <CreateButton handleClick={handleClick}/>}
 

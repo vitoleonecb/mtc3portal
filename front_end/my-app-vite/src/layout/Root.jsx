@@ -13,7 +13,9 @@ export function Root() {
   const { pathname, key: locationKey } = useLocation();
   const { state: progressState, moduleStatus } = useContext(ProgressContext);
 
-  const isEditor = pathname.includes('prompts/edit');
+  const isEditor =
+    pathname.includes('prompts/edit') ||
+    pathname.includes('/materials/edit');
   const isPromptReader = useMatch('workshops/:workshopId/modules/:moduleId/prompts/:promptId');
 
   // In "open" phase we show the progress bar; in other phases (processing,
