@@ -12,6 +12,9 @@ import { workshopsRouter } from './workshops.js';
 import { productionsRouter } from './productions.js';
 import { analyticsRouter } from "./analytics.js";
 import { materialsRouter } from "./materials.js";
+import { cycleRouter } from "./cycleScheduler.js";
+import { stripeRouter } from "./stripe.js";
+import { showcasesRouter } from "./showcases.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +38,11 @@ app.use(cors(
     { allowedHeaders: ['Content-Type', 'Authorization'] }
 ));
 app.use(morgan('dev'));
+
+// Stripe webhook needs raw body for signature verification —
+// mount it BEFORE the global express.json() parser.
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 
 app.use('/api/users', usersRouter);
@@ -42,6 +50,9 @@ app.use('/api/workshops', workshopsRouter);
 app.use('/api/productions', productionsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/materials', materialsRouter);
+app.use('/api/cycle', cycleRouter);
+app.use('/api/stripe', stripeRouter);
+app.use('/api/showcases', showcasesRouter);
 
 export async function authenticateToken(req, res, next) {
     await verifyToken(req, res, next, false);

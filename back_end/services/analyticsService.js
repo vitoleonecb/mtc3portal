@@ -1,5 +1,16 @@
-import { connection } from '../app.js';
+import dotenv from 'dotenv';
+import mysql from 'mysql2/promise';
 import dayjs from "dayjs";
+
+dotenv.config({ path: new URL('../.env', import.meta.url).pathname });
+
+const connection = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  waitForConnections: true,
+});
 
 function safeParse(value) {
     // If it’s already an object, return it directly

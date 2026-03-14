@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import moduleQueue from './queues/moduleQueue.js';
+import notificationQueue from './queues/notificationQueue.js';
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 
 export const workshopsRouter = express.Router();
@@ -211,6 +212,11 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authent
         
         if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
             const rsvpCreateResponse = await connection.query('INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',[user_id, workshopid]);
+            try {
+                await notificationQueue.add('workshopRsvpUnconfirmed', { userId: user_id, workshopId: Number(workshopid) });
+            } catch (notifErr) {
+                console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
+            }
             res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
         }
         res.status(201).send(response);
@@ -587,8 +593,11 @@ workshopsRouter.get('/:workshopid/analysis-status', authenticateTokenAdmin, asyn
 // POST Workshop
 workshopsRouter.post('', authenticateTokenAdmin, async (req, res, next) => {
     try {
-        const { workshop_name, workshop_description, workshop_location, workshop_date, workshop_public } = req.body;
-        const [response] = await connection.query('INSERT INTO workshops (workshop_name, workshop_description, workshop_location, workshop_date, workshop_public) VALUES (?, ?, ?, ?, ?)', [workshop_name, workshop_description, workshop_location, workshop_date, workshop_public]);
+        const { workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, showcase_id } = req.body;
+        const [response] = await connection.query(
+            'INSERT INTO workshops (workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, showcase_id) VALUES (?, ?, ?, ?, ?, ?)',
+            [workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, showcase_id || null]
+        );
         res.status(204).send(`Workshop "${workshop_name}" created successfully`);
     } catch (error) {
         res.status(500).send(`Internal Server Error: ${error}`);
@@ -689,14 +698,6 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts', authenticateToken
 
             }
 
-	    const openDelay = 1000 * 30 * 1;
-            const processDelay = openDelay + 1000 * 30 * 1;
-            const completedDelay = processDelay + 1000 * 30 * 1;
-
-            // await moduleQueue.add('openModule', { moduleId: moduleid }, { delay: openDelay });
-            // await moduleQueue.add('processModule', { moduleId: moduleid }, { delay: processDelay });
-            // await moduleQueue.add('completeModule', { moduleId: moduleid }, { delay: completedDelay });
-	    // console.log(`Scheduled completeModule for module ${moduleid} with delay ${completedDelay}`);
 
         } catch (error) {
             return res.status(400).send(`Error Looping Through Prompt Data: ${error}`)
@@ -874,6 +875,11 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/automated
                     'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',
                     [user_id, workshopid]
                 );
+                try {
+                    await notificationQueue.add('workshopRsvpUnconfirmed', { userId: user_id, workshopId: Number(workshopid) });
+                } catch (notifErr) {
+                    console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
+                }
                 return res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
             }
         }

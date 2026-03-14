@@ -21,7 +21,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-export function GlowingLineChart({ analyticsData = {}, promptId }) {
+export function GlowingLineChart({ analyticsData = {}, promptId, dotColor = 'rgb(210,164,120)' }) {
   const timeSeries = analyticsData.timeSeries ?? {};
 
   console.log(`LineChart promptId=${promptId} timeSeries=${JSON.stringify(timeSeries)}`);
@@ -68,7 +68,7 @@ export function GlowingLineChart({ analyticsData = {}, promptId }) {
                   cx="2"
                   cy="2"
                   r="1.75"
-                  fill="rgb(210,164,120)"
+                  fill={dotColor}
                 />
               </pattern>
             </defs>

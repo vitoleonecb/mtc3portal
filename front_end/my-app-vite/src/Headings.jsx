@@ -64,3 +64,29 @@ export function PendingHeading() {
         </div>
     )
 }
+
+export function WorkshopSectionHeading({ label }) {
+    return (
+        <div className="PendingHeading">
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="8" height="8" rx="4" fill="#000000"/>
+            </svg>
+            <h2 className="PendingText">{label}</h2>
+        </div>
+    )
+}
+
+export function CurrentWorkshopHeading({ rsvpStatus }) {
+    let label = "Current Workshop";
+    if (rsvpStatus === "confirmed") label = "RSVP Confirmed";
+    else if (rsvpStatus === "unconfirmed") label = "RSVP Unconfirmed";
+    return <WorkshopSectionHeading label={label} />;
+}
+
+export function UpcomingWorkshopsHeading() {
+    return <WorkshopSectionHeading label="Upcoming Workshops" />;
+}
+
+export function PastWorkshopsHeading() {
+    return <WorkshopSectionHeading label="Past Workshops" />;
+}

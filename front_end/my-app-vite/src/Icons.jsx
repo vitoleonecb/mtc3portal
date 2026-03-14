@@ -212,17 +212,16 @@ export function AvatarCircle({
   // Resolve center dot color: explicit first, then a palette offset
   const resolvedCenter = centerColor || palette[(baseIndex + 3) % palette.length];
 
-  const center = size / 2;
-  const outerRadius = size / 2 - strokeWidth; // leave padding equal to stroke width
+  // Render into a fixed 72×72 viewBox so stroke widths and ring spacing
+  // (which are stored as absolute values from the registration preview)
+  // look identical at every display size.
+  const CANONICAL = 72;
+  const center = CANONICAL / 2;
+  const outerRadius = CANONICAL / 2 - strokeWidth;
 
-  // Build ring radii from outside in. We intentionally keep all
-  // configured rings, even on smaller sizes, so a 6-circle avatar
-  // looks consistent between the large registration preview and
-  // smaller header/RSVP icons.
   const ringRadii = [];
   for (let i = 0; i < rings; i++) {
-    const r = outerRadius - i * (strokeWidth + size * 0.06);
-    // Clamp at a minimum positive radius so inner rings don't vanish.
+    const r = outerRadius - i * (strokeWidth + CANONICAL * 0.06);
     ringRadii.push(Math.max(r, strokeWidth * 0.75));
   }
 
@@ -232,9 +231,10 @@ export function AvatarCircle({
     <svg
       width={size}
       height={size}
-      viewBox={`0 0 ${size} ${size}`}
+      viewBox={`0 0 ${CANONICAL} ${CANONICAL}`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      style={{ display: 'block', flexShrink: 0, width: size, height: size }}
     >
       {/* Base filled circle */}
       <circle cx={center} cy={center} r={outerRadius} fill={resolvedBackground} />

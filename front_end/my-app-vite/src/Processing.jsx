@@ -99,7 +99,7 @@ function hexToRgba(hex, alpha) {
 }
 
 // Layout-specific charts for drag-and-drop analytics
-function DragAndDropZonesChart({ analyticsData }) {
+function DragAndDropZonesChart({ analyticsData, dotColor = 'rgb(210,164,120)' }) {
   if (!analyticsData || analyticsData.mode !== 'zones' || !Array.isArray(analyticsData.zones)) return null;
 
   // Reuse the multiple-choice bar style: "answer" pill with text inside
@@ -134,7 +134,7 @@ function DragAndDropZonesChart({ analyticsData }) {
                 height="10"
                 patternUnits="userSpaceOnUse"
               >
-                <circle cx="2" cy="2" r="1.75" fill="rgb(210,164,120)" />
+                <circle cx="2" cy="2" r="1.75" fill={dotColor} />
               </pattern>
             </defs>
 
@@ -182,7 +182,7 @@ function DragAndDropZonesChart({ analyticsData }) {
   );
 }
 
-function DragAndDropSpectrumChart({ analyticsData }) {
+function DragAndDropSpectrumChart({ analyticsData, dotColor = 'rgb(210,164,120)' }) {
   if (!analyticsData || analyticsData.mode !== 'spectrum' || !analyticsData.tokens) return null;
 
   const axis = analyticsData.axes?.x || {};
@@ -222,7 +222,7 @@ function DragAndDropSpectrumChart({ analyticsData }) {
                 height="10"
                 patternUnits="userSpaceOnUse"
               >
-                <circle cx="2" cy="2" r="1.75" fill="rgb(210,164,120)" />
+                <circle cx="2" cy="2" r="1.75" fill={dotColor} />
               </pattern>
             </defs>
 
@@ -268,7 +268,7 @@ function DragAndDropSpectrumChart({ analyticsData }) {
   );
 }
 
-function DragAndDropTokenZonesChart({ analyticsData, promptOptions }) {
+function DragAndDropTokenZonesChart({ analyticsData, promptOptions, dotColor = 'rgb(210,164,120)' }) {
   if (!analyticsData || analyticsData.mode !== 'zones' || !analyticsData.tokens) return null;
 
   // X axis: zones; Y axis: count of placements per token in that zone.
@@ -322,7 +322,7 @@ function DragAndDropTokenZonesChart({ analyticsData, promptOptions }) {
                 height="10"
                 patternUnits="userSpaceOnUse"
               >
-                <circle cx="2" cy="2" r="1.75" fill="rgb(210,164,120)" />
+                <circle cx="2" cy="2" r="1.75" fill={dotColor} />
               </pattern>
             </defs>
 
@@ -613,14 +613,14 @@ function DragAndDropHeatmap({ analyticsData, promptOptions }) {
   );
 }
 
-function DragAndDropDistributionChart({ analyticsData, promptOptions }) {
+function DragAndDropDistributionChart({ analyticsData, promptOptions, dotColor }) {
   if (!analyticsData || !analyticsData.mode) return null;
 
   if (analyticsData.mode === 'zones') {
     return (
       <>
-        <DragAndDropZonesChart analyticsData={analyticsData} />
-        <DragAndDropTokenZonesChart analyticsData={analyticsData} promptOptions={promptOptions} />
+        <DragAndDropZonesChart analyticsData={analyticsData} dotColor={dotColor} />
+        <DragAndDropTokenZonesChart analyticsData={analyticsData} promptOptions={promptOptions} dotColor={dotColor} />
         <DragAndDropHeatmap analyticsData={analyticsData} promptOptions={promptOptions} />
       </>
     );
@@ -629,7 +629,7 @@ function DragAndDropDistributionChart({ analyticsData, promptOptions }) {
   if (analyticsData.mode === 'spectrum') {
     return (
       <>
-        <DragAndDropSpectrumChart analyticsData={analyticsData} />
+        <DragAndDropSpectrumChart analyticsData={analyticsData} dotColor={dotColor} />
         <DragAndDropHeatmap analyticsData={analyticsData} promptOptions={promptOptions} />
       </>
     );
@@ -643,7 +643,7 @@ function DragAndDropDistributionChart({ analyticsData, promptOptions }) {
   return null;
 }
 
-export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin, promptOptions, currentUserResponseId, currentUserName }) {
+export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin, promptOptions, currentUserResponseId, currentUserName, dotColor = 'rgb(210, 164, 120)' }) {
 
   const [analyticsData, setAnalyticsData] = useState({});
   const [templateType, setTemplateType] = useState();
@@ -864,32 +864,32 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
       case 'multiplechoice':
         return (
           <>
-            <GlowingBarVerticalChart analyticsData={analyticsData} />
-            <GlowingLineChart key={`mc-${promptId}`} analyticsData={analyticsData} promptId={promptId} />
+            <GlowingBarVerticalChart analyticsData={analyticsData} dotColor={dotColor} />
+            <GlowingLineChart key={`mc-${promptId}`} analyticsData={analyticsData} promptId={promptId} dotColor={dotColor} />
           </>
         );
 
       case 'checklist':
         return (
           <>
-            <DefaultBarChart analyticsData={analyticsData} />
-            <GlowingLineChart key={`cl-${promptId}`} analyticsData={analyticsData} promptId={promptId} />
+            <DefaultBarChart analyticsData={analyticsData} dotColor={dotColor} />
+            <GlowingLineChart key={`cl-${promptId}`} analyticsData={analyticsData} promptId={promptId} dotColor={dotColor} />
           </>
         );
 
       case 'dropdown':
         return (
           <>
-            <DefaultBarChart analyticsData={analyticsData} />
-            <GlowingLineChart key={`dd-${promptId}`} analyticsData={analyticsData} promptId={promptId} />
+            <DefaultBarChart analyticsData={analyticsData} dotColor={dotColor} />
+            <GlowingLineChart key={`dd-${promptId}`} analyticsData={analyticsData} promptId={promptId} dotColor={dotColor} />
           </>
         );
 
       case 'shortresponse':
         return (
           <>
-            <GlowingBarVerticalChart />
-            <GlowingLineChart key={`sr-${promptId}`} analyticsData={analyticsData} promptId={promptId} />
+            <GlowingBarVerticalChart dotColor={dotColor} />
+            <GlowingLineChart key={`sr-${promptId}`} analyticsData={analyticsData} promptId={promptId} dotColor={dotColor} />
           </>
         );
 
@@ -897,25 +897,26 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
         // Layout-specific DnD distribution chart + responses-over-time line
         return (
           <>
-            <DragAndDropDistributionChart analyticsData={analyticsData} promptOptions={promptOptions} />
+            <DragAndDropDistributionChart analyticsData={analyticsData} promptOptions={promptOptions} dotColor={dotColor} />
             <GlowingLineChart
               key={`dnd-${promptId}`}
               analyticsData={analyticsData}
               promptId={promptId}
+              dotColor={dotColor}
             />
           </>
         );
 
       case 'notation':
         return (
-          <GlowingLineChart key={`nt-${promptId}`} analyticsData={analyticsData} promptId={promptId} />
+          <GlowingLineChart key={`nt-${promptId}`} analyticsData={analyticsData} promptId={promptId} dotColor={dotColor} />
         );
 
       case 'samplerater':
         return (
           <>
-            <GlowingBarVerticalChart analyticsData={analyticsData} />
-            <GlowingLineChart key={`srater-${promptId}`} analyticsData={analyticsData} promptId={promptId} />
+            <GlowingBarVerticalChart analyticsData={analyticsData} dotColor={dotColor} />
+            <GlowingLineChart key={`srater-${promptId}`} analyticsData={analyticsData} promptId={promptId} dotColor={dotColor} />
           </>
         );
 
@@ -1059,7 +1060,7 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
 
               {/* Theme distribution radar chart */}
               <div className="AiAnalysisChartWrapper">
-                <GlowingStrokeRadarChart analysis={aiAnalysisData} />
+                <GlowingStrokeRadarChart analysis={aiAnalysisData} dotColor={dotColor} />
               </div>
 
               {/* Salient words/phrases bubble cloud */}

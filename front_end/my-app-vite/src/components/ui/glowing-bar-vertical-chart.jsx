@@ -134,7 +134,7 @@ const SampleRaterAnswerBar = ({ x, y, width, height, payload }) => {
   );
 };
 
-export function GlowingBarVerticalChart({ analyticsData = {} }) {
+export function GlowingBarVerticalChart({ analyticsData = {}, dotColor = 'rgb(210,164,120)' }) {
   const hasQuestions = analyticsData && analyticsData.questions;
   const hasRatings =
     analyticsData &&
@@ -203,7 +203,7 @@ export function GlowingBarVerticalChart({ analyticsData = {} }) {
                   height="10"
                   patternUnits="userSpaceOnUse"
                 >
-                  <circle cx="2" cy="2" r="1.75" fill="rgb(210,164,120)" />
+                  <circle cx="2" cy="2" r="1.75" fill={dotColor} />
                 </pattern>
               </defs>
 
@@ -297,7 +297,7 @@ export function GlowingBarVerticalChart({ analyticsData = {} }) {
                           cx="2"
                           cy="2"
                           r="1.75"
-                          fill="rgb(210,164,120)"
+                          fill={dotColor}
                         />
                       </pattern>
                     </defs>

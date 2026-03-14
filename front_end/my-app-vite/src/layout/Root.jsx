@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { Outlet, useLocation, useMatch } from 'react-router-dom';
+import { Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 
 import { MenuBarIcon, AccountAvatarButton } from '../Icons.jsx';
 import { NextButton } from '../Buttons.jsx';
@@ -11,6 +11,7 @@ import { ScrollBackgroundLayer } from '../components/ScrollBackgroundLayer.jsx';
 export function Root() {
   const [submitHandler, setSubmitHandler] = useState(null);
   const { pathname, key: locationKey } = useLocation();
+  const navigate = useNavigate();
   const { state: progressState, moduleStatus } = useContext(ProgressContext);
 
   const isEditor =
@@ -21,10 +22,13 @@ export function Root() {
   // In "open" phase we show the progress bar; in other phases (processing,
   // completed, etc.) we hide it but still treat the route as a reader.
   const isOpenPhaseReader = !!(isPromptReader && moduleStatus === 'open');
+  const isCompletedPhaseReader = !!(isPromptReader && moduleStatus === 'completed');
 
   const showProgressBar = isOpenPhaseReader && !isEditor;
+  const showMaterialsButton = isCompletedPhaseReader && !isEditor;
   const showSubmitButton = isEditor;
-  const showAvatar = !isOpenPhaseReader; // hide avatar only during open-phase reader
+  const isLoggedIn = !!localStorage.getItem('accessToken');
+  const showAvatar = isLoggedIn && !isOpenPhaseReader; // hide avatar when logged out or during open-phase reader
  
   return (
     <>
@@ -50,6 +54,8 @@ export function Root() {
               ? 'auto 1fr'        // editor edge-case without avatar (unused today)
               : showProgressBar && !showAvatar
               ? 'auto 1fr'        // open reader: menu + progress bar only
+              : (showMaterialsButton && showAvatar)
+              ? 'auto 1fr auto'   // completed reader: menu, materials btn, avatar
               : showAvatar
               ? 'auto 1fr auto'   // default pages: menu, spacer, avatar
               : 'auto',
@@ -64,6 +70,12 @@ export function Root() {
         )}
         {showProgressBar && (
           <ProgressBar current={progressState.current} max={progressState.max} />
+        )}
+        {showMaterialsButton && (
+          <NextButton
+            text="View Materials"
+            onClick={() => navigate(`/workshops/${isPromptReader.params.workshopId}/materials`)}
+          />
         )}
 
         {/* Right column: account avatar (hidden only in open-phase reader) */}

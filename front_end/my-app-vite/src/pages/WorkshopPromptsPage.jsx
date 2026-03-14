@@ -213,7 +213,7 @@ export function WorkshopPromptsPage() {
             
             if (!promptId) return;
             if (RSVPStatus === undefined) return;
-            if (moduleStatus === 'processing') {
+            if (moduleStatus === 'processing' || moduleStatus === 'completed') {
                 setPromptMode('view');
             }
 
@@ -228,7 +228,7 @@ export function WorkshopPromptsPage() {
                     }
                 )
 
-                if (isAdmin || RSVPStatus) {
+                if (isAdmin || RSVPStatus || moduleStatus === 'completed') {
 
                     const allResponsesResponse = await axios.get(
                         `${import.meta.env.VITE_API_URL}/workshops/${workshopId}/modules/${moduleId}/prompts/${promptId}`,
@@ -514,6 +514,10 @@ export function WorkshopPromptsPage() {
     const prompt = promptsList[promptIndex];
     const instructionNeeded = [4, 6].includes(prompt?.prompt_template_id);
 
+    const dotColor = moduleStatus === 'completed'
+        ? 'rgb(153, 66, 66)'
+        : 'rgb(210, 164, 120)';
+
     const renderPrompt = () => {
         if (!prompt) return <div>Loading...</div>;
 
@@ -548,6 +552,7 @@ export function WorkshopPromptsPage() {
                 promptOptions={prompt.workshop_prompt_options}
                 currentUserResponseId={currentUserResponseId}
                 currentUserName={currentUserName}
+                dotColor={dotColor}
               />
             );
         }
@@ -581,7 +586,7 @@ export function WorkshopPromptsPage() {
 
             {renderPrompt()}
 
-            {(isAdmin || RSVPStatus) && Array.isArray(allResponses) && allResponses.length > 0 && (
+            {(isAdmin || RSVPStatus || moduleStatus === 'completed') && Array.isArray(allResponses) && allResponses.length > 0 && (
                 <>
                     {renderResponses()}
                 </>

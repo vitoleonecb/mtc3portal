@@ -9,7 +9,8 @@ export function NavPage() {
     const { key: locationKey } = useLocation();
 
     const navItems = useMemo(() => ([
-        { id: "workshops",     text: "Workshops",     link: "/workshops",     color: "#994242" },
+        { id: "showcases",     text: "Showcases",     link: "/showcases",     color: "#994242" },
+        { id: "membership",    text: "Membership",    link: "/membership",    color: "#D2A478" },
         { id: "analytics",     text: "Analytics",     link: "/analytics",     color: "#D2A478" },
         { id: "documentation", text: "Documentation", link: "/documentation", color: "#57A15E" },
         { id: "home",          text: "Home",          link: "/",             color: "#D9D9D9" },

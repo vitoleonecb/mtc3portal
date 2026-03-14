@@ -22,6 +22,7 @@ const chartConfig = {
 
 export function DefaultBarChart(props) {
   const analyticsData = props.analyticsData || {};
+  const dotColor = props.dotColor || 'rgb(210,164,120)';
 
   if (!analyticsData.questions) return null;
 
@@ -52,7 +53,7 @@ export function DefaultBarChart(props) {
                     fill="url(#default-pattern-dots)"
                   />
                   <defs>
-                    <DottedBackgroundPattern />
+                    <DottedBackgroundPattern color={dotColor} />
                   </defs>
 
                   <XAxis 
@@ -83,7 +84,7 @@ export function DefaultBarChart(props) {
 }
 
 
-const DottedBackgroundPattern = () => {
+const DottedBackgroundPattern = ({ color = 'rgb(210,164,120)' }) => {
   return (
     <pattern
       id="default-pattern-dots"
@@ -93,7 +94,7 @@ const DottedBackgroundPattern = () => {
       height="10"
       patternUnits="userSpaceOnUse"
     >
-      <circle cx="2" cy="2" r="1.75" fill="rgb(210,164,120)" />
+      <circle cx="2" cy="2" r="1.75" fill={color} />
     </pattern>
   );
 };

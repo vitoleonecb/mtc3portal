@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useMemo } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
+import { format } from "date-fns";
 
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
@@ -12,9 +13,11 @@ import {
     CompleteButton,
     PendingButton,
     CreateButton,
+    WhenWhereRow,
 } from "../Buttons.jsx";
 import { RAW_CHARACTERS } from "../components/card-characters.jsx";
 import { createRng, pickFrom } from "../utils/random.js";
+import { ClockIcon, LocationIcon, LockSVG } from "../Icons.jsx";
 
 import {
     OpenHeading,
@@ -30,12 +33,14 @@ export function WorkshopModules() {
     const [modules, setModules] = useState([]);
     const [loading, setLoading] = useState(true);
     const [RSVPStatus, setRSVPStatus] = useState();
+    const [rsvpConfirmed, setRsvpConfirmed] = useState(false);
     const [createFormSelected, setCreateFormSelected] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [progressData, setProgressData] = useState([]);
     const [moduleCreateFormData, setModuleCreateFormData] = useState({moduleName: ''});
     const [moduleCreated, setModuleCreated] = useState(false);
     const [workshopName, setWorkshopName] = useState('Untitled');
+    const [workshop, setWorkshop] = useState(null);
     const [hasMaterials, setHasMaterials] = useState(false);
     const { setModuleStatus } = useContext(ProgressContext);
 
@@ -95,7 +100,13 @@ export function WorkshopModules() {
                     }
                 });
 
-                response.data.length === 1 ? setRSVPStatus(true) : setRSVPStatus(false);
+                if (response.data.length === 1) {
+                    setRSVPStatus(true);
+                    setRsvpConfirmed(response.data[0].rsvp_confirmation_status === 'confirmed');
+                } else {
+                    setRSVPStatus(false);
+                    setRsvpConfirmed(false);
+                }
 
                 console.log(`RSVP Status: ${response.data.length === 1 ? 'YES RSVP':'NO RSVP'}`)
             } catch (error) {
@@ -165,6 +176,7 @@ export function WorkshopModules() {
                 });
     
                 setModules(modulesRes.data);
+                setWorkshop(workshopRes.data[0]);
                 setWorkshopName(`${workshopRes.data[0].workshop_name} Modules`);
                 setProgressData(progressRes.data);
     
@@ -231,6 +243,34 @@ export function WorkshopModules() {
 
         fetchMaterials();
     }, [isAdmin, workshopId, accessToken, moduleCreated]);
+
+    // ── Derive whether user has completed all open modules ──
+    const allOpenModulesCompleted = useMemo(() => {
+        const openModules = modules.filter(m => m.workshop_module_status === 'open');
+        if (openModules.length === 0) return false;
+        return openModules.every(m => {
+            const progress = progressData.find(p => p.module_id === m.workshop_module_id);
+            if (!progress) return false;
+            return progress.prompt_count > 0 && progress.response_count >= progress.prompt_count;
+        });
+    }, [modules, progressData]);
+
+    // ── Workshop detail card color state ──
+    // locked = black, rsvp-ready = yellow, confirmed = green
+    const detailCardState = useMemo(() => {
+        if (RSVPStatus && rsvpConfirmed) return 'confirmed';
+        if (RSVPStatus) return 'rsvp-ready';
+        if (allOpenModulesCompleted) return 'rsvp-ready';
+        return 'locked';
+    }, [RSVPStatus, rsvpConfirmed, allOpenModulesCompleted]);
+
+    const detailCardColors = {
+        locked:     { background: '#000000', color: '#ffffff', borderColor: '#000000' },
+        'rsvp-ready': { background: '#D2A478', color: '#ffffff', borderColor: '#000000' },
+        confirmed:  { background: '#57A15E', color: '#ffffff', borderColor: '#57A15E' },
+    };
+
+    const formatDate = (datetime) => format(new Date(datetime), "EEEE 'at' h:mm a | MM-dd-yyyy");
 
     const completedModulesExists = modules.some((module) => module.workshop_module_status === 'completed');
     const openModulesExists = modules.some((module) => module.workshop_module_status === 'open');
@@ -324,6 +364,78 @@ export function WorkshopModules() {
         <>
             
             <Heading1 text={workshopName}/>
+
+            {/* ── Workshop detail card ── */}
+            {workshop && (
+                <div
+                    className="workshopCardContainer workshopDetailCard"
+                    style={{
+                        display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: '1rem',
+                        backgroundColor: detailCardColors[detailCardState].background,
+                        color: detailCardColors[detailCardState].color,
+                        borderColor: detailCardColors[detailCardState].borderColor,
+                        transition: 'background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease',
+                    }}
+                    onClick={() => {
+                        if (detailCardState === 'confirmed' || detailCardState === 'rsvp-ready') {
+                            navigate(`/workshops/${workshopId}/rsvp/${userId}`);
+                        }
+                    }}
+                >
+                    {/* Left column: workshop info */}
+                    <div style={{ flex: 1, padding: '0 1rem' }}>
+                        {workshop.workshop_date && (
+                            <WhenWhereRow
+                                icon={<ClockIcon size={14} />}
+                                label={formatDate(workshop.workshop_date)}
+                            />
+                        )}
+                        {workshop.workshop_location && (
+                            <WhenWhereRow
+                                icon={<LocationIcon size={14} />}
+                                label={`${workshop.workshop_location}${workshop.workshop_public ? '' : ' (In Studio)'}`}
+                            />
+                        )}
+                    </div>
+
+                    {/* Right column: RSVP button */}
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch', gap: '0.5rem', padding: '0 1rem', position: 'relative', zIndex: 10, flexShrink: 0 }}>
+                        {detailCardState === 'confirmed' ? (
+                            <button
+                                type="button"
+                                className="logInButton"
+                                style={{ width: '100%', marginLeft: 0 }}
+                                onClick={() => navigate(`/workshops/${workshopId}/rsvp/${userId}`)}
+                            >
+                                View RSVP
+                            </button>
+                        ) : detailCardState === 'rsvp-ready' ? (
+                            <button
+                                type="button"
+                                className="logInButton"
+                                style={{ width: '100%', marginLeft: 0 }}
+                                onClick={() => navigate(`/workshops/${workshopId}/rsvp/${userId}`)}
+                            >
+                                RSVP
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="logInButton workshopDetailCard-lockedBtn"
+                                style={{ cursor: 'default', marginLeft: 0 }}
+                                disabled
+                            >
+                                <svg width="14" height="14" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M5.5 10.5V7a6 6 0 0 1 12 0v3.5" stroke="white" strokeLinecap="round" fill="none"/>
+                                    <rect x="4.5" y="10.5" width="14" height="9" rx="1.75" stroke="white" strokeLinecap="round" fill="none"/>
+                                    <circle cx="11.5" cy="14.75" r="1.25" fill="white"/>
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {isAdmin && (
                 <div className="logInButtonContainer" style={{ marginTop: 0 }}>
                     <button
@@ -405,15 +517,30 @@ export function WorkshopModules() {
                 </>
             )}
 
-            {completedModulesExists && (<Completedheading />)}
-                {modules.map((module) => (
-                    module.workshop_module_status === 'completed' && (
-                        <CompleteButton
-                            moduleName={module.workshop_module_name}
-                            decoration={getModuleDecoration(module.workshop_module_id)}
-                        />
-                    ) 
-                ))}
+            {completedModulesExists && (
+                <>
+                    <Completedheading />
+                    {modules.map((module) => {
+                        if (module.workshop_module_status !== 'completed') return null;
+
+                        const decoration = getModuleDecoration(module.workshop_module_id);
+
+                        return (
+                            <Link
+                                key={module.workshop_module_id}
+                                to={`/workshops/${module.workshop_id}/modules/${module.workshop_module_id}/prompts/${module.first_prompt_id}`}
+                                className="linkNoUnderLine cardLink"
+                                state={{ moduleStatus: module.workshop_module_status }}
+                            >
+                                <CompleteButton
+                                    moduleName={module.workshop_module_name}
+                                    decoration={decoration}
+                                />
+                            </Link>
+                        );
+                    })}
+                </>
+            )}
 
             {pendingModulesExists && <PendingHeading />}
 	    {modules.map((module) => {

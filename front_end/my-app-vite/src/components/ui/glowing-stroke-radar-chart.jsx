@@ -37,7 +37,7 @@ const chartConfig = {
   },
 };
 
-export function GlowingStrokeRadarChart({ analysis }) {
+export function GlowingStrokeRadarChart({ analysis, dotColor = 'rgb(210,164,120)' }) {
   const rawLabels = analysis?.labels?.labels || [];
 
   if (!rawLabels.length) return null;
@@ -85,7 +85,7 @@ export function GlowingStrokeRadarChart({ analysis }) {
               }
             />
             <PolarAngleAxis dataKey="label" />
-            <PolarGrid strokeDasharray="1.5 3" stroke="rgb(210,164,120)" />
+            <PolarGrid strokeDasharray="1.5 3" stroke={dotColor} />
             <Radar
               stroke="black"
               strokeWidth={2}

@@ -822,7 +822,7 @@ export function YesNoButton({ onClickYes, onClickNo }) {
 }
 
 
-export function LogInButton({ to="/workshops" }) {
+export function LogInButton({ to="/showcases" }) {
 
     return (
         <div className="logInButtonContainer">
@@ -995,14 +995,18 @@ export function AttendeeAvatarStrip({ attendees, currentUserId }) {
   );
 }
 
-export function WorkshopCard({ workshopName, workshopLocation, workshopDate, workshopDescription, decoration }) {
+export function WorkshopCard({ workshopName, workshopLocation, workshopDate, workshopDescription, workshopPublic, decoration }) {
+  const locationLabel = workshopPublic != null
+    ? `${workshopLocation} (${workshopPublic ? 'Public' : 'In Studio'})`
+    : workshopLocation;
+
   return (
     <>
       <div className="workshopCardContainer">
         <div>
           <h1 className="workshopCardName">{workshopName}</h1>
           <WhenWhereRow icon={<ClockIcon size={14} />} label={workshopDate} />
-          <WhenWhereRow icon={<LocationIcon size={14} />} label={workshopLocation} />
+          <WhenWhereRow icon={<LocationIcon size={14} />} label={locationLabel} />
           <span id="workshopCardDescription">{workshopDescription}</span>
         </div>
 
@@ -1031,7 +1035,7 @@ export function MainNavCard({ color, text, link, decoration }) {
   );
 }
 
-export function DropDown({ responseData, options = [], onSelect, reset, onChange, disabled }) {
+export function DropDown({ responseData, options = [], onSelect, reset, onChange, disabled, value }) {
   const [isClicked, setIsClicked] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
   const [dropDownLabel, setDropDownLabel] = useState('Select an option');
@@ -1056,6 +1060,14 @@ export function DropDown({ responseData, options = [], onSelect, reset, onChange
       setDropDownLabel('Select an option');
     }
   }, [reset]);
+
+  // Sync label with controlled value prop
+  useEffect(() => {
+    if (value != null && !disabled) {
+      setSelectedOption(value);
+      setDropDownLabel(value);
+    }
+  }, [value]);
 
   // Rehydrate selection when showing a saved response
   useEffect(() => {

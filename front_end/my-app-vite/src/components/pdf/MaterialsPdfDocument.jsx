@@ -8,7 +8,7 @@ import { getExperimentsPages } from "./ExperimentsPdf.jsx";
 
 /**
  * Page header component.
- * Shows workshop name on left, material type and page number on right.
+ * Shows workshop name on left, material type on right.
  */
 function PageHeader({ workshopName, materialType }) {
   const label = materialTypeLabels[materialType] || materialType || "Material";
@@ -16,30 +16,11 @@ function PageHeader({ workshopName, materialType }) {
   return (
     <View style={styles.header} fixed>
       <Text style={styles.headerLeft}>{workshopName}</Text>
-      <View style={styles.headerRight}>
-        <Text style={styles.headerMaterialType}>{label}</Text>
-        <Text
-          style={styles.headerPageNumber}
-          render={({ pageNumber, totalPages }) =>
-            `Page ${pageNumber} of ${totalPages}`
-          }
-        />
-      </View>
+      <Text style={styles.headerMaterialType}>{label}</Text>
     </View>
   );
 }
 
-/**
- * Page footer component.
- * Shows generation date centered.
- */
-function PageFooter({ generatedDate }) {
-  return (
-    <View style={styles.footer} fixed>
-      <Text style={styles.footerText}>{formatDate(generatedDate)}</Text>
-    </View>
-  );
-}
 
 /**
  * Get page content arrays for a material based on its type.
@@ -118,20 +99,26 @@ export function MaterialsPdfDocument({
     });
   }
 
+  const dateStr = formatDate(generatedDate);
+
   return (
     <Document
       title={`${workshopName} - Materials`}
       author="MTC3 Portal"
       subject="Workshop Materials"
     >
-      {allPages.map((page) => (
+      {allPages.map((page, index) => (
         <Page key={page.key} size="LETTER" style={styles.page}>
           <PageHeader
             workshopName={workshopName}
             materialType={page.materialType}
           />
           {page.content}
-          <PageFooter generatedDate={generatedDate} />
+          {/* Footer */}
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerPageNumber}>Page {index + 1} of {allPages.length}</Text>
+            <Text style={styles.footerText}>{dateStr}</Text>
+          </View>
         </Page>
       ))}
     </Document>

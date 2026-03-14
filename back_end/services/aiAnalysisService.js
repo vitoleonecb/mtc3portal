@@ -1,4 +1,15 @@
-import { connection } from '../app.js';
+import dotenv from 'dotenv';
+import mysql from 'mysql2/promise';
+
+dotenv.config({ path: new URL('../.env', import.meta.url).pathname });
+
+const connection = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  waitForConnections: true,
+});
 
 // NOTE: This file wires prompt-level AI analysis into the backend.
 // Actual calls to an external LLM provider should be implemented

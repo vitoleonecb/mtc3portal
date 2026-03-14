@@ -48,10 +48,15 @@ export const styles = StyleSheet.create({
     bottom: 24,
     left: 54,
     right: 54,
-    textAlign: "center",
     borderTopWidth: 1,
     borderTopColor: "#cccccc",
     paddingTop: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  footerPageNumber: {
+    fontSize: 9,
+    color: "#666666",
   },
   footerText: {
     fontSize: 9,

@@ -62,11 +62,7 @@ export function WorkshopPromptsEditor() {
                 { promptDataList: promptsRef.current },
                 {headers: {'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`}}
             );
-            const responseUpdateStatus = await axios.put(
-                `${import.meta.env.VITE_API_URL}/workshops/${workshopId}/modules/${moduleId}`,
-                { newStatus: 'open' },
-                {headers: {'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`}}
-            );
+            // Module stays pending — the cycle scheduler controls status transitions
             setSubmissionSuccess(true);
         } catch (error) {
             const classification = classifyError(error, { hint: "PROMPTS_SAVE_FAILED" });

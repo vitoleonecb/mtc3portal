@@ -148,7 +148,7 @@ export function RSVP() {
             }
         };
         fetchRSVP();
-    }, [rsvpConfirmed]);
+    }, [workshopId, userId]);
 
     // Fetch confirmed attendees for horizontal avatar strip
     useEffect(() => {
@@ -229,11 +229,7 @@ export function RSVP() {
                   )}
 
                   <WhenWhereRow icon={<ClockIcon size={14} />} label={workshopDate} />
-                  <WhenWhereRow icon={<LocationIcon size={14} />} label={workshopLocation} />
-
-                  <p className="RSVPDetailText">
-                    {workshopPublic ? 'Public Workshop' : 'In Studio'}
-                  </p>
+                  <WhenWhereRow icon={<LocationIcon size={14} />} label={`${workshopLocation} (${workshopPublic ? 'Public' : 'In Studio'})`} />
                 </div>
 
                 {/* Row 3: centered QR code spanning full width */}
@@ -242,6 +238,7 @@ export function RSVP() {
                     style={{
                       gridColumn: "1 / 4",
                       gridRow: "3",
+                      marginTop: "15px",
                       marginBottom: "15px",
                       display: "flex",
                       flexDirection: "column",

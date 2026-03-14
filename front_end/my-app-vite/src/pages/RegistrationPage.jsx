@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 // UI Components
-import { Heading2 } from "../Headings.jsx";
+import { Heading1, Heading2 } from "../Headings.jsx";
 import { NextButton } from "../Buttons.jsx";
 import { AvatarCircle, AVATAR_COLORS } from "../Icons.jsx";
+import { useOverlay } from "../context/OverlayContext.jsx";
 
 // Validation helper functions
 const validateName = (value, fieldName) => {
@@ -45,8 +47,8 @@ const validatePhone = (value) => {
     if (!trimmed) return ''; // Optional field
     // Strip non-digits
     const digits = trimmed.replace(/\D/g, '');
-    if (digits.length < 10 || digits.length > 15) {
-        return 'Please enter a valid phone number (10-15 digits)';
+    if (digits.length !== 10) {
+        return 'Please enter a valid 10-digit phone number';
     }
     return '';
 };
@@ -71,6 +73,8 @@ const validateConfirmPassword = (value, password) => {
 };
 
 export function RegistrationPage() {
+    const navigate = useNavigate();
+    const { show, hide } = useOverlay();
 
     // List of objects to keep track, display and update form field responses.
     
@@ -104,9 +108,54 @@ export function RegistrationPage() {
             },
             { headers: {'Content-Type': 'application/json'} });
             console.log(`User Created: ${formData['userName']}`);
+
+            // Auto-login with the credentials just used to register
+            const loginResponse = await axios.post(
+                `${import.meta.env.VITE_API_URL}/users/login`,
+                { email: formData['email'], password: formData['userPassword1'] },
+                { headers: { 'Content-Type': 'application/json' } }
+            );
+            localStorage.setItem('accessToken', loginResponse.data.accessToken);
+
+            // Show success overlay
+            show(
+                <div className="ErrorOverlayContent">
+                    <Heading1 text="Account Created" />
+                    <Heading2 text={`Welcome, ${formData['firstName']}!`} />
+                    <div className="ErrorOverlayButtons">
+                        <button
+                            type="button"
+                            className="logInButton"
+                            onClick={() => { hide(); navigate('/showcases'); }}
+                        >
+                            Go to Showcases
+                        </button>
+                    </div>
+                </div>
+            );
         }
         catch (error) {
             console.log(`Internal Server Error: ${error}`);
+
+            const serverMsg = error.response?.data?.message
+                || error.response?.data?.error
+                || 'Something went wrong. Please try again.';
+
+            show(
+                <div className="ErrorOverlayContent">
+                    <Heading1 text="Registration Failed" />
+                    <Heading2 text={serverMsg} />
+                    <div className="ErrorOverlayButtons">
+                        <button
+                            type="button"
+                            className="logInButton"
+                            onClick={() => hide()}
+                        >
+                            Okay
+                        </button>
+                    </div>
+                </div>
+            );
         }
     }
 

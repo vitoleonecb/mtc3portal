@@ -41,7 +41,7 @@ export function LogInPage() {
             { headers: {'Content-Type': 'application/json'}});
             console.log(`Log In Response: ${JSON.stringify(response.data)}`);
             localStorage.setItem('accessToken', response.data.accessToken);
-            navigate('/workshops');
+            navigate('/showcases');
         } catch (error) {
             console.log(`Server Error: ${error}`);
             if (error.response?.status === 401) {

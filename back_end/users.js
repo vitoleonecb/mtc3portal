@@ -2,6 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
+import notificationQueue from './queues/notificationQueue.js';
 
 const SALT_ROUNDS = 10;
 
@@ -210,8 +211,153 @@ usersRouter.post('/registration', async (req, res, next) => {
                 avatar_config ? JSON.stringify(avatar_config) : null,
             ]
         );
+
+        // Enqueue email confirmation notification
+        try {
+            const newUserId = response.insertId;
+            const confirmToken = jwt.sign(
+                { user_id: newUserId, type: 'email_confirm' },
+                process.env.ACCESS_TOKEN_SECRET,
+                { expiresIn: '24h' }
+            );
+            await notificationQueue.add('confirmEmail', { userId: newUserId, email, confirmToken });
+        } catch (notifErr) {
+            console.error('Failed to enqueue confirmEmail:', notifErr.message);
+        }
+
         res.status(201).send(response);
     } catch (error) {
         res.status(500).send(`Internal Server Error: ${error}`);
+    }
+});
+
+// ── Confirm email via token ────────────────────────────────────
+usersRouter.get('/confirm-email', async (req, res) => {
+    try {
+        const { token } = req.query;
+        if (!token) return res.status(400).json({ error: 'Token required' });
+
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        if (decoded.type !== 'email_confirm') {
+            return res.status(400).json({ error: 'Invalid token type' });
+        }
+
+        await connection.execute(
+            'UPDATE users SET email_verified = TRUE WHERE user_id = ?',
+            [decoded.user_id]
+        );
+
+        return res.status(200).json({ ok: true, message: 'Email confirmed' });
+    } catch (error) {
+        return res.status(400).json({ error: `Invalid or expired token: ${error.message}` });
+    }
+});
+
+// ── Forgot password ────────────────────────────────────────────
+usersRouter.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email is required' });
+
+        const [[user]] = await connection.query(
+            'SELECT user_id, first_name FROM users WHERE email = ? LIMIT 1',
+            [email]
+        );
+
+        // Always return success to avoid leaking whether the email exists
+        if (!user) return res.status(200).json({ ok: true });
+
+        const resetToken = jwt.sign(
+            { user_id: user.user_id, type: 'password_reset' },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        await notificationQueue.add('resetPassword', {
+            userId: user.user_id,
+            email,
+            resetToken,
+        });
+
+        return res.status(200).json({ ok: true });
+    } catch (error) {
+        console.error('forgot-password error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// ── Reset password ─────────────────────────────────────────────
+usersRouter.post('/reset-password', async (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+        if (!token || !newPassword) {
+            return res.status(400).json({ error: 'Token and new password are required' });
+        }
+
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        if (decoded.type !== 'password_reset') {
+            return res.status(400).json({ error: 'Invalid token type' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+        await connection.execute(
+            'UPDATE users SET user_password = ? WHERE user_id = ?',
+            [hashedPassword, decoded.user_id]
+        );
+
+        return res.status(200).json({ ok: true, message: 'Password updated' });
+    } catch (error) {
+        return res.status(400).json({ error: `Invalid or expired token: ${error.message}` });
+    }
+});
+
+// ── GET notification settings ──────────────────────────────────
+usersRouter.get('/:id/notification-settings', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [[row]] = await connection.query(
+            'SELECT notification_settings FROM users WHERE user_id = ?',
+            [id]
+        );
+        if (!row) return res.status(404).json({ error: 'User not found' });
+
+        let settings = row.notification_settings;
+        if (typeof settings === 'string') {
+            try { settings = JSON.parse(settings); } catch { settings = {}; }
+        }
+        return res.status(200).json(settings);
+    } catch (error) {
+        return res.status(500).json({ error: `Internal Server Error: ${error.message}` });
+    }
+});
+
+// ── PUT notification settings ──────────────────────────────────
+usersRouter.put('/:id/notification-settings', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const settings = req.body;
+
+        // Validate channel
+        const validChannels = ['none', 'email', 'sms', 'both'];
+        if (!validChannels.includes(settings.channel)) {
+            return res.status(400).json({ error: 'Invalid channel value' });
+        }
+
+        // Validate sub-options are booleans
+        const boolKeys = ['module_open', 'last_day_reminder', 'materials_ready', 'workshop_rsvp', 'showcase_announcements', 'showcase_ticket'];
+        for (const key of boolKeys) {
+            if (key in settings && typeof settings[key] !== 'boolean') {
+                return res.status(400).json({ error: `${key} must be a boolean` });
+            }
+        }
+
+        await connection.execute(
+            'UPDATE users SET notification_settings = ? WHERE user_id = ?',
+            [JSON.stringify(settings), id]
+        );
+
+        return res.status(200).json({ ok: true });
+    } catch (error) {
+        return res.status(500).json({ error: `Internal Server Error: ${error.message}` });
     }
 })

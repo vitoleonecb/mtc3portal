@@ -5,7 +5,7 @@ import { Link, useLocation } from "react-router-dom";
 import { format } from "date-fns";
 
 // UI Components
-import { Heading1, Heading2 } from "../Headings.jsx";
+import { Heading1, Heading2, CurrentWorkshopHeading, UpcomingWorkshopsHeading, PastWorkshopsHeading } from "../Headings.jsx";
 import { CreateButton } from "../Buttons.jsx";
 import { DropDown } from "../Buttons.jsx";
 import { WorkshopCard } from "../Buttons.jsx";
@@ -26,6 +26,7 @@ export function WorkshopsPage() {
     const [date, setDate] = useState('');
     const [currentStep, setCurrentStep] = useState(0);
     const [submitting, setSubmitting] = useState(false);
+    const [currentRsvpStatus, setCurrentRsvpStatus] = useState(null);
     const { show } = useOverlay();
 
     // State for POST via API
@@ -89,6 +90,55 @@ export function WorkshopsPage() {
         };
         fetchAdminStatus();
         },[userId]);
+
+    // ── Derive date-based workshop groups ──
+    const { currentWorkshop, upcomingWorkshops, pastWorkshops } = useMemo(() => {
+        const now = new Date();
+
+        const future = workshopsList
+            .filter(w => new Date(w.workshop_date) >= now)
+            .sort((a, b) => new Date(a.workshop_date) - new Date(b.workshop_date));
+
+        const past = workshopsList
+            .filter(w => new Date(w.workshop_date) < now)
+            .sort((a, b) => new Date(b.workshop_date) - new Date(a.workshop_date))
+            .slice(0, 5);
+
+        return {
+            currentWorkshop: future[0] || null,
+            upcomingWorkshops: future.slice(1),
+            pastWorkshops: past,
+        };
+    }, [workshopsList]);
+
+    // ── Fetch RSVP status for the current workshop ──
+    useEffect(() => {
+        if (!currentWorkshop || !userId) {
+            setCurrentRsvpStatus(null);
+            return;
+        }
+
+        const fetchRsvp = async () => {
+            try {
+                const res = await axios.get(
+                    `${import.meta.env.VITE_API_URL}/workshops/${currentWorkshop.workshop_id}/rsvp/${userId}/status`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                if (res.data && res.data.length === 1) {
+                    const row = res.data[0];
+                    setCurrentRsvpStatus(
+                        row.rsvp_confirmation_status === "confirmed" ? "confirmed" : "unconfirmed"
+                    );
+                } else {
+                    setCurrentRsvpStatus(null);
+                }
+            } catch {
+                setCurrentRsvpStatus(null);
+            }
+        };
+
+        fetchRsvp();
+    }, [currentWorkshop, userId]);
 
     const formatDate = (datetime) => {
 
@@ -245,19 +295,64 @@ export function WorkshopsPage() {
         <>
             
             <Heading1 text="Workshops" />
-            {workshopsList.map((workshop) => (
-                <div key={workshop.workshop_id} className="cardLink">
-                  <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
-                    <WorkshopCard
-                      workshopName={workshop.workshop_name}
-                      workshopDescription={workshop.workshop_description}
-                      workshopDate={formatDate(workshop.workshop_date)}
-                      workshopLocation={workshop.workshop_location}
-                      decoration={getWorkshopDecoration(workshop.workshop_id)}
-                    />
-                  </Link>
-                </div>
-            ))}
+
+            {currentWorkshop && (
+                <>
+                    <CurrentWorkshopHeading rsvpStatus={currentRsvpStatus} />
+                    <div className="cardLink">
+                      <Link to={`/workshops/${currentWorkshop.workshop_id}/modules`} className="linkNoUnderLine">
+                        <WorkshopCard
+                          workshopName={currentWorkshop.workshop_name}
+                          workshopDescription={currentWorkshop.workshop_description}
+                          workshopDate={formatDate(currentWorkshop.workshop_date)}
+                          workshopLocation={currentWorkshop.workshop_location}
+                          workshopPublic={!!currentWorkshop.workshop_public}
+                          decoration={getWorkshopDecoration(currentWorkshop.workshop_id)}
+                        />
+                      </Link>
+                    </div>
+                </>
+            )}
+
+            {upcomingWorkshops.length > 0 && (
+                <>
+                    <UpcomingWorkshopsHeading />
+                    {upcomingWorkshops.map((workshop) => (
+                        <div key={workshop.workshop_id} className="cardLink">
+                          <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
+                            <WorkshopCard
+                              workshopName={workshop.workshop_name}
+                              workshopDescription={workshop.workshop_description}
+                              workshopDate={formatDate(workshop.workshop_date)}
+                              workshopLocation={workshop.workshop_location}
+                              workshopPublic={!!workshop.workshop_public}
+                              decoration={getWorkshopDecoration(workshop.workshop_id)}
+                            />
+                          </Link>
+                        </div>
+                    ))}
+                </>
+            )}
+
+            {pastWorkshops.length > 0 && (
+                <>
+                    <PastWorkshopsHeading />
+                    {pastWorkshops.map((workshop) => (
+                        <div key={workshop.workshop_id} className="cardLink">
+                          <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
+                            <WorkshopCard
+                              workshopName={workshop.workshop_name}
+                              workshopDescription={workshop.workshop_description}
+                              workshopDate={formatDate(workshop.workshop_date)}
+                              workshopLocation={workshop.workshop_location}
+                              workshopPublic={!!workshop.workshop_public}
+                              decoration={getWorkshopDecoration(workshop.workshop_id)}
+                            />
+                          </Link>
+                        </div>
+                    ))}
+                </>
+            )}
 
             {isAdmin && <CreateButton handleClick={handleClick}/>}
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateTokenAdmin, connection } from './app.js';
+import { authenticateToken, authenticateTokenAdmin, connection } from './app.js';
 
 export const materialsRouter = express.Router();
 
@@ -10,7 +10,8 @@ export const materialsRouter = express.Router();
 // - title, created/updated timestamps handled by DB defaults
 
 // GET all materials for a workshop (optionally filter by type)
-materialsRouter.get('/workshops/:workshopid', authenticateTokenAdmin, async (req, res) => {
+// Any authenticated user can view materials.
+materialsRouter.get('/workshops/:workshopid', authenticateToken, async (req, res) => {
   try {
     const { workshopid } = req.params;
     const { type } = req.query || {};
