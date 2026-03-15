@@ -94,12 +94,13 @@ export async function scheduleNextCycle(workshopId) {
 
     // Schedule last-day reminder ~12s before processing starts
     const reminderDelay = Math.max(0, procDelay - 12000);
-    await notificationQueue.add('lastDayReminder', { moduleId: mid, workshopId }, { delay: reminderDelay });
+    const reminderJob = await notificationQueue.add('lastDayReminder', { moduleId: mid, workshopId }, { delay: reminderDelay });
 
     jobRecords.push(
       [workshopId, mid, openJob.id, 'openModule', openAt.toDate(), 'pending'],
       [workshopId, mid, procJob.id, 'processModule', processingAt.toDate(), 'pending'],
       [workshopId, mid, compJob.id, 'completeModule', completedAt.toDate(), 'pending'],
+      [workshopId, mid, reminderJob.id, 'lastDayReminder', processingAt.toDate(), 'pending'],
     );
   }
 

@@ -18,6 +18,7 @@ import {
 import { RAW_CHARACTERS } from "../components/card-characters.jsx";
 import { createRng, pickFrom } from "../utils/random.js";
 import { ClockIcon, LocationIcon, LockSVG } from "../Icons.jsx";
+import { LockedTooltip } from "../components/ui/locked-tooltip.jsx";
 
 import {
     OpenHeading,
@@ -367,73 +368,78 @@ export function WorkshopModules() {
 
             {/* ── Workshop detail card ── */}
             {workshop && (
-                <div
-                    className="workshopCardContainer workshopDetailCard"
-                    style={{
-                        display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: '1rem',
-                        backgroundColor: detailCardColors[detailCardState].background,
-                        color: detailCardColors[detailCardState].color,
-                        borderColor: detailCardColors[detailCardState].borderColor,
-                        transition: 'background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease',
-                    }}
-                    onClick={() => {
-                        if (detailCardState === 'confirmed' || detailCardState === 'rsvp-ready') {
-                            navigate(`/workshops/${workshopId}/rsvp/${userId}`);
-                        }
-                    }}
+                <LockedTooltip
+                    message={detailCardState === 'locked' ? "Respond to all prompts in every module to unlock your RSVP." : null}
                 >
-                    {/* Left column: workshop info */}
-                    <div style={{ flex: 1, padding: '0 1rem' }}>
-                        {workshop.workshop_date && (
-                            <WhenWhereRow
-                                icon={<ClockIcon size={14} />}
-                                label={formatDate(workshop.workshop_date)}
-                            />
-                        )}
-                        {workshop.workshop_location && (
-                            <WhenWhereRow
-                                icon={<LocationIcon size={14} />}
-                                label={`${workshop.workshop_location}${workshop.workshop_public ? '' : ' (In Studio)'}`}
-                            />
-                        )}
-                    </div>
+                    <div
+                        className="workshopCardContainer workshopDetailCard"
+                        style={{
+                            display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: '1rem',
+                            backgroundColor: detailCardColors[detailCardState].background,
+                            color: detailCardColors[detailCardState].color,
+                            borderColor: detailCardColors[detailCardState].borderColor,
+                            boxShadow: detailCardState === 'locked' ? 'none' : undefined,
+                            transition: 'background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease',
+                        }}
+                        onClick={() => {
+                            if (detailCardState === 'confirmed' || detailCardState === 'rsvp-ready') {
+                                navigate(`/workshops/${workshopId}/rsvp/${userId}`);
+                            }
+                        }}
+                    >
+                        {/* Left column: workshop info */}
+                        <div style={{ flex: 1, padding: '0 1rem' }}>
+                            {workshop.workshop_date && (
+                                <WhenWhereRow
+                                    icon={<ClockIcon size={14} />}
+                                    label={formatDate(workshop.workshop_date)}
+                                />
+                            )}
+                            {workshop.workshop_location && (
+                                <WhenWhereRow
+                                    icon={<LocationIcon size={14} />}
+                                    label={`${workshop.workshop_location}${workshop.workshop_public ? '' : ' (In Studio)'}`}
+                                />
+                            )}
+                        </div>
 
-                    {/* Right column: RSVP button */}
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch', gap: '0.5rem', padding: '0 1rem', position: 'relative', zIndex: 10, flexShrink: 0 }}>
-                        {detailCardState === 'confirmed' ? (
-                            <button
-                                type="button"
-                                className="logInButton"
-                                style={{ width: '100%', marginLeft: 0 }}
-                                onClick={() => navigate(`/workshops/${workshopId}/rsvp/${userId}`)}
-                            >
-                                View RSVP
-                            </button>
-                        ) : detailCardState === 'rsvp-ready' ? (
-                            <button
-                                type="button"
-                                className="logInButton"
-                                style={{ width: '100%', marginLeft: 0 }}
-                                onClick={() => navigate(`/workshops/${workshopId}/rsvp/${userId}`)}
-                            >
-                                RSVP
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                className="logInButton workshopDetailCard-lockedBtn"
-                                style={{ cursor: 'default', marginLeft: 0 }}
-                                disabled
-                            >
-                                <svg width="14" height="14" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M5.5 10.5V7a6 6 0 0 1 12 0v3.5" stroke="white" strokeLinecap="round" fill="none"/>
-                                    <rect x="4.5" y="10.5" width="14" height="9" rx="1.75" stroke="white" strokeLinecap="round" fill="none"/>
-                                    <circle cx="11.5" cy="14.75" r="1.25" fill="white"/>
-                                </svg>
-                            </button>
-                        )}
+                        {/* Right column: RSVP button */}
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch', gap: '0.5rem', padding: '0 1rem', position: 'relative', zIndex: 10, flexShrink: 0 }}>
+                            {detailCardState === 'confirmed' ? (
+                                <button
+                                    type="button"
+                                    className="logInButton"
+                                    style={{ width: '100%', marginLeft: 0 }}
+                                    onClick={() => navigate(`/workshops/${workshopId}/rsvp/${userId}`)}
+                                >
+                                    View RSVP
+                                </button>
+                            ) : detailCardState === 'rsvp-ready' ? (
+                                <button
+                                    type="button"
+                                    className="logInButton"
+                                    style={{ width: '100%', marginLeft: 0 }}
+                                    onClick={() => navigate(`/workshops/${workshopId}/rsvp/${userId}`)}
+                                >
+                                    RSVP
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="logInButton workshopDetailCard-lockedBtn"
+                                    style={{ cursor: 'default', marginLeft: 0 }}
+                                    disabled
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M5.5 10.5V7a6 6 0 0 1 12 0v3.5" stroke="currentColor" strokeLinecap="round" fill="none"/>
+                                        <rect x="4.5" y="10.5" width="14" height="9" rx="1.75" stroke="currentColor" strokeLinecap="round" fill="none"/>
+                                        <circle cx="11.5" cy="14.75" r="1.25" fill="currentColor"/>
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </div>
+                </LockedTooltip>
             )}
 
             {isAdmin && (

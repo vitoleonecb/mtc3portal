@@ -578,19 +578,43 @@ div.progressContainer {
   stroke: white;
 }
 
+/* Lock button SVG inherits color from the button, not the card */
+.workshopDetailCard-lockedBtn svg path,
+.workshopDetailCard-lockedBtn svg circle,
+.workshopDetailCard-lockedBtn svg rect {
+  stroke: currentColor;
+  fill: none;
+}
+
+.workshopDetailCard-lockedBtn svg circle:last-child {
+  fill: currentColor;
+  stroke: none;
+}
+
 .workshopDetailCard .logInButton {
   color: black;
 }
 
-/* Locked RSVP button: white background, no disabled dimming.
-   The lock SVG is hardcoded white so it never inherits color changes. */
-.workshopDetailCard-lockedBtn,
-.workshopDetailCard-lockedBtn:disabled,
-.workshopDetailCard-lockedBtn:disabled:hover {
+/* Locked RSVP button: white bg + black icon by default.
+   On hover (button or parent card) → gray bg + white icon. */
+.workshopDetailCard .workshopDetailCard-lockedBtn,
+.workshopDetailCard .workshopDetailCard-lockedBtn:disabled,
+.workshopDetailCard .workshopDetailCard-lockedBtn:disabled:hover {
   background-color: white;
+  color: black;
   opacity: 1;
   box-shadow: -4px 4px black;
   border-color: black;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+.workshopDetailCard .workshopDetailCard-lockedBtn:hover,
+.workshopDetailCard:hover .workshopDetailCard-lockedBtn {
+  background-color: #888;
+  color: white;
+  box-shadow: -4px 4px black;
+  border-color: black;
+  cursor: default;
 }
 
 .workshopDetailCard:hover {
@@ -606,6 +630,18 @@ div.progressContainer {
 .workshopDetailCard:hover svg rect,
 .workshopDetailCard:hover svg polyline {
   stroke: white;
+}
+
+/* On card hover the locked button flips to white icon via color */
+.workshopDetailCard:hover .workshopDetailCard-lockedBtn svg path,
+.workshopDetailCard:hover .workshopDetailCard-lockedBtn svg circle,
+.workshopDetailCard:hover .workshopDetailCard-lockedBtn svg rect {
+  stroke: currentColor;
+}
+
+.workshopDetailCard:hover .workshopDetailCard-lockedBtn svg circle:last-child {
+  fill: currentColor;
+  stroke: none;
 }
 
 .workshopDetailCard:hover .logInButton:not(.logInButton--pressed):not(.workshopDetailCard-lockedBtn) {
@@ -654,6 +690,39 @@ div.progressContainer {
   text-align: left;
   margin-right: auto;
   width: 90%;
+}
+
+/* ── Reusable locked-content tooltip ── */
+.lockedTooltipWrapper {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.lockedTooltipBubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: normal;
+  width: max-content;
+  max-width: 220px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: black;
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 50;
+  animation: lockedTooltipFadeIn 0.15s ease;
+}
+
+@keyframes lockedTooltipFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* When/Where row used in workshop and RSVP cards */
@@ -2448,7 +2517,16 @@ select.dropDown {
 .mysql-picker,
 .AdminAnalysisContainer,
 .AiAnalysisContainer,
-.headerBackground {
+.headerBackground,
+.homepageFeaturedPrompt,
+.homepageRunnerFrame,
+.homepageLoggedInCTA,
+.homepageStats,
+.homepageCTAs,
+.typewriterContainer,
+.buttonWallGrid,
+.descriptionTabsContainer,
+.analyticsShowcase {
   width: var(--element-width);
   transition: width .5s ease;
 }
@@ -2894,4 +2972,442 @@ margin-top: 2px;
 .mysql-picker .rdp-button:focus-visible {
   outline: 2px solid #000;
   outline-offset: 2px;
+}
+
+/* ============================================================
+   HOMEPAGE
+   ============================================================ */
+
+.homepageSection {
+  margin-bottom: 60px;
+}
+
+.homepageHero {
+  text-align: center;
+}
+
+/* Community stats bar */
+.homepageStats {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  margin: 2rem auto 2.5rem;
+}
+
+.homepageStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.homepageStatNumber {
+  font-family: sans-serif;
+  font-weight: 600;
+  font-size: 2.5rem;
+  line-height: 1.1;
+}
+
+.homepageStatLabel {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 4px;
+}
+
+/* Featured prompt card */
+.homepageFeaturedPrompt {
+  border: 1px solid black;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  padding: 1.5rem;
+  margin: 0 auto 2rem;
+}
+
+.homepageFeaturedCTA {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.9rem;
+  color: #555;
+  text-align: center;
+  margin-top: 1rem;
+}
+
+/* CTA button row */
+.homepageCTAs {
+  display: flex;
+  justify-content: space-evenly;
+  margin: 1.5rem auto 1rem;
+}
+
+.homepageCTAs .logInButtonContainer {
+  width: auto;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* ---------- Typewriter Ticker ---------- */
+.typewriterContainer {
+  background-color: #000;
+  color: #fff;
+  border-radius: 20px;
+  box-shadow: -4px 4px rgba(0,0,0,0.3);
+  padding: 2rem 1.5rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 10rem;
+  overflow: hidden;
+}
+
+.typewriterSlot {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.typewriterCursor {
+  display: inline-block;
+  animation: typewriterBlink 0.6s step-end infinite;
+  margin-left: 1px;
+}
+
+@keyframes typewriterBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ---------- Interactive Button Wall ---------- */
+.buttonWallGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 0 auto;
+}
+
+.buttonWallCell {
+  border: 1px solid black;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  padding: 1rem;
+}
+
+.buttonWallCell--open {
+  grid-column: span 2;
+}
+
+.buttonWallLabel {
+  display: block;
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.85rem;
+  color: #555;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Reset children that inherit --element-width inside homepage containers */
+.homepageFeaturedPrompt .Heading1,
+.homepageFeaturedPrompt .Heading2,
+.homepageFeaturedPrompt .ModuleQuestion,
+.homepageFeaturedPrompt .multipleChoiceButton,
+.homepageFeaturedPrompt .checkBoxButton,
+.homepageFeaturedPrompt .OpenResponse,
+.homepageFeaturedPrompt .ShortResponseArea,
+.homepageFeaturedPrompt .StarContainer,
+.homepageFeaturedPrompt .dropDownButton,
+.homepageFeaturedPrompt .dropDownOptionsBox,
+.homepageFeaturedPrompt .DragAndDropContainer {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Override default element-width centering inside wall cells */
+.buttonWallCell .multipleChoiceButton,
+.buttonWallCell .checkBoxButton,
+.buttonWallCell .OpenResponse,
+.buttonWallCell .ShortResponseArea,
+.buttonWallCell .DragAndDropContainer,
+.buttonWallCell .DragAndDropKeyContainer {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.buttonWallCell .StarContainer {
+  justify-content: flex-start;
+  margin-left: 0;
+}
+
+.buttonWallCell .dropDownContainer,
+.buttonWallCell .dropDownButton,
+.buttonWallCell .dropDownOptionsBox {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Reset children inside analytics showcase */
+.analyticsShowcase .charting {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* ---------- Description Tabs ---------- */
+.descriptionTabsContainer {
+  border: 1px solid black;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  padding: 1.5rem;
+  margin: 0 auto;
+}
+
+.descriptionTabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.descriptionTab {
+  font-size: 0.85rem !important;
+  padding: 0.5rem 1rem !important;
+  min-height: auto !important;
+}
+
+.descriptionContentArea {
+  position: relative;
+  min-height: 12rem;
+}
+
+.descriptionPanel {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.descriptionBody {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.descriptionDiagram {
+  border: 2px dashed #D9D9D9;
+  border-radius: 16px;
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 6rem;
+  background-color: #faf7f2;
+}
+
+.descriptionDiagramText {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.9rem;
+  color: #999;
+  text-align: center;
+}
+
+/* ---------- Homepage Module Runner Frame ---------- */
+.homepageRunnerFrame {
+  border: 1px solid black;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  padding: 0;
+  margin: 0 auto;
+  overflow: hidden;
+  min-height: 20rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.homepageRunnerHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.homepageRunnerModuleLabel {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  color: #555;
+}
+
+.homepageRunnerContent {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+.homepageRunnerNav {
+  display: flex;
+  justify-content: space-evenly;
+  padding: 1rem 1.5rem;
+  gap: 1rem;
+}
+
+.homepageRunnerNav .logInButtonContainer {
+  width: auto;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.homepageRunnerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+
+.homepageRunnerMetaItem {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.homepageRunnerModules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+}
+
+.homepageRunnerModuleItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid #D9D9D9;
+  border-radius: 12px;
+}
+
+.homepageRunnerModuleName {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 1rem;
+}
+
+.homepageRunnerModuleCount {
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.homepageRunnerLandingCTA {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.homepageRunnerLandingCTA .logInButtonContainer {
+  width: auto;
+  margin: 0;
+}
+
+.homepageEmailCapture {
+  margin-top: 1.5rem;
+}
+
+.homepageEmailCapture .textInput {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 1rem;
+}
+
+/* Logged-in CTA card */
+.homepageLoggedInCTA {
+  border: 1px solid black;
+  border-radius: 20px;
+  box-shadow: -4px 4px black;
+  background-color: white;
+  padding: 1.5rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Reset child element-width inside runner frame */
+.homepageRunnerFrame .Heading1,
+.homepageRunnerFrame .Heading2,
+.homepageRunnerFrame .ModuleQuestion,
+.homepageRunnerFrame .multipleChoiceButton,
+.homepageRunnerFrame .checkBoxButton,
+.homepageRunnerFrame .OpenResponse,
+.homepageRunnerFrame .ShortResponseArea,
+.homepageRunnerFrame .StarContainer,
+.homepageRunnerFrame .dropDownButton,
+.homepageRunnerFrame .dropDownOptionsBox,
+.homepageRunnerFrame .DragAndDropContainer,
+.homepageRunnerFrame .DragAndDropKeyContainer,
+.homepageRunnerFrame .ScriptSample,
+.homepageRunnerFrame .ScriptSampleRate {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Reset child element-width inside logged-in CTA card */
+.homepageLoggedInCTA .Heading2,
+.homepageLoggedInCTA .logInButtonContainer {
+  width: auto;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* ---------- Analytics Showcase ---------- */
+.analyticsShowcase {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 0 auto;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 600px) {
+  .buttonWallGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .buttonWallCell--open {
+    grid-column: span 1;
+  }
+
+  .homepageStats {
+    gap: 1rem;
+  }
+
+  .homepageStatNumber {
+    font-size: 1.8rem;
+  }
+
+  .descriptionTabBar {
+    gap: 0.35rem;
+  }
+
+  .descriptionTab {
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.6rem !important;
+  }
 }

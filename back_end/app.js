@@ -15,6 +15,7 @@ import { materialsRouter } from "./materials.js";
 import { cycleRouter } from "./cycleScheduler.js";
 import { stripeRouter } from "./stripe.js";
 import { showcasesRouter } from "./showcases.js";
+import { homepageRouter } from "./homepage.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +54,7 @@ app.use('/api/materials', materialsRouter);
 app.use('/api/cycle', cycleRouter);
 app.use('/api/stripe', stripeRouter);
 app.use('/api/showcases', showcasesRouter);
+app.use('/api/homepage', homepageRouter);
 
 export async function authenticateToken(req, res, next) {
     await verifyToken(req, res, next, false);

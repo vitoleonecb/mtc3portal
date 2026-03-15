@@ -178,12 +178,13 @@ cycleRouter.post('/start/:workshopId', authenticateTokenAdmin, async (req, res) 
 
       // Schedule last-day reminder ~12s before processing starts
       const reminderDelay = Math.max(0, procDelay - 12000);
-      await notificationQueue.add('lastDayReminder', { moduleId: mid, workshopId: Number(workshopId) }, { delay: reminderDelay });
+      const reminderJob = await notificationQueue.add('lastDayReminder', { moduleId: mid, workshopId: Number(workshopId) }, { delay: reminderDelay });
 
       jobRecords.push(
         [workshopId, mid, openJob.id, 'openModule', openAt.toDate(), 'pending'],
         [workshopId, mid, procJob.id, 'processModule', processingAt.toDate(), 'pending'],
         [workshopId, mid, compJob.id, 'completeModule', completedAt.toDate(), 'pending'],
+        [workshopId, mid, reminderJob.id, 'lastDayReminder', processingAt.toDate(), 'pending'],
       );
     }
 
@@ -288,19 +289,23 @@ cycleRouter.get('/validate/:workshopId', authenticateTokenAdmin, async (req, res
 
 // ── Helpers ────────────────────────────────────────────────────────
 
+/** Job names that live on the notificationQueue rather than moduleQueue. */
+const NOTIFICATION_JOB_NAMES = new Set(['lastDayReminder']);
+
 /**
  * Cancel all pending BullMQ jobs for a workshop and mark them cancelled in DB.
  */
 async function cancelExistingJobs(workshopId) {
   const [pendingJobs] = await connection.query(
-    'SELECT bullmq_job_id FROM cycle_jobs WHERE workshop_id = ? AND status = "pending"',
+    'SELECT bullmq_job_id, job_name FROM cycle_jobs WHERE workshop_id = ? AND status = "pending"',
     [workshopId]
   );
 
   let cancelled = 0;
   for (const row of pendingJobs) {
     try {
-      const job = await moduleQueue.getJob(row.bullmq_job_id);
+      const queue = NOTIFICATION_JOB_NAMES.has(row.job_name) ? notificationQueue : moduleQueue;
+      const job = await queue.getJob(row.bullmq_job_id);
       if (job) {
         await job.remove();
         cancelled++;

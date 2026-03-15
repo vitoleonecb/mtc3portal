@@ -235,7 +235,18 @@ workshopsRouter.post('/rsvp/create', authenticateToken, async (req, res, next) =
             'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?,?)',
             [user_id, workshop_id]
         );
-        res.status(203).send(`RSVP Created Succesfully`);
+
+        // Enqueue RSVP notification (email / SMS based on user prefs)
+        try {
+            await notificationQueue.add('workshopRsvpUnconfirmed', {
+                userId: user_id,
+                workshopId: Number(workshop_id),
+            });
+        } catch (notifErr) {
+            console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
+        }
+
+        res.status(201).send(`RSVP Created Successfully`);
     } catch (error) {
         res.status(500).send(`Server Error: ${error}`)
     }

@@ -117,6 +117,31 @@ export function RegistrationPage() {
             );
             localStorage.setItem('accessToken', loginResponse.data.accessToken);
 
+            // Submit any stashed guest responses from the homepage runner
+            try {
+                const stashed = sessionStorage.getItem('guestResponses');
+                if (stashed) {
+                    const { workshopId, responses } = JSON.parse(stashed);
+                    if (Array.isArray(responses) && responses.length > 0) {
+                        const token = loginResponse.data.accessToken;
+                        for (const r of responses) {
+                            try {
+                                await axios.post(
+                                    `${import.meta.env.VITE_API_URL}/workshops/${workshopId}/modules/0/prompts/${r.promptId}/response`,
+                                    { workshop_response_content: r.content, prompt_template_id: r.templateId },
+                                    { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+                                );
+                            } catch (respErr) {
+                                console.error('Failed to save stashed response:', r.promptId, respErr);
+                            }
+                        }
+                    }
+                    sessionStorage.removeItem('guestResponses');
+                }
+            } catch (stashErr) {
+                console.error('Error processing stashed responses:', stashErr);
+            }
+
             // Show success overlay
             show(
                 <div className="ErrorOverlayContent">

@@ -189,8 +189,55 @@ usersRouter.post('/registration', async (req, res, next) => {
     try {
         console.log(req.body);
         const {username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config} = req.body;
+
+        // Check for existing username (always reject if taken by another user)
         const [userNameRows] = await connection.query('SELECT * FROM users WHERE username = ?', [username]);
-        const [emailRows] = await connection.query('SELECT * FROM users WHERE email = ?', [email]);
+        const [emailRows] = await connection.query('SELECT user_id, user_type FROM users WHERE email = ?', [email]);
+
+        // --- Guest account upgrade path ---
+        // If the email belongs to an existing guest account, upgrade it
+        // instead of rejecting as a duplicate.
+        if (emailRows.length > 0 && emailRows[0].user_type === 'guest') {
+            // Make sure the chosen username isn't already taken by someone else
+            if (userNameRows.length > 0 && userNameRows[0].user_id !== emailRows[0].user_id) {
+                return res.status(400).send('username already exists');
+            }
+
+            const guestUserId = emailRows[0].user_id;
+            const hashedPassword = await bcrypt.hash(user_password, SALT_ROUNDS);
+
+            await connection.query(
+                `UPDATE users SET username = ?, first_name = ?, last_name = ?,
+                 user_password = ?, user_type = ?, user_phone = ?, avatar_config = ?
+                 WHERE user_id = ?`,
+                [
+                    username,
+                    first_name,
+                    last_name,
+                    hashedPassword,
+                    user_type || 'user',
+                    user_phone,
+                    avatar_config ? JSON.stringify(avatar_config) : null,
+                    guestUserId,
+                ]
+            );
+
+            // Enqueue email confirmation
+            try {
+                const confirmToken = jwt.sign(
+                    { user_id: guestUserId, type: 'email_confirm' },
+                    process.env.ACCESS_TOKEN_SECRET,
+                    { expiresIn: '24h' }
+                );
+                await notificationQueue.add('confirmEmail', { userId: guestUserId, email, confirmToken });
+            } catch (notifErr) {
+                console.error('Failed to enqueue confirmEmail:', notifErr.message);
+            }
+
+            return res.status(201).send({ insertId: guestUserId, affectedRows: 1 });
+        }
+
+        // --- Standard registration (no guest to upgrade) ---
         if (userNameRows.length > 0 || emailRows.length > 0) {
             return res.status(400).send('username or email already exists');
         }
