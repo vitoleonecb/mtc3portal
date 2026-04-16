@@ -18,6 +18,7 @@ import { showcaseTicketEmail } from '../templates/emails/showcaseTicket.js';
 import { newShowcaseEmail } from '../templates/emails/newShowcase.js';
 import { confirmEmailTemplate } from '../templates/emails/confirmEmail.js';
 import { resetPasswordEmail } from '../templates/emails/resetPassword.js';
+import { guestRegistrationInviteEmail } from '../templates/emails/guestRegistrationInvite.js';
 
 dotenv.config({ path: '../.env' });
 
@@ -433,6 +434,23 @@ const notificationWorker = new Worker(
           userName, resetUrl, userId,
         });
         // Always send, no preference check
+        await sendEmail(email, subject, html);
+        break;
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // 10. Guest Registration Invite
+      // ═══════════════════════════════════════════════════════
+      case 'guestRegistrationInvite': {
+        const { userId, email } = job.data;
+        const user = await getUserById(userId);
+        const userName = user?.first_name || 'there';
+
+        const registerUrl = `${APP_BASE_URL}/register?guest=${userId}&email=${encodeURIComponent(email)}`;
+        const { subject, html } = guestRegistrationInviteEmail({
+          userName, email, registerUrl, userId,
+        });
+        // Transactional email — send directly, no preference check
         await sendEmail(email, subject, html);
         break;
       }

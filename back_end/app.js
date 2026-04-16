@@ -69,6 +69,7 @@ const authHeader = req.headers['authorization'];
 const token = authHeader && authHeader.split(' ')[1];
 
 if (!token) {
+    console.warn(`[auth] rejected: reason=no_token, route=${req.originalUrl}, method=${req.method}`);
     return res.status(401).send('No Access Token Provided');
 }
 
@@ -82,6 +83,7 @@ try {
     );
 
     if (!userRow) {
+    console.warn(`[auth] rejected: reason=user_not_found, route=${req.originalUrl}, email=${decoded.email}`);
     return res.status(403).send('Invalid user');
     }
 
@@ -89,6 +91,7 @@ try {
 
     // If this route requires admin, enforce it
     if (requireAdmin && !isAdmin) {
+    console.warn(`[auth] rejected: reason=admin_required, route=${req.originalUrl}, userId=${userRow.user_id}`);
     return res.status(403).send('Access Denied: admin privileges required');
     }
 
@@ -101,6 +104,7 @@ try {
 
     next();
 } catch (error) {
+    console.warn(`[auth] rejected: reason=invalid_token, route=${req.originalUrl}, error=${error.message}`);
     return res.status(403).send(`Invalid Token: ${error.message}`);
 }
 }
@@ -114,8 +118,23 @@ app.get('/health', (req,res)=>res.json({ ok:true, env:{
 // the DB pool (e.g. AI analysis scripts) can set DISABLE_APP_LISTEN=true
 // *before* importing any modules that depend on this file.
 if (!process.env.DISABLE_APP_LISTEN) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server Listening on ${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(
+        `\n[FATAL] Port ${PORT} is already in use. ` +
+        `Another instance is likely already running.\n` +
+        `  → Run "lsof -i :${PORT}" to see what owns this port.\n` +
+        `  → Or "pm2 ls" to check running processes.\n`
+      );
+      // Exit 0 so PM2 stop_exit_codes can prevent restart loops
+      process.exit(0);
+    }
+    console.error('Server startup error:', err);
+    process.exit(1);
   });
 }
 

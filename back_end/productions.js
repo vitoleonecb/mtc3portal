@@ -6,8 +6,13 @@ export const productionsRouter = express.Router();
 
 // Get All Productions
 productionsRouter.get('', authenticateToken, async (req, res, next) => {
-    const [rows] = await connection.query('SELECT * FROM productions');
-    res.status(200).send(rows);
+    try {
+        const [rows] = await connection.query('SELECT * FROM productions');
+        res.status(200).send(rows);
+    } catch (error) {
+        console.error(`[error] GET /productions:`, error.message);
+        res.status(500).send(`Internal Server Error: ${error}`);
+    }
 });
 
 productionsRouter.get('/:productionid/modules', authenticateToken, async (req, res, next) => {
@@ -16,6 +21,7 @@ productionsRouter.get('/:productionid/modules', authenticateToken, async (req, r
         const [rows] = await connection.query('SELECT * FROM production_modules WHERE production_id = ?', [productionid]);
         res.status(200).send(rows);
     } catch(error) {
+        console.error(`[error] GET /productions/${req.params.productionid}/modules:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -35,6 +41,7 @@ productionsRouter.get('/:productionid/modules/:productionmoduleid/prompts', auth
         res.status(200).send(productionModulePromptRows);
 
     } catch(error) {
+        console.error(`[error] GET /productions/${req.params.productionid}/modules/${req.params.productionmoduleid}/prompts:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -68,6 +75,7 @@ productionsRouter.post('/:productionid/module/:productionmoduleid/prompts/:produ
         res.status(201).send('Response succesfully added.');
 
     } catch(error) {
+        console.error(`[error] POST /productions response: productionId=${req.params.productionid}, promptId=${req.params.productionpromptid}`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });

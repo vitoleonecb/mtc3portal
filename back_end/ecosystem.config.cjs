@@ -4,6 +4,9 @@ module.exports = {
       name: 'api',
       script: 'app.js',
       node_args: '--experimental-specifier-resolution=node',
+      stop_exit_codes: [0],
+      max_restarts: 10,
+      min_uptime: '5s',
     },
     {
       name: 'module-worker',

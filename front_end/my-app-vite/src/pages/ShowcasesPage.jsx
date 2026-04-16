@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
 import { CreateButton } from "../Buttons.jsx";
 import { ShowcaseCard } from "../components/ShowcaseCard.jsx";
 import { MysqlDateInput } from "../DateInput.jsx";
+import { RAW_CHARACTERS } from "../components/card-characters.jsx";
+import { createRng, pickFrom } from "../utils/random.js";
 
 export function ShowcasesPage() {
     const [showcases, setShowcases] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
+    const { key: locationKey } = useLocation();
 
     // ── Showcase creation form state ──
     const [showcaseFormOpen, setShowcaseFormOpen] = useState(false);
@@ -147,10 +150,50 @@ export function ShowcasesPage() {
         }
     }
 
+    // ── Random card decorations (same pattern as WorkshopsPage) ──
+    const showcaseDecorations = useMemo(() => {
+        const DECORATION_PROB = 0.25;
+        const placements = [
+            "cardDecoration-top-right",
+            "cardDecoration-top-left",
+            "cardDecoration-edge-right",
+            "cardDecoration-edge-left",
+        ];
+        const map = {};
+        showcases.forEach((showcase) => {
+            const rng = createRng(`showcase-${showcase.showcase_id}-${locationKey}`);
+            if (rng() < DECORATION_PROB) {
+                const placement = pickFrom(rng, placements);
+                if (!placement) return;
+                const RawChar = pickFrom(rng, RAW_CHARACTERS);
+                if (RawChar) {
+                    const bigChance = 0.1;
+                    let scale;
+                    if (rng() < bigChance) {
+                        const t = rng();
+                        scale = 1.4 + t * 1.0;
+                    } else {
+                        const t = rng();
+                        scale = 0.2 + (t * t) * 1.0;
+                    }
+                    map[showcase.showcase_id] = (
+                        <div
+                            className={`cardDecoration ${placement}`}
+                            style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}
+                        >
+                            <RawChar />
+                        </div>
+                    );
+                }
+            }
+        });
+        return map;
+    }, [showcases, locationKey]);
+
     const renderShowcaseCard = (showcase) => (
         <div key={showcase.showcase_id} className="cardLink">
             <Link to={`/showcases/${showcase.showcase_id}`} className="linkNoUnderLine">
-                <ShowcaseCard showcase={showcase} />
+                <ShowcaseCard showcase={showcase} decoration={showcaseDecorations[showcase.showcase_id] || null} />
             </Link>
         </div>
     );

@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // UI Components
 import { Heading1, Heading2 } from "../Headings.jsx";
@@ -8,7 +8,10 @@ import { NextButton } from "../Buttons.jsx";
 import { AvatarCircle, AVATAR_COLORS } from "../Icons.jsx";
 import { useOverlay } from "../context/OverlayContext.jsx";
 
-// Validation helper functions
+// Shared validation helpers
+import { validateEmail, validatePassword, validateConfirmPassword } from "../utils/validation.js";
+
+// Local validation helpers
 const validateName = (value, fieldName) => {
     const trimmed = value.trim();
     if (!trimmed) return `${fieldName} is required`;
@@ -17,16 +20,6 @@ const validateName = (value, fieldName) => {
     if (!/^[\p{L}\s'-]+$/u.test(trimmed)) {
         return `${fieldName} can only contain letters, spaces, hyphens, and apostrophes`;
     }
-    return '';
-};
-
-const validateEmail = (value) => {
-    const trimmed = value.trim();
-    if (!trimmed) return 'Email address is required';
-    if (trimmed.length > 254) return 'Email address is too long';
-    // Basic email regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmed)) return 'Please enter a valid email address';
     return '';
 };
 
@@ -53,58 +46,84 @@ const validatePhone = (value) => {
     return '';
 };
 
-const validatePassword = (value) => {
-    if (!value) return 'Password is required';
-    if (value.length < 8) return 'Password must be at least 8 characters';
-    if (value.length > 128) return 'Password must be 128 characters or less';
-    if (!/[A-Z]/.test(value)) return 'Password must contain at least one uppercase letter';
-    if (!/[a-z]/.test(value)) return 'Password must contain at least one lowercase letter';
-    if (!/[0-9]/.test(value)) return 'Password must contain at least one number';
-    if (!/[!@#$%^&*()_+\-=[\]{}|;:',.<>?/]/.test(value)) {
-        return 'Password must contain at least one special character';
-    }
-    return '';
+// Notification sub-option definitions (mirrors Settings.jsx)
+const NOTIF_SUB_OPTIONS = [
+    { key: 'module_open', label: 'Module opened' },
+    { key: 'last_day_reminder', label: 'Last day to submit' },
+    { key: 'materials_ready', label: 'Materials ready' },
+    { key: 'workshop_rsvp', label: 'Workshop RSVP' },
+    { key: 'showcase_announcements', label: 'New showcases' },
+    { key: 'showcase_ticket', label: 'Showcase ticket confirmation' },
+];
+
+const DEFAULT_NOTIF_SETTINGS = {
+    channel: 'email',
+    module_open: true,
+    last_day_reminder: true,
+    materials_ready: true,
+    workshop_rsvp: true,
+    showcase_announcements: true,
+    showcase_ticket: true,
 };
 
-const validateConfirmPassword = (value, password) => {
-    if (!value) return 'Please confirm your password';
-    if (value !== password) return 'Passwords do not match';
-    return '';
-};
+const ALL_STEPS = [
+    {key: 'firstName', label: 'first name'},
+    {key: 'lastName', label: 'last name'},
+    {key: 'email', label: 'email', type: 'email'},
+    {key: 'userName', label: 'username'},
+    {key: 'avatar', label: 'choose your avatar'},
+    {key: 'notifications', label: 'notification preferences'},
+    {key: 'userPassword1', label: 'Choose a password', type: 'password'},
+    {key: 'userPassword2', label: 'Confirm your password', type: 'password'}
+];
 
 export function RegistrationPage() {
     const navigate = useNavigate();
     const { show, hide } = useOverlay();
+    const [searchParams] = useSearchParams();
 
-    // List of objects to keep track, display and update form field responses.
-    
-    const steps = [
-        {key: 'firstName', label: 'first name'},
-        {key: 'lastName', label: 'last name'},
-        {key: 'email', label: 'email', type: 'email'},
-        {key: 'userName', label: 'username'},
-        {key: 'avatar', label: 'choose your avatar'},
-        {key: 'userPhone', label: 'Phone Number (optional, used for text updates)'},
-        {key: 'userPassword1', label: 'Choose a password', type: 'password'},
-        {key: 'userPassword2', label: 'Confirm your password', type: 'password'}
-    ];
+    // Guest-upgrade mode: detect ?guest=<userId>
+    const guestUserId = searchParams.get('guest');
+    const isGuestUpgrade = !!guestUserId;
+
+    // Pre-fill email from sessionStorage (homepage runner) or URL param (email link fallback)
+    const guestEmail = useMemo(() => {
+        const fromSession = sessionStorage.getItem('guestEmail');
+        if (fromSession) return fromSession;
+        return searchParams.get('email') || '';
+    }, []);
+
+    // In guest-upgrade mode, skip the email step (already set on the guest record)
+    const steps = useMemo(() => {
+        if (isGuestUpgrade) {
+            return ALL_STEPS.filter(s => s.key !== 'email');
+        }
+        return ALL_STEPS;
+    }, [isGuestUpgrade]);
 
     const handleSubmit = async () => {
         try {
-            // Debug: log the exact avatar_config we are about to persist
             console.log('[Registration] Submitting avatar_config:', avatarConfig);
+
+            // Use guest email for upgrade mode, otherwise use form email
+            const submittedEmail = isGuestUpgrade ? guestEmail : formData['email'];
+
+            // Derive phone from notification step
+            const phone = notifSettings.channel === 'sms' || notifSettings.channel === 'both'
+                ? formData['userPhone'] || ''
+                : '';
 
             await axios.post(`${import.meta.env.VITE_API_URL}/users/registration`,
             {
                 username: formData['userName'],
-                email: formData['email'],
+                email: submittedEmail,
                 first_name: formData['firstName'],
                 last_name: formData['lastName'],
                 user_password: formData['userPassword1'],
                 user_type: formData['userType'],
-                user_phone: formData['userPhone'],
-                // Persist avatar configuration as JSON on the user record
+                user_phone: phone,
                 avatar_config: avatarConfig,
+                notification_settings: notifSettings,
             },
             { headers: {'Content-Type': 'application/json'} });
             console.log(`User Created: ${formData['userName']}`);
@@ -112,7 +131,7 @@ export function RegistrationPage() {
             // Auto-login with the credentials just used to register
             const loginResponse = await axios.post(
                 `${import.meta.env.VITE_API_URL}/users/login`,
-                { email: formData['email'], password: formData['userPassword1'] },
+                { email: submittedEmail, password: formData['userPassword1'] },
                 { headers: { 'Content-Type': 'application/json' } }
             );
             localStorage.setItem('accessToken', loginResponse.data.accessToken);
@@ -141,6 +160,9 @@ export function RegistrationPage() {
             } catch (stashErr) {
                 console.error('Error processing stashed responses:', stashErr);
             }
+
+            // Clean up guest sessionStorage
+            sessionStorage.removeItem('guestEmail');
 
             // Show success overlay
             show(
@@ -191,6 +213,7 @@ export function RegistrationPage() {
     const [stepIndex, setStepIndex] = useState(0);
     const [error, setError] = useState('');
     const [isValidating, setIsValidating] = useState(false);
+    const [notifSettings, setNotifSettings] = useState(DEFAULT_NOTIF_SETTINGS);
 
     // Avatar config: random initial selection, adjustable via counters
     const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -249,8 +272,13 @@ const [avatarConfig, setAvatarConfig] = useState(() => {
             }
             case 'avatar':
                 return ''; // Always valid
-            case 'userPhone':
-                return validatePhone(value);
+            case 'notifications': {
+                // If text updates enabled, validate phone
+                if (notifSettings.channel === 'sms' || notifSettings.channel === 'both') {
+                    return validatePhone(formData.userPhone);
+                }
+                return '';
+            }
             case 'userPassword1':
                 return validatePassword(value);
             case 'userPassword2':
@@ -332,11 +360,106 @@ const [avatarConfig, setAvatarConfig] = useState(() => {
     });
     const centerColor = AVATAR_COLORS[avatarConfig.centerColorIndex % AVATAR_COLORS.length];
 
+    // Notification step helpers
+    const notificationsEnabled = notifSettings.channel !== 'none';
+    const textEnabled = notifSettings.channel === 'sms' || notifSettings.channel === 'both';
+
+    const toggleNotifications = () => {
+        setNotifSettings(prev => ({
+            ...prev,
+            channel: prev.channel === 'none' ? 'email' : 'none',
+        }));
+    };
+
+    const toggleTextUpdates = () => {
+        setNotifSettings(prev => {
+            if (prev.channel === 'both' || prev.channel === 'sms') {
+                // Turn off text → email only
+                return { ...prev, channel: 'email' };
+            } else {
+                // Turn on text → both
+                return { ...prev, channel: 'both' };
+            }
+        });
+    };
+
+    const toggleSubOption = (key) => {
+        setNotifSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
     return (
         <>
             <Heading2 text={currentStep.label}/>
 
-            {currentStep.key === 'avatar' ? (
+            {currentStep.key === 'notifications' ? (
+                <>
+                    <div className="EdgeBox" style={{ display: 'block' }}>
+                        {/* Master on/off */}
+                        <div className="notifRow">
+                            <span className="RSVPDetailText" style={{ marginBottom: 0 }}>Enable notifications</span>
+                            <button
+                                className={`notifToggle ${notificationsEnabled ? 'notifToggle--on' : ''}`}
+                                onClick={toggleNotifications}
+                                type="button"
+                                aria-label="Toggle notifications"
+                            >
+                                <span className="notifToggleThumb" />
+                            </button>
+                        </div>
+
+                        {notificationsEnabled && (
+                            <>
+                                {/* Text updates toggle */}
+                                <div className="notifRow">
+                                    <span className="RSVPDetailText" style={{ marginBottom: 0 }}>Receive text updates too?</span>
+                                    <button
+                                        className={`notifToggle ${textEnabled ? 'notifToggle--on' : ''}`}
+                                        onClick={toggleTextUpdates}
+                                        type="button"
+                                        aria-label="Toggle text updates"
+                                    >
+                                        <span className="notifToggleThumb" />
+                                    </button>
+                                </div>
+
+                                {/* Phone input (shown when text enabled) */}
+                                {textEnabled && (
+                                    <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                                        <input
+                                            className={`textInput ${error ? 'textInputError' : ''}`}
+                                            type="tel"
+                                            placeholder="Phone number (10 digits)"
+                                            value={formData.userPhone}
+                                            onChange={(e) => {
+                                                setFormData(prev => ({ ...prev, userPhone: e.target.value }));
+                                                if (error) setError('');
+                                            }}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Sub-option toggles */}
+                                {NOTIF_SUB_OPTIONS.map(({ key, label }) => (
+                                    <div className="notifRow" key={key}>
+                                        <span className="RSVPDetailText" style={{ marginBottom: 0 }}>{label}</span>
+                                        <button
+                                            className={`notifToggle ${notifSettings[key] ? 'notifToggle--on' : ''}`}
+                                            onClick={() => toggleSubOption(key)}
+                                            type="button"
+                                            aria-label={`Toggle ${label}`}
+                                        >
+                                            <span className="notifToggleThumb" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </>
+                        )}
+                    </div>
+
+                    {error && <p className="registrationError">{error}</p>}
+                    <NextButton onClick={handleNext} />
+                </>
+            ) : currentStep.key === 'avatar' ? (
                 <>
                     <div className="RegistrationAvatarBuilder">
                         <div className="RegistrationAvatarPreview">

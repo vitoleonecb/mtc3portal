@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { validateEmail } from "../utils/validation.js";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
 import { NextButton } from "../Buttons.jsx";
@@ -48,8 +49,10 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
 
   // --- Save phase state ---
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'created' | 'appended' | 'existing_user' | 'error'
   const [saveMessage, setSaveMessage] = useState("");
+  const [guestUserId, setGuestUserId] = useState(null);
 
   // Derived values
   const currentModule = openModules[moduleIndex] || null;
@@ -251,7 +254,12 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
   // Batch save via email
   // ────────────────────────────────────────────
   const handleSaveWithEmail = async () => {
-    if (!email.trim()) return;
+    const error = validateEmail(email);
+    if (error) {
+      setEmailError(error);
+      return;
+    }
+    setEmailError("");
     setSaveStatus("saving");
 
     const responses = Object.values(allResponsesRef.current);
@@ -262,9 +270,13 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
         responses,
       });
 
-      const { status, message } = res.data;
+      const { status, message, userId } = res.data;
       setSaveStatus(status);
       setSaveMessage(message);
+      if (userId) {
+        setGuestUserId(userId);
+        sessionStorage.setItem("guestEmail", email.trim());
+      }
     } catch (err) {
       console.error("Save error:", err);
       setSaveStatus("error");
@@ -281,7 +293,14 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
       "guestResponses",
       JSON.stringify({ workshopId: currentWorkshop.workshopId, responses })
     );
-    navigate("/register");
+    if (email.trim()) {
+      sessionStorage.setItem("guestEmail", email.trim());
+    }
+    if (guestUserId) {
+      navigate(`/register?guest=${guestUserId}`);
+    } else {
+      navigate("/register");
+    }
   };
 
   // ────────────────────────────────────────────
@@ -487,18 +506,19 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
           {saveStatus === null || saveStatus === "saving" ? (
             <div className="homepageEmailCapture">
               <input
-                className="textInput"
+                className={`textInput ${emailError ? 'textInputError' : ''}`}
                 type="email"
                 placeholder="Enter your email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(""); }}
                 disabled={saveStatus === "saving"}
               />
+              {emailError && <p className="registrationError">{emailError}</p>}
               <div className="homepageRunnerNav">
                 <NextButton
                   text={saveStatus === "saving" ? "Saving…" : "Save with Email"}
                   onClick={handleSaveWithEmail}
-                  disabled={saveStatus === "saving" || !email.trim()}
+                  disabled={saveStatus === "saving"}
                 />
                 <NextButton text="Create Full Account" onClick={handleCreateAccount} />
               </div>

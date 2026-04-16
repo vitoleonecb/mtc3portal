@@ -280,6 +280,12 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
       return res.status(400).json({ error: 'email and responses[] are required.' });
     }
 
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
     // 1. Check if user with this email already exists
     const [existingRows] = await connection.query(
       'SELECT user_id, user_type FROM users WHERE email = ? LIMIT 1',
@@ -373,6 +379,7 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
                 userId,
                 workshopId: Number(workshopId),
               });
+              console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${userId}, workshopId=${workshopId}`);
             } catch (notifErr) {
               console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
             }
@@ -389,10 +396,12 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
         userId,
         email: email.trim().toLowerCase(),
       });
+      console.log(`[queue] enqueued: queue=notification, jobName=guestRegistrationInvite, userId=${userId}`);
     } catch (notifErr) {
       console.error('Failed to enqueue guestRegistrationInvite:', notifErr.message);
     }
 
+    console.log(`[homepage] guest responses: email=${email}, userId=${userId}, status=${statusLabel}, insertedCount=${insertedCount}`);
     return res.status(201).json({
       status: statusLabel,
       userId,

@@ -180,6 +180,8 @@ cycleRouter.post('/start/:workshopId', authenticateTokenAdmin, async (req, res) 
       const reminderDelay = Math.max(0, procDelay - 12000);
       const reminderJob = await notificationQueue.add('lastDayReminder', { moduleId: mid, workshopId: Number(workshopId) }, { delay: reminderDelay });
 
+      console.log(`[cycle] jobs enqueued: workshopId=${workshopId}, moduleId=${mid}, openJobId=${openJob.id}, procJobId=${procJob.id}, compJobId=${compJob.id}, reminderJobId=${reminderJob.id}`);
+
       jobRecords.push(
         [workshopId, mid, openJob.id, 'openModule', openAt.toDate(), 'pending'],
         [workshopId, mid, procJob.id, 'processModule', processingAt.toDate(), 'pending'],
@@ -203,6 +205,7 @@ cycleRouter.post('/start/:workshopId', authenticateTokenAdmin, async (req, res) 
       [cfg.cycle_config_id]
     );
 
+    console.log(`[cycle] started: workshopId=${workshopId}, modulesScheduled=${pendingModules.length}, preset=${cfg.preset}, openAt=${openAt.toISOString()}, processingAt=${processingAt.toISOString()}, completedAt=${completedAt.toISOString()}`);
     return res.status(200).json({
       ok: true,
       schedule: {

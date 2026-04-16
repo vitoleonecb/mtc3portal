@@ -20,6 +20,7 @@ usersRouter.get('/list', authenticateTokenAdmin, async(req, res, next) => {
         const [results] = await connection.query('SELECT * FROM users');
         res.status(200).send(results);
     } catch(error) {
+        console.error(`[error] GET /users/list:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -38,6 +39,7 @@ usersRouter.get('/:id/isadmin', authenticateToken, async (req, res, next) => {
 			console.log(rows);
 			res.status(200).json(rows[0].admin_count);
 		} catch (error) {
+			console.error(`[error] GET /users/${req.params.id}/isadmin:`, error.message);
 			res.status(500).send(`Internal Server Error: ${error}`);
 		}
 	}
@@ -49,6 +51,7 @@ usersRouter.get('', authenticateToken, async (req, res, next) => {
         const [results] = await connection.query('SELECT * FROM users'); 
         res.status(200).json(results);
     } catch (error) {
+        console.error(`[error] GET /users:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`)
     }    
     });
@@ -68,12 +71,14 @@ usersRouter.post("/login", async (req, res) => {
         );
     
         if (!user) {
+            console.log(`[auth] login failed: identifier=${email}, reason=user_not_found`);
             return res.status(401).json({ message: "Invalid email/username or password." });
         }
     
         // 2️⃣ Compare passwords using bcrypt
         const passwordMatch = await bcrypt.compare(password, user.user_password);
         if (!passwordMatch) {
+            console.log(`[auth] login failed: userId=${user.user_id}, email=${user.email}, reason=invalid_password`);
             return res.status(401).json({ message: "Invalid email/username or password." });
         }
     
@@ -110,6 +115,8 @@ usersRouter.post("/login", async (req, res) => {
             expiresIn: "1h"
         });
     
+        console.log(`[auth] login success: userId=${user.user_id}, email=${user.email}, isAdmin=${isAdmin}, tokenIssued=true`);
+
         // 7️⃣ Send response (including avatar_config for convenience)
         res.status(200).json({
             message: "Login successful",
@@ -131,6 +138,29 @@ usersRouter.post("/login", async (req, res) => {
     }
     });
 
+// ── Confirm email via token (must be before /:id catch-all) ────
+usersRouter.get('/confirm-email', async (req, res) => {
+    try {
+        const { token } = req.query;
+        if (!token) return res.status(400).json({ error: 'Token required' });
+
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        if (decoded.type !== 'email_confirm') {
+            return res.status(400).json({ error: 'Invalid token type' });
+        }
+
+        await connection.execute(
+            'UPDATE users SET email_verified = TRUE WHERE user_id = ?',
+            [decoded.user_id]
+        );
+
+        console.log(`[auth] email confirmed: userId=${decoded.user_id}`);
+        return res.status(200).json({ ok: true, message: 'Email confirmed' });
+    } catch (error) {
+        return res.status(400).json({ error: `Invalid or expired token: ${error.message}` });
+    }
+});
+
 usersRouter.get('/:id', authenticateToken, async(req, res, next) => {
     try {
         const id = req.params.id;
@@ -138,6 +168,7 @@ usersRouter.get('/:id', authenticateToken, async(req, res, next) => {
         console.log(`User With Id: ${id} Found`)
         res.status(200).send(results)
     } catch(error) {
+        console.error(`[error] GET /users/${req.params.id}:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -148,6 +179,7 @@ usersRouter.put('/:id/update/email', authenticateToken, async (req, res, next) =
         const [results] = await connection.query('UPDATE users SET email = ? WHERE user_id = ?', [newEmail, req.params.id]);
         res.status(203).send(results);
     } catch (error) {
+        console.error(`[error] PUT /users/${req.params.id}/update/email:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -159,11 +191,12 @@ usersRouter.post('', authenticateToken, async (req, res, next) => {
         res.status(201).json(rows[1]);
     }
     catch(error) {
+        console.error(`[error] POST /users:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
 
-// Check if email already exists (for registration validation)
+// Check if email already exists
 usersRouter.get('/email/:email/exists', async (req, res) => {
     try {
         const { email } = req.params;
@@ -187,8 +220,7 @@ usersRouter.get('/username/:username/exists', async (req, res) => {
 
 usersRouter.post('/registration', async (req, res, next) => {
     try {
-        console.log(req.body);
-        const {username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config} = req.body;
+        const {username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config, notification_settings} = req.body;
 
         // Check for existing username (always reject if taken by another user)
         const [userNameRows] = await connection.query('SELECT * FROM users WHERE username = ?', [username]);
@@ -208,7 +240,8 @@ usersRouter.post('/registration', async (req, res, next) => {
 
             await connection.query(
                 `UPDATE users SET username = ?, first_name = ?, last_name = ?,
-                 user_password = ?, user_type = ?, user_phone = ?, avatar_config = ?
+                 user_password = ?, user_type = ?, user_phone = ?, avatar_config = ?,
+                 notification_settings = ?
                  WHERE user_id = ?`,
                 [
                     username,
@@ -218,6 +251,7 @@ usersRouter.post('/registration', async (req, res, next) => {
                     user_type || 'user',
                     user_phone,
                     avatar_config ? JSON.stringify(avatar_config) : null,
+                    notification_settings ? JSON.stringify(notification_settings) : null,
                     guestUserId,
                 ]
             );
@@ -230,10 +264,12 @@ usersRouter.post('/registration', async (req, res, next) => {
                     { expiresIn: '24h' }
                 );
                 await notificationQueue.add('confirmEmail', { userId: guestUserId, email, confirmToken });
+                console.log(`[queue] enqueued: queue=notification, jobName=confirmEmail, userId=${guestUserId}`);
             } catch (notifErr) {
                 console.error('Failed to enqueue confirmEmail:', notifErr.message);
             }
 
+            console.log(`[user] registration: path=guest_upgrade, userId=${guestUserId}, email=${email}, username=${username}`);
             return res.status(201).send({ insertId: guestUserId, affectedRows: 1 });
         }
 
@@ -246,7 +282,7 @@ usersRouter.post('/registration', async (req, res, next) => {
         const hashedPassword = await bcrypt.hash(user_password, SALT_ROUNDS);
         
         const [response] = await connection.query(
-            'INSERT INTO users (username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config, notification_settings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 username,
                 email,
@@ -256,6 +292,7 @@ usersRouter.post('/registration', async (req, res, next) => {
                 user_type,
                 user_phone,
                 avatar_config ? JSON.stringify(avatar_config) : null,
+                notification_settings ? JSON.stringify(notification_settings) : null,
             ]
         );
 
@@ -268,35 +305,52 @@ usersRouter.post('/registration', async (req, res, next) => {
                 { expiresIn: '24h' }
             );
             await notificationQueue.add('confirmEmail', { userId: newUserId, email, confirmToken });
+            console.log(`[queue] enqueued: queue=notification, jobName=confirmEmail, userId=${newUserId}`);
         } catch (notifErr) {
             console.error('Failed to enqueue confirmEmail:', notifErr.message);
         }
 
+        console.log(`[user] registration: path=new, userId=${response.insertId}, email=${email}, username=${username}`);
         res.status(201).send(response);
     } catch (error) {
+        console.error(`[error] POST /registration:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
 
-// ── Confirm email via token ────────────────────────────────────
-usersRouter.get('/confirm-email', async (req, res) => {
+// ── Resend email confirmation
+usersRouter.post('/resend-confirm-email', async (req, res) => {
     try {
-        const { token } = req.query;
-        if (!token) return res.status(400).json({ error: 'Token required' });
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email is required' });
 
-        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-        if (decoded.type !== 'email_confirm') {
-            return res.status(400).json({ error: 'Invalid token type' });
-        }
-
-        await connection.execute(
-            'UPDATE users SET email_verified = TRUE WHERE user_id = ?',
-            [decoded.user_id]
+        const [[user]] = await connection.query(
+            'SELECT user_id, email_verified FROM users WHERE email = ? LIMIT 1',
+            [email]
         );
 
-        return res.status(200).json({ ok: true, message: 'Email confirmed' });
+        // Always return success to avoid leaking whether the email exists
+        if (!user || user.email_verified) {
+            return res.status(200).json({ ok: true });
+        }
+
+        const confirmToken = jwt.sign(
+            { user_id: user.user_id, type: 'email_confirm' },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        await notificationQueue.add('confirmEmail', {
+            userId: user.user_id,
+            email,
+            confirmToken,
+        });
+        console.log(`[queue] enqueued: queue=notification, jobName=confirmEmail, userId=${user.user_id} (resend)`);
+
+        return res.status(200).json({ ok: true });
     } catch (error) {
-        return res.status(400).json({ error: `Invalid or expired token: ${error.message}` });
+        console.error('resend-confirm-email error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
@@ -312,7 +366,10 @@ usersRouter.post('/forgot-password', async (req, res) => {
         );
 
         // Always return success to avoid leaking whether the email exists
-        if (!user) return res.status(200).json({ ok: true });
+        if (!user) {
+            console.log(`[auth] forgot-password: email=${email}, userFound=false`);
+            return res.status(200).json({ ok: true });
+        }
 
         const resetToken = jwt.sign(
             { user_id: user.user_id, type: 'password_reset' },
@@ -325,6 +382,7 @@ usersRouter.post('/forgot-password', async (req, res) => {
             email,
             resetToken,
         });
+        console.log(`[auth] forgot-password: userId=${user.user_id}, email=${email}, resetEmailQueued=true`);
 
         return res.status(200).json({ ok: true });
     } catch (error) {
@@ -343,6 +401,7 @@ usersRouter.post('/reset-password', async (req, res) => {
 
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
         if (decoded.type !== 'password_reset') {
+            console.warn(`[auth] reset-password rejected: reason=invalid_token_type, userId=${decoded.user_id}`);
             return res.status(400).json({ error: 'Invalid token type' });
         }
 
@@ -352,8 +411,45 @@ usersRouter.post('/reset-password', async (req, res) => {
             [hashedPassword, decoded.user_id]
         );
 
-        return res.status(200).json({ ok: true, message: 'Password updated' });
+        // Build an access token so the frontend can auto-login after reset
+        const [[user]] = await connection.query(
+            'SELECT user_id, email, username, first_name, last_name, user_type, avatar_config FROM users WHERE user_id = ? LIMIT 1',
+            [decoded.user_id]
+        );
+
+        let accessToken = null;
+        if (user) {
+            let avatarConfig = null;
+            if (user.avatar_config) {
+                try {
+                    avatarConfig = typeof user.avatar_config === 'string'
+                        ? JSON.parse(user.avatar_config)
+                        : user.avatar_config;
+                } catch (err) {
+                    avatarConfig = null;
+                }
+            }
+
+            const payload = {
+                user_id: user.user_id,
+                email: user.email,
+                username: user.username,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                user_type: user.user_type,
+                is_admin: user.user_type === 'admin',
+                avatar_config: avatarConfig,
+            };
+
+            accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
+                expiresIn: '1h',
+            });
+        }
+
+        console.log(`[auth] reset-password: userId=${decoded.user_id}, passwordUpdated=true, tokenIssued=${!!accessToken}`);
+        return res.status(200).json({ ok: true, message: 'Password updated', accessToken });
     } catch (error) {
+        console.warn(`[auth] reset-password rejected: error=${error.message}`);
         return res.status(400).json({ error: `Invalid or expired token: ${error.message}` });
     }
 });

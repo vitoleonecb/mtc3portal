@@ -96,6 +96,8 @@ export async function scheduleNextCycle(workshopId) {
     const reminderDelay = Math.max(0, procDelay - 12000);
     const reminderJob = await notificationQueue.add('lastDayReminder', { moduleId: mid, workshopId }, { delay: reminderDelay });
 
+    console.log(`[cycle] auto-repeat jobs enqueued: workshopId=${workshopId}, moduleId=${mid}, openJobId=${openJob.id}, procJobId=${procJob.id}, compJobId=${compJob.id}, reminderJobId=${reminderJob.id}`);
+
     jobRecords.push(
       [workshopId, mid, openJob.id, 'openModule', openAt.toDate(), 'pending'],
       [workshopId, mid, procJob.id, 'processModule', processingAt.toDate(), 'pending'],

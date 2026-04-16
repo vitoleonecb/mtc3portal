@@ -79,6 +79,7 @@ showcasesRouter.post('', authenticateTokenAdmin, async (req, res) => {
         // Notify non-subscribers about the new showcase
         try {
             await notificationQueue.add('newShowcase', { showcaseId: newShowcaseId });
+            console.log(`[queue] enqueued: queue=notification, jobName=newShowcase, showcaseId=${newShowcaseId}`);
         } catch (notifErr) {
             console.error('Failed to enqueue newShowcase notification:', notifErr.message);
         }
@@ -86,9 +87,12 @@ showcasesRouter.post('', authenticateTokenAdmin, async (req, res) => {
         // Check if there's a pending monthly showcase notification for this month
         try {
             await notificationQueue.add('showcaseCreatedFallback', { showcaseId: newShowcaseId });
+            console.log(`[queue] enqueued: queue=notification, jobName=showcaseCreatedFallback, showcaseId=${newShowcaseId}`);
         } catch (notifErr) {
             console.error('Failed to enqueue showcaseCreatedFallback:', notifErr.message);
         }
+
+        console.log(`[showcase] created: showcaseId=${newShowcaseId}, name="${showcase_name}", adminUserId=${req.user.user_id}`);
 
         return res.status(201).json({ showcase_id: newShowcaseId });
     } catch (error) {
@@ -229,10 +233,12 @@ showcasesRouter.post('/:showcaseId/batch-tickets', authenticateTokenAdmin, async
         try {
             const userIds = eligibleUsers.map(u => u.user_id);
             await notificationQueue.add('showcaseRsvpUnconfirmed', { showcaseId: Number(showcaseId), userIds });
+            console.log(`[queue] enqueued: queue=notification, jobName=showcaseRsvpUnconfirmed, showcaseId=${showcaseId}, userCount=${userIds.length}`);
         } catch (notifErr) {
             console.error('Failed to enqueue showcaseRsvpUnconfirmed:', notifErr.message);
         }
 
+        console.log(`[showcase] batch tickets created: showcaseId=${showcaseId}, ticketsCreated=${eligibleUsers.length}, adminUserId=${req.user.user_id}`);
         return res.status(201).json({ ok: true, ticketsCreated: eligibleUsers.length });
     } catch (error) {
         console.error('batch-tickets error:', error);

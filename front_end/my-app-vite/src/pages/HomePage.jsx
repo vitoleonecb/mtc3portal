@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
@@ -16,10 +17,22 @@ export function HomePage() {
   const [feed, setFeed] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
-    setIsLoggedIn(!!localStorage.getItem('accessToken'));
-  });
+    const token = localStorage.getItem("accessToken");
+    setIsLoggedIn(!!token);
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        setIsGuest(decoded?.user_type === "guest");
+      } catch {
+        setIsGuest(false);
+      }
+    } else {
+      setIsGuest(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,8 +87,8 @@ export function HomePage() {
           </div>
         )}
 
-        {/* Logged-in: show workshop CTA card */}
-        {hasWorkshop && isLoggedIn && (
+        {/* Logged-in (non-guest): show workshop CTA card */}
+        {hasWorkshop && isLoggedIn && !isGuest && (
           <div className="homepageLoggedInCTA">
             <Heading2 text={currentWorkshop.workshopName} />
             {currentWorkshop.workshopDescription && (
@@ -89,16 +102,15 @@ export function HomePage() {
           </div>
         )}
 
-        {/* Not logged in: show the module runner frame */}
-        {hasWorkshop && !isLoggedIn && (
+        {/* Not logged in (or guest): show the module runner frame */}
+        {hasWorkshop && (!isLoggedIn || isGuest) && (
           <HomepageModuleRunner
             currentWorkshop={currentWorkshop}
             openModules={openModules}
           />
         )}
-
-        {/* Fallback CTAs when no workshop is open */}
-        {!hasWorkshop && (
+        {/* Login / Sign Up CTAs shown when user is not fully registered */}
+        {(!isLoggedIn || isGuest || !hasWorkshop) && (
           <div className="homepageCTAs">
             <Link to="login" className="linkNoUnderLine cardLink">
               <NextButton text="Log In" />

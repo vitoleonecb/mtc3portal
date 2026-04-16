@@ -11,6 +11,8 @@ import { Analytics } from './pages/Analytics';
 import { Settings } from './pages/Settings';
 import { RegistrationPage } from './pages/RegistrationPage';
 import { LogInPage } from './pages/LogInPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { ConfirmEmailPage } from './pages/ConfirmEmailPage';
 import { WorkshopPromptsPage } from './pages/WorkshopPromptsPage';
 import { WorkshopModules } from './pages/WorkshopModules';
 import { WorkshopCreateForm } from './pages/WorkshopCreateForm';
@@ -42,6 +44,8 @@ function App() {
         <Route path="workshops/:workshopId/materials/edit" element={ <WorkshopMaterialsEditor /> } />
         <Route path="login" element={ <LogInPage /> } />
         <Route path="register" element={ <RegistrationPage /> } />
+        <Route path="reset-password" element={ <ResetPasswordPage /> } />
+        <Route path="confirm-email" element={ <ConfirmEmailPage /> } />
         <Route path="workshops/:workshopId/rsvp/:userId" element={ <RSVP /> } />
         <Route path="rsvp/checkin/:token" element={ <RsvpCheckinPage /> } />
         <Route path="admin/rsvp-scan" element={ <RsvpScanner /> } />

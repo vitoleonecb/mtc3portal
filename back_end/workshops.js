@@ -8,8 +8,13 @@ export const workshopsRouter = express.Router();
 
 // GET Workshops
 workshopsRouter.get('', authenticateToken, async (req, res, next) => {
-    const [rows] = await connection.query('SELECT * FROM workshops');
-    res.status(200).send(rows);
+    try {
+        const [rows] = await connection.query('SELECT * FROM workshops');
+        res.status(200).send(rows);
+    } catch (error) {
+        console.error(`[error] GET /workshops:`, error.message);
+        res.status(500).send(`Internal Server Error: ${error}`);
+    }
 });
 
 // GET Workshop Name
@@ -19,6 +24,7 @@ workshopsRouter.get('/:workshopId', authenticateToken, async (req, res, next) =>
         const [rows] = await connection.query('SELECT * FROM workshops WHERE workshop_id = ?', [workshopId]);
         res.status(200).send(rows);
     } catch(error) {
+        console.error(`[error] GET /workshops/${req.params.workshopId}:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -42,6 +48,7 @@ workshopsRouter.get('/:workshopid/modules', authenticateToken, async (req, res, 
         `, [workshopid]);
         res.status(200).send(rows);
     } catch (error) {
+        console.error(`[error] GET /workshops/${req.params.workshopid}/modules:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -90,6 +97,7 @@ workshopsRouter.get('/:workshopid/modules/:moduleid/prompts', authenticateToken,
         const [rows] = await connection.query('SELECT * FROM workshop_prompts WHERE workshop_module_id = ?', [moduleid]);
         res.status(200).send(rows);
     } catch(error) {
+        console.error(`[error] GET /workshops/modules/${req.params.moduleid}/prompts:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -171,6 +179,7 @@ workshopsRouter.get('/modules/:moduleid/progress', authenticateToken, async (req
 	const count = Number(numberOfResponses?.[0]?.['COUNT(*)'] ?? 0);
 	res.status(200).json({ count });
     } catch (error) {
+	console.error(`[error] GET /modules/${req.params.moduleid}/progress:`, error.message);
 	res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -192,6 +201,7 @@ workshopsRouter.get('/prompts/:promptid/response', authenticateToken, async (req
 
         res.status(200).json({ response: rows[0].workshop_response_content });
     } catch (error) {
+        console.error(`[error] GET /prompts/${req.params.promptid}/response:`, error.message);
         res.status(500).send(`Error fetching response: ${error.message}`);
     }
 });
@@ -199,21 +209,22 @@ workshopsRouter.get('/prompts/:promptid/response', authenticateToken, async (req
 // POST A Response To A Prompt
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authenticateToken, async (req, res, next) => {
     try {
-        console.log("Decoded user from token:", req.user);
-        
         const { workshopid, moduleid, promptid } = req.params;
         const user_id = req.user.user_id;
         const { workshop_response_content } = req.body;
         
         const [response] = await connection.query('INSERT INTO workshop_responses (workshop_response_content, user_id, workshop_prompt_id) VALUES (?, ?, ?)',[JSON.stringify(workshop_response_content), user_id, promptid]);
+        console.log(`[response] submitted: userId=${user_id}, promptId=${promptid}, moduleId=${moduleid}, workshopId=${workshopid}, insertId=${response.insertId}`);
         
         const [rsvpAccomplishmentRows] = await connection.query('SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]);
         const [userAccomplishmentRows] = await connection.query('SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]);
         
         if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
             const rsvpCreateResponse = await connection.query('INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',[user_id, workshopid]);
+            console.log(`[response] auto-rsvp created: userId=${user_id}, workshopId=${workshopid}`);
             try {
                 await notificationQueue.add('workshopRsvpUnconfirmed', { userId: user_id, workshopId: Number(workshopid) });
+                console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${user_id}`);
             } catch (notifErr) {
                 console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
             }
@@ -221,6 +232,7 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authent
         }
         res.status(201).send(response);
     } catch (error) {
+        console.error(`[error] POST response: workshopId=${req.params.workshopid}, promptId=${req.params.promptid}`, error.message);
         res.status(500).send(`Server Error: ${error}`);
     }
 });
@@ -242,12 +254,15 @@ workshopsRouter.post('/rsvp/create', authenticateToken, async (req, res, next) =
                 userId: user_id,
                 workshopId: Number(workshop_id),
             });
+            console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${user_id}, workshopId=${workshop_id}`);
         } catch (notifErr) {
             console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
         }
 
+        console.log(`[rsvp] created: userId=${user_id}, workshopId=${workshop_id}`);
         res.status(201).send(`RSVP Created Successfully`);
     } catch (error) {
+        console.error(`[error] POST /rsvp/create:`, error.message);
         res.status(500).send(`Server Error: ${error}`)
     }
 });
@@ -287,6 +302,7 @@ workshopsRouter.put('/:workshopid/rsvp/:userid/update', async (req, res, next) =
             confirmed: shouldConfirm
         });
     } catch (error) {
+        console.error(`[error] PUT /rsvp/${req.params.workshopid}/${req.params.userid}/update:`, error.message);
         res.status(500).send(`Server Error: ${error}`);
     }
 });
@@ -302,6 +318,7 @@ workshopsRouter.get('/:workshopid/rsvp/:userid/status', authenticateToken, async
         );
         res.status(203).send(response);
     } catch (error) {
+        console.error(`[error] GET /rsvp/${req.params.userid}/status:`, error.message);
         res.status(500).send(`Server Error: ${error}`)
     }
 });
@@ -342,11 +359,12 @@ workshopsRouter.get('/:workshopid/rsvp/:userid', authenticateToken, async (req, 
 
         res.status(203).send(payload);
     } catch (error) {
+        console.error(`[error] GET /rsvp/${req.params.userid}:`, error.message);
         res.status(500).send(`Server Error: ${error}`)
     }
 });
 
-// GET RSVP check-in preview (admin-only, opened from QR link)
+// GET RSVP check-in preview
 workshopsRouter.get('/rsvp/checkin/:token', authenticateTokenAdmin, async (req, res) => {
     try {
         const { token } = req.params;
@@ -510,6 +528,7 @@ workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid/analytics'
         );
         res.status(203).send(response);
     } catch (error) {
+        console.error(`[error] GET analytics:`, error.message);
         res.status(500).send(`Server Error: ${error}`)
     }
 });
@@ -530,6 +549,7 @@ workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid', authenti
         console.log('Prompt responses count:', promptResponses.length);
         res.set('Cache-Control','no-store').status(200).json(promptResponses);
     } catch (error) {
+        console.error(`[error] GET /prompts/${req.params.promptid} responses:`, error.message);
         res.status(500).send(error);
     }
 });
@@ -541,11 +561,12 @@ workshopsRouter.get('/:workshopid/attendance', authenticateTokenAdmin, async (re
         const [workshopAttendance] = await connection.query('SELECT * FROM workshop_attendance_view WHERE workshop_id = ?', [workshopid]);
         res.status(200).send(workshopAttendance);
     } catch (error) {
+        console.error(`[error] GET /attendance:`, error.message);
         res.status(500).send(error);
     }
 });
 
-// GET confirmed attendees for a workshop (for avatar strip)
+// GET confirmed attendees
 workshopsRouter.get('/:workshopid/attendees', authenticateToken, async (req, res) => {
     try {
         const { workshopid } = req.params;
@@ -555,11 +576,12 @@ workshopsRouter.get('/:workshopid/attendees', authenticateToken, async (req, res
         );
         res.status(200).json(rows);
     } catch (error) {
+        console.error(`[error] GET /attendees:`, error.message);
         res.status(500).send(`Server Error: ${error}`);
     }
 });
 
-// GET per-workshop analysis completion status (admin-only)
+// GET per-workshop analysis
 // Returns whether every prompt in a workshop has non-empty admin analysis.
 workshopsRouter.get('/:workshopid/analysis-status', authenticateTokenAdmin, async (req, res) => {
     try {
@@ -611,6 +633,7 @@ workshopsRouter.post('', authenticateTokenAdmin, async (req, res, next) => {
         );
         res.status(204).send(`Workshop "${workshop_name}" created successfully`);
     } catch (error) {
+        console.error(`[error] POST /workshops:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -622,10 +645,12 @@ workshopsRouter.delete('/:workshopid', authenticateTokenAdmin, async (req, res, 
         const [workshopExists] = await connection.query('SELECT * FROM workshops WHERE workshop_id = ?',[workshopid]);
         if (workshopExists.length === 1) {
             const [response] = await connection.query('DELETE FROM workshops WHERE workshop_id = ?', [workshopid]);
+            console.log(`[workshop] deleted: workshopId=${workshopid}, adminUserId=${req.user.user_id}`);
             return res.status(201).send(`Workshop deleted successfully`);
         };
         res.status(404).send('Workshop doesn\'t exist');
     } catch (error) {
+        console.error(`[error] DELETE workshop: workshopId=${req.params.workshopid}`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -638,6 +663,7 @@ workshopsRouter.post('/:workshopid/modules', authenticateTokenAdmin, async (req,
         const [response] = await connection.query('INSERT INTO workshop_modules (workshop_id, workshop_module_name) VALUES (?, ?)', [workshopid, workshop_module_name]);
         res.status(201).send(`New Module "${workshop_module_name}" added to workshop id: ${workshopid}`)
     } catch (error) {
+        console.error(`[error] POST /modules:`, error.message);
         res.status(500).send(`Server Error: ${error}`);
     }
 });
@@ -649,10 +675,12 @@ workshopsRouter.delete('/:workshopid/modules/:moduleid', authenticateTokenAdmin,
         const [moduleExists] = await connection.query('SELECT * FROM workshop_modules WHERE workshop_module_id = ?', [moduleid]);
         if (moduleExists.length === 1) {
             const [response] = await connection.query('DELETE FROM workshop_modules WHERE workshop_module_id = ?',[moduleid]);
+            console.log(`[module] deleted: moduleId=${moduleid}, workshopId=${req.params.workshopid}, adminUserId=${req.user.user_id}`);
             return res.status(201).send('Module Successfully Deleted');
         };
         return res.status(404).send('Module Doesn\'t exist');
     } catch (error) {
+        console.error(`[error] DELETE module: moduleId=${req.params.moduleid}`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -715,6 +743,7 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts', authenticateToken
         }
         return res.status(201).send('Prompts Inserted Successfully')
     } catch (error) {
+        console.error(`[error] POST /prompts for moduleId=${req.params.moduleid}:`, error.message);
         res.status(500).send(`Server Error: ${error}`);
     }
 });
@@ -730,6 +759,7 @@ workshopsRouter.delete('/:workshopid/modules/:moduleid/prompts/:promptid', authe
         };
         return res.status(404).send('Prompt Not Found');
     } catch (error) {
+        console.error(`[error] DELETE /prompts/${req.params.promptid}:`, error.message);
         res.status(500).send(`Internal Server Error: ${error}`);
     }
 });
@@ -740,8 +770,10 @@ workshopsRouter.put('/:workshopid/modules/:moduleid', authenticateTokenAdmin, as
         const { moduleid, workshopid } = req.params;
         const { newStatus } = req.body;
         const [response] = await connection.query('UPDATE workshop_modules SET workshop_module_status = ? WHERE workshop_module_id = ?', [newStatus, moduleid]);
+        console.log(`[module] status changed (admin): moduleId=${moduleid}, workshopId=${workshopid}, newStatus=${newStatus}, adminUserId=${req.user.user_id}, affectedRows=${response.affectedRows}`);
         res.status(201).send(`Workshop with id of ${workshopid} status changed to: ${newStatus}`);
     } catch (error) {
+        console.error(`[error] PUT module status:`, error.message);
         res.status(500).send(`Server Error: ${error}`);
     }
 });
@@ -784,6 +816,7 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/response'
         [user_id, promptid, content, autoAccept]
       );
   
+      console.log(`[response] submitted: userId=${user_id}, promptId=${promptid}, autoAccept=${!!autoAccept}`);
       // Return once, and only once
       return res.status(201).json({ ok: true, prompt_id: Number(promptid) });
     } catch (error) {
@@ -820,12 +853,14 @@ workshopsRouter.patch('/:responseId/response/acceptance', authenticateTokenAdmin
         return res.status(404).json({ message: 'Response not found' });
       }
   
+      console.log(`[moderation] response ${val ? 'approved' : 'declined'}: responseId=${responseId}, adminUserId=${req.user.user_id}, affectedRows=${result.affectedRows}`);
       return res.status(200).json({
         responseId: Number(responseId),
         accepted: !!val,
         message: val ? 'Approved' : 'Declined'
       });
     } catch (err) {
+        console.error(`[error] PATCH response acceptance: responseId=${req.params.responseId}`, err.message);
         return res.status(500).json({ message: 'Server error', error: String(err) });
       }
     });
@@ -888,15 +923,18 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/automated
                 );
                 try {
                     await notificationQueue.add('workshopRsvpUnconfirmed', { userId: user_id, workshopId: Number(workshopid) });
+                    console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${user_id}`);
                 } catch (notifErr) {
                     console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
                 }
+                console.log(`[response] auto-rsvp created (automated): userId=${user_id}, workshopId=${workshopid}`);
                 return res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
             }
         }
 
         return res.status(201).send(response);
     } catch (error) {
+        console.error(`[error] POST /automated response:`, error.message);
         return res.status(500).send(`Server Error: ${error}`);
     }
 });

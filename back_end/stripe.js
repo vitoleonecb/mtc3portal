@@ -384,6 +384,7 @@ stripeRouter.post('/webhook', async (req, res) => {
                 // Notify user about their new ticket
                 try {
                     await notificationQueue.add('showcaseTicket', { showcaseId, userId });
+                    console.log(`[queue] enqueued: queue=notification, jobName=showcaseTicket, showcaseId=${showcaseId}, userId=${userId}`);
                 } catch (notifErr) {
                     console.error('Failed to enqueue showcaseTicket notification:', notifErr.message);
                 }
