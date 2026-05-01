@@ -1,4 +1,4 @@
-# MTC3 Portal — System Build
+# MTC3 Portal — System Build & Troubleshooting
 
 A full-stack SaaS-style application I designed and built to simulate real-world support, debugging, and operational workflows including authentication, scheduled processes, notifications, and integrations.
 
