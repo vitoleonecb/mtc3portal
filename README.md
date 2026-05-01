@@ -1,22 +1,23 @@
-# MTC3 Portal — System Build (Supporting Evidence)
+# MTC3 Portal — System Build
 
-A full-stack web application I designed and built solo to operate creative theater workshops end-to-end: authoring workshops, modules, and prompts; running a time-based module lifecycle on a configurable schedule; collecting interactive responses; routing notifications across email and SMS; processing payments; and enriching analytics with AI.
+A full-stack SaaS-style application I designed and built to simulate real-world support, debugging, and operational workflows including authentication, scheduled processes, notifications, and integrations.
 
-This repo is **supporting evidence**, not the headliner. It exists so that the work in my other portfolio repos has a realistic, end-to-end substrate behind it — a real running system with users, schedules, integrations, and async jobs, instead of a contrived demo.
+This repo provides a realistic system context used to practice troubleshooting, testing, and operational workflows.
 
 If you're evaluating me for an implementation, technical-operations, or "builder" role, the right reading order is:
 
-1. **`ops_automation_examples`** — focused scripts and integrations that delete manual workflows. *(My headliner repo for ops/implementation roles.)*
-2. **`qa_portfolio_mtc`** — how I tested this system end-to-end (test plans, execution rounds, observability improvements, automation in Python + Playwright, AI-output testing).
-3. **This repo** — the system both of those repos refer to. Skim for context; dive into the files listed below if you want to see how I think about operational mechanics.
+1. **`qa_portfolio_mtc`** — how I tested this system end-to-end (test plans, execution rounds, observability improvements, automation in Python + Playwright, AI-output testing).
+2. **This repo** — the system both of those repos refer to. Skim for context; dive into the files listed below if you want to see how I think about operational mechanics.
 
 ---
 
 ## Why a system this big
 
-The job descriptions I'm targeting want someone who can sit between operational teams and the systems they depend on, identify manual work, and replace it with scripts and integrations. To practice that without faking it, I needed a real platform with the same moving parts a real operations team works with: authentication, scheduled state transitions, multi-channel notifications, third-party billing, an LLM in the loop, and a database holding the source of truth.
+The roles I’m targeting involve troubleshooting complex systems, supporting operational workflows, and identifying opportunities to improve reliability and reduce manual effort.
 
-So I built one. Designing and shipping the whole thing is what gave the QA portfolio and the upcoming automation repo something honest to point at.
+To practice this in a realistic way, I built a platform with the same types of components found in production environments: authentication, scheduled processes, notifications, third-party integrations, and a database as the source of truth.
+
+This system is used to simulate real support scenarios — reproducing issues, validating workflows, and testing how systems behave across edge cases and integrations.
 
 ---
 
@@ -33,9 +34,7 @@ A modular platform where members and administrators collaborate to shape in-pers
 
 ---
 
-## Where to look (if you're evaluating ops / implementation work)
-
-The pieces in this repo that map directly to implementation, integration, and automation work:
+## Where to look 
 
 - **`back_end/script_testing/scripts/seed_prompt_responses.py`** — Python + `requests` + OpenAI + DB seeding. Authenticates against the API, pulls config from MySQL via the API, generates realistic responses with the OpenAI Chat Completions API, and writes them back across a controlled time window. The same shape as a bulk-onboarding or data-migration script against a vendor system.
 - **`back_end/workers/`** and **`back_end/queues/`** — BullMQ + Redis worker layer that replaces what would otherwise be admin clicks. Modules transition state on a schedule, last-day reminders fire 12 seconds before deadline, monthly showcase checks run on cron, tickets batch-create for active subscribers when a showcase publishes.
@@ -131,11 +130,12 @@ npm run dev                   # Vite dev server, typically http://localhost:5173
 
 ## What this repo demonstrates
 
-- **Operational-system thinking** — designing the integrations, schedules, and state machines that let manual work disappear, not just the user-facing UI.
-- **Cross-platform integration** — Stripe, Postmark, Twilio, and OpenAI wired in behind small abstractions so each channel can be tuned per-user without rewriting callers.
-- **Async / scheduled automation** — BullMQ workers replacing admin clicks for module lifecycle, reminders, batch ticket creation, and AI analysis.
-- **Scripting against real systems** — Python + `requests` + OpenAI + DB scripts that operate the API the same way bulk-onboarding or data-migration tooling would in a real ops job.
-- **AI in production paths** — structured-JSON outputs, defensive parsing, fail-soft behavior when keys are absent.
-- **End-to-end ownership** — designed, built, deployed, and tested solo, which is the only way I could honestly say I understand the full surface.
+- **Operational system understanding** — working across integrations, scheduled processes, and system state to understand how real applications behave end-to-end.
+- **Troubleshooting & debugging** — investigating issues using API responses, logs, database queries, and system behavior across multiple services.
+- **Cross-platform integration awareness** — working with Stripe, Postmark, Twilio, and OpenAI to understand how external services impact system reliability.
+- **Async / scheduled workflows** — understanding and validating background jobs (BullMQ) for module lifecycle changes, notifications, and processing tasks.
+- **Scripting against real systems** — Python + `requests` + API-based workflows to simulate real-world support, testing, and data validation scenarios.
+- **AI in production paths** — validating structured outputs, handling edge cases, and identifying failure modes in LLM-assisted workflows.
+- **End-to-end system visibility** — built, tested, and debugged across frontend, backend, database, and queue systems to fully understand system behavior.
 
-For the testing discipline behind this system, see the QA portfolio repo. For the ops-automation patterns this system gave me a substrate to practice, see the automation examples repo.
+For the testing discipline behind this system, see the QA portfolio repo. For automation examples and workflow improvements, see the automation examples repo.
