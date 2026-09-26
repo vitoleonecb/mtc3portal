@@ -643,7 +643,21 @@ function DragAndDropDistributionChart({ analyticsData, promptOptions, dotColor }
   return null;
 }
 
-export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin, promptOptions, currentUserResponseId, currentUserName, dotColor = 'rgb(210, 164, 120)' }) {
+export function ResponseProcessor({
+  promptId,
+  allResponses,
+  templateId,
+  isAdmin,
+  promptOptions,
+  currentUserResponseId,
+  currentUserName,
+  dotColor = 'rgb(210, 164, 120)',
+  publicPreview = false,
+  publicAnalyticsData = null,
+  publicAiAnalysisData = null,
+  publicAdminAnalysis = "",
+  redactIdentity = false,
+}) {
 
   const [analyticsData, setAnalyticsData] = useState({});
   const [templateType, setTemplateType] = useState();
@@ -714,6 +728,7 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
   }
 
   useEffect(() => {
+    if (publicPreview) return;
     if (!isAdmin || !promptId) return;
 
     let cancelled = false;
@@ -762,7 +777,7 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, promptId, accessToken]);
+  }, [isAdmin, promptId, accessToken, publicPreview]);
 
   // Autosize the admin analysis textarea whenever its content changes.
   useAutosizeTextArea(adminAnalysisRef, adminAnalysis);
@@ -771,6 +786,13 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
     let cancelled = false;
 
     const fetchAiAnalysis = async () => {
+      if (publicPreview) {
+        setAiAnalysisData(publicAiAnalysisData || null);
+        setAiAnalysisText(publicAiAnalysisData ? JSON.stringify(publicAiAnalysisData, null, 2) : "");
+        setAiAnalysisLoading(false);
+        setAiAnalysisError("");
+        return;
+      }
       if (!promptId) return;
       setAiAnalysisLoading(true);
       setAiAnalysisError("");
@@ -830,6 +852,11 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
       // even if the analytics request fails.
       setTemplateType(promptTemplateType);
 
+      if (publicPreview) {
+        setAnalyticsData(publicAnalyticsData || {});
+        return;
+      }
+
       try {
         const response = await axios.get(
           `${import.meta.env.VITE_API_URL}/analytics/${promptTemplateType}/${promptId}`,
@@ -857,7 +884,7 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
     return () => {
       cancelled = true;
     };
-  }, [promptId, templateId, accessToken]);
+  }, [promptId, templateId, accessToken, publicPreview, publicAnalyticsData, publicAiAnalysisData]);
 
   const renderCharts = () => {
     switch (templateType) {
@@ -1000,21 +1027,21 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
       <div className="ProcessorContainer">
         {renderCharts()}
 
-        {isAdmin && (
+        {(isAdmin || (publicPreview && publicAdminAnalysis?.trim())) && (
           <div className="AdminAnalysisContainer">
             <h2 className="AdminAnalysisHeading">Admin Analysis</h2>
             <textarea
               ref={adminAnalysisRef}
-              className={`OpenResponse AdminAnalysisTextarea ${(adminAnalysisSaving || adminAnalysisLocked) ? 'no_hover' : ''}`}
-              value={adminAnalysis}
-              onChange={(adminAnalysisSaving || adminAnalysisLocked) ? undefined : (e) => {
+              className={`OpenResponse AdminAnalysisTextarea ${(adminAnalysisSaving || adminAnalysisLocked || publicPreview) ? 'no_hover' : ''}`}
+              value={publicPreview ? publicAdminAnalysis : adminAnalysis}
+              onChange={(adminAnalysisSaving || adminAnalysisLocked || publicPreview) ? undefined : (e) => {
                 setAdminAnalysis(e.target.value);
                 if (adminAnalysisSavedAt) setAdminAnalysisSavedAt(null);
               }}
-              readOnly={adminAnalysisLocked}
+              readOnly={adminAnalysisLocked || publicPreview}
               placeholder="Enter your summary and analysis for this prompt..."
             />
-            {!adminAnalysisLocked && (
+            {!adminAnalysisLocked && !publicPreview && (
               <div className="AdminAnalysisControls">
                 <button
                   type="button"
@@ -1133,6 +1160,7 @@ export function ResponseProcessor({ promptId, allResponses, templateId, isAdmin,
                   isSimilarToCurrentUser={isSimilarToCurrentUser}
                   similarityScore={similarityScore}
                   currentUserName={currentUserName}
+                  redactIdentity={redactIdentity}
                 />
               );
             })}
@@ -1157,6 +1185,7 @@ export function ProcessorCard({
   isSimilarToCurrentUser,
   similarityScore,
   currentUserName,
+  redactIdentity = false,
 }) {
   const [accepted, setAccepted] = useState(Boolean(initialAccepted));
   const [saving, setSaving] = useState(false);
@@ -1385,8 +1414,12 @@ export function ProcessorCard({
             {templateId === 6 ? "Similar to your map" : "Similar to your response"}
           </span>
         )}
-        <span style={{ display: "block" }} className="ButtonText">{"Name: " + name}</span>
-        <span style={{ display: "block" }} className="ButtonText">{"Username: " + username}</span>
+        <span style={{ display: "block" }} className="ButtonText">
+          {redactIdentity ? "Name: Member response" : "Name: " + name}
+        </span>
+        <span style={{ display: "block" }} className="ButtonText">
+          {redactIdentity ? "Username: Locked" : "Username: " + username}
+        </span>
         
 
         {renderContent()}

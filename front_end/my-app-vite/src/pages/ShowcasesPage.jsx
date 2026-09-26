@@ -34,26 +34,40 @@ export function ShowcasesPage() {
         catch (err) { console.error("Invalid token:", err); }
     }
     const userId = decodedToken?.user_id;
+    const hasValidToken = Boolean(accessToken && userId);
 
     // ── Fetch showcases ──
     useEffect(() => {
         const fetchShowcases = async () => {
             try {
-                const res = await axios.get(
-                    `${import.meta.env.VITE_API_URL}/showcases`,
-                    { headers: { Authorization: `Bearer ${accessToken}` } }
-                );
+                const endpoint = hasValidToken
+                    ? `${import.meta.env.VITE_API_URL}/showcases`
+                    : `${import.meta.env.VITE_API_URL}/showcases/public`;
+                const config = hasValidToken
+                    ? { headers: { Authorization: `Bearer ${accessToken}` } }
+                    : undefined;
+                const res = await axios.get(endpoint, config);
                 setShowcases(res.data);
             } catch (err) {
+                if (hasValidToken && err?.response?.status === 401) {
+                    try {
+                        const publicRes = await axios.get(`${import.meta.env.VITE_API_URL}/showcases/public`);
+                        setShowcases(publicRes.data);
+                        setIsAdmin(false);
+                        return;
+                    } catch (publicErr) {
+                        console.error("Fetch public showcases fallback error:", publicErr);
+                    }
+                }
                 console.error("Fetch showcases error:", err);
             }
         };
         fetchShowcases();
-    }, []);
+    }, [accessToken, hasValidToken]);
 
     // ── Admin check ──
     useEffect(() => {
-        if (!userId) return;
+        if (!userId || !hasValidToken) return;
         const fetchAdmin = async () => {
             try {
                 const res = await axios.get(

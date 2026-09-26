@@ -3,8 +3,34 @@ import jwt from 'jsonwebtoken';
 import moduleQueue from './queues/moduleQueue.js';
 import notificationQueue from './queues/notificationQueue.js';
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
+import { ensureWorkshopRsvpForCompletedPrompts } from './services/rsvpService.js';
 
 export const workshopsRouter = express.Router();
+
+function isRealMysqlDate(value) {
+    if (typeof value !== 'string') return false;
+
+    const trimmed = value.trim();
+    const match = trimmed.match(
+        /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+    );
+    if (!match) return false;
+
+    const [, yearText, monthText, dayText, hourText = '00', minuteText = '00', secondText = '00'] = match;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    if (year < 1000 || month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) {
+        return false;
+    }
+
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return day <= daysInMonth;
+}
 
 // GET Workshops
 workshopsRouter.get('', authenticateToken, async (req, res, next) => {
@@ -216,21 +242,17 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authent
         const [response] = await connection.query('INSERT INTO workshop_responses (workshop_response_content, user_id, workshop_prompt_id) VALUES (?, ?, ?)',[JSON.stringify(workshop_response_content), user_id, promptid]);
         console.log(`[response] submitted: userId=${user_id}, promptId=${promptid}, moduleId=${moduleid}, workshopId=${workshopid}, insertId=${response.insertId}`);
         
-        const [rsvpAccomplishmentRows] = await connection.query('SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]);
-        const [userAccomplishmentRows] = await connection.query('SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]);
-        
-        if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
-            const rsvpCreateResponse = await connection.query('INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',[user_id, workshopid]);
+        const rsvpResult = await ensureWorkshopRsvpForCompletedPrompts({
+            connection,
+            notificationQueue,
+            userId: user_id,
+            workshopId: workshopid,
+        });
+        if (rsvpResult.created) {
             console.log(`[response] auto-rsvp created: userId=${user_id}, workshopId=${workshopid}`);
-            try {
-                await notificationQueue.add('workshopRsvpUnconfirmed', { userId: user_id, workshopId: Number(workshopid) });
-                console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${user_id}`);
-            } catch (notifErr) {
-                console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
-            }
-            res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
+            return res.status(201).send(`User RSVP unlocked`);
         }
-        res.status(201).send(response);
+        return res.status(201).send(response);
     } catch (error) {
         console.error(`[error] POST response: workshopId=${req.params.workshopid}, promptId=${req.params.promptid}`, error.message);
         res.status(500).send(`Server Error: ${error}`);
@@ -627,9 +649,16 @@ workshopsRouter.get('/:workshopid/analysis-status', authenticateTokenAdmin, asyn
 workshopsRouter.post('', authenticateTokenAdmin, async (req, res, next) => {
     try {
         const { workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, showcase_id } = req.body;
+
+        if (!isRealMysqlDate(workshop_date)) {
+            return res.status(400).json({
+                error: 'A real workshop date is required. Do not use a placeholder date.',
+            });
+        }
+
         const [response] = await connection.query(
             'INSERT INTO workshops (workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, showcase_id) VALUES (?, ?, ?, ?, ?, ?)',
-            [workshop_name, workshop_description, workshop_location, workshop_date, workshop_public, showcase_id || null]
+            [workshop_name, workshop_description, workshop_location, workshop_date.trim(), workshop_public, showcase_id || null]
         );
         res.status(204).send(`Workshop "${workshop_name}" created successfully`);
     } catch (error) {
@@ -909,26 +938,15 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/automated
         // want to auto-create RSVPs, since those should be driven by real
         // user completion flows or a separate batch-RSVP script.
         if (!testing) {
-            const [rsvpAccomplishmentRows] = await connection.query(
-                'SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',[workshopid]
-            );
-            const [userAccomplishmentRows] = await connection.query(
-                'SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',[user_id]
-            );
-            
-            if (rsvpAccomplishmentRows.length === userAccomplishmentRows.length) {
-                const rsvpCreateResponse = await connection.query(
-                    'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',
-                    [user_id, workshopid]
-                );
-                try {
-                    await notificationQueue.add('workshopRsvpUnconfirmed', { userId: user_id, workshopId: Number(workshopid) });
-                    console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${user_id}`);
-                } catch (notifErr) {
-                    console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
-                }
+            const rsvpResult = await ensureWorkshopRsvpForCompletedPrompts({
+                connection,
+                notificationQueue,
+                userId: user_id,
+                workshopId: workshopid,
+            });
+            if (rsvpResult.created) {
                 console.log(`[response] auto-rsvp created (automated): userId=${user_id}, workshopId=${workshopid}`);
-                return res.status(201).send(`User RSVP unlocked: ${rsvpCreateResponse}`);
+                return res.status(201).send(`User RSVP unlocked`);
             }
         }
 

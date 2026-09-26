@@ -1,5 +1,7 @@
 import express from 'express';
 import Stripe from 'stripe';
+import bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { authenticateToken, connection } from './app.js';
 import notificationQueue from './queues/notificationQueue.js';
 
@@ -10,6 +12,7 @@ function getStripe() {
 }
 
 export const stripeRouter = express.Router();
+const SALT_ROUNDS = 10;
 
 // ────────────────────────────────────────────────────────────
 // Helper: get-or-create a Stripe Customer for the current user
@@ -32,6 +35,51 @@ async function getOrCreateStripeCustomer(userId, email) {
     );
 
     return customer.id;
+}
+
+function normalizeEmail(email) {
+    return typeof email === 'string' ? email.trim().toLowerCase() : '';
+}
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function getOrCreateGuestUserByEmail(email) {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!isValidEmail(normalizedEmail)) {
+        return { error: 'Please enter a valid email address.', status: 400 };
+    }
+
+    const [existingRows] = await connection.query(
+        'SELECT user_id, user_type FROM users WHERE email = ? LIMIT 1',
+        [normalizedEmail]
+    );
+
+    if (existingRows.length) {
+        const existing = existingRows[0];
+        if (existing.user_type !== 'guest') {
+            return {
+                error: 'An account with this email already exists. Please log in to buy this ticket.',
+                status: 409,
+                existingUser: true,
+            };
+        }
+        return { userId: existing.user_id, email: normalizedEmail };
+    }
+
+    const emailPrefix = normalizedEmail.split('@')[0] || 'Guest';
+    const guestUsername = `guest_${randomUUID().slice(0, 8)}`;
+    const tempPassword = await bcrypt.hash(randomUUID(), SALT_ROUNDS);
+
+    const [insertResult] = await connection.query(
+        `INSERT INTO users (username, email, first_name, last_name, user_password, user_type, user_phone)
+         VALUES (?, ?, ?, ?, ?, 'guest', '0000000000')`,
+        [guestUsername, normalizedEmail, emailPrefix, '', tempPassword]
+    );
+
+    return { userId: insertResult.insertId, email: normalizedEmail };
 }
 
 // ────────────────────────────────────────────────────────────
@@ -192,6 +240,66 @@ stripeRouter.post('/buy-ticket/:showcaseId', authenticateToken, async (req, res)
 });
 
 // ────────────────────────────────────────────────────────────
+// POST /api/stripe/public/buy-ticket/:showcaseId
+// Public guest ticket purchase. Requires email before creating
+// the PaymentIntent; creates/reuses a guest user for ticket ownership.
+// ────────────────────────────────────────────────────────────
+stripeRouter.post('/public/buy-ticket/:showcaseId', async (req, res) => {
+    try {
+        const { showcaseId } = req.params;
+        const { email } = req.body;
+
+        const guest = await getOrCreateGuestUserByEmail(email);
+        if (guest.error) {
+            return res.status(guest.status).json({
+                error: guest.error,
+                status: guest.existingUser ? 'existing_user' : undefined,
+            });
+        }
+
+        const [[showcase]] = await connection.query(
+            'SELECT showcase_id FROM showcases WHERE showcase_id = ?',
+            [showcaseId]
+        );
+        if (!showcase) {
+            return res.status(404).json({ error: 'Showcase not found' });
+        }
+
+        const [[existingTicket]] = await connection.query(
+            'SELECT ticket_id FROM showcase_tickets WHERE showcase_id = ? AND user_id = ? AND ticket_status != "cancelled"',
+            [showcaseId, guest.userId]
+        );
+        if (existingTicket) {
+            return res.status(400).json({ error: 'This email already has a ticket for this showcase.' });
+        }
+
+        const customerId = await getOrCreateStripeCustomer(guest.userId, guest.email);
+
+        const paymentIntent = await getStripe().paymentIntents.create({
+            amount: 3000,
+            currency: 'usd',
+            customer: customerId,
+            receipt_email: guest.email,
+            metadata: {
+                type: 'showcase_ticket',
+                showcase_id: String(showcaseId),
+                user_id: String(guest.userId),
+                email: guest.email,
+            },
+        });
+
+        return res.status(200).json({
+            clientSecret: paymentIntent.client_secret,
+            userId: guest.userId,
+            email: guest.email,
+        });
+    } catch (error) {
+        console.error('public buy-ticket error:', error);
+        return res.status(500).json({ error: 'Failed to create payment' });
+    }
+});
+
+// ────────────────────────────────────────────────────────────
 // POST /api/stripe/confirm-ticket/:showcaseId
 // Called by the frontend after the PaymentIntent succeeds on
 // the client side.  Creates the ticket row immediately so the
@@ -225,6 +333,57 @@ stripeRouter.post('/confirm-ticket/:showcaseId', authenticateToken, async (req, 
         });
     } catch (error) {
         console.error('confirm-ticket error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// ────────────────────────────────────────────────────────────
+// POST /api/stripe/public/confirm-ticket/:showcaseId
+// Idempotent public guest ticket creation after client-side payment.
+// ────────────────────────────────────────────────────────────
+stripeRouter.post('/public/confirm-ticket/:showcaseId', async (req, res) => {
+    try {
+        const { showcaseId } = req.params;
+        const { email, paymentIntentId } = req.body;
+
+        const guest = await getOrCreateGuestUserByEmail(email);
+        if (guest.error) {
+            return res.status(guest.status).json({
+                error: guest.error,
+                status: guest.existingUser ? 'existing_user' : undefined,
+            });
+        }
+
+        const [[existing]] = await connection.query(
+            'SELECT ticket_id, ticket_status, ticket_type FROM showcase_tickets WHERE showcase_id = ? AND user_id = ? AND ticket_status != "cancelled"',
+            [showcaseId, guest.userId]
+        );
+        if (existing) {
+            return res.status(200).json({ ticket: existing, userId: guest.userId });
+        }
+
+        const [result] = await connection.query(
+            `INSERT IGNORE INTO showcase_tickets
+                (showcase_id, user_id, ticket_type, ticket_status, stripe_payment_intent_id, price_paid)
+             VALUES (?, ?, 'one_off', 'confirmed', ?, 30.00)`,
+            [showcaseId, guest.userId, paymentIntentId || null]
+        );
+
+        try {
+            await notificationQueue.add('showcaseTicket', {
+                showcaseId: Number(showcaseId),
+                userId: guest.userId,
+            });
+        } catch (notifErr) {
+            console.error('Failed to enqueue showcaseTicket:', notifErr.message);
+        }
+
+        return res.status(201).json({
+            userId: guest.userId,
+            ticket: { ticket_id: result.insertId, ticket_status: 'confirmed', ticket_type: 'one_off' },
+        });
+    } catch (error) {
+        console.error('public confirm-ticket error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });

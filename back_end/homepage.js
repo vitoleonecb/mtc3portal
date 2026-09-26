@@ -5,10 +5,85 @@ import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import rateLimit from 'express-rate-limit';
 import notificationQueue from './queues/notificationQueue.js';
+import { ensureWorkshopRsvpForCompletedPrompts } from './services/rsvpService.js';
+import {
+  getMCAnalytics,
+  getCLAnalytics,
+  getDragAndDropAnalytics,
+  getShortResponseAnalytics,
+  getDropDownAnalytics,
+  getSampleRaterAnalytics,
+  getNotationAnalytics,
+} from './services/analyticsService.js';
+import { getPromptAIAnalysis } from './services/aiAnalysisService.js';
 
 export const homepageRouter = express.Router();
 
 const SALT_ROUNDS = 10;
+
+const moduleOpenEmailSettings = {
+  channel: 'email',
+  module_open: true,
+  last_day_reminder: false,
+  materials_ready: false,
+  workshop_rsvp: false,
+  showcase_announcements: false,
+  showcase_ticket: false,
+};
+
+function extractPublicResponseText(rawContent) {
+  let parsed = rawContent;
+  if (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed); } catch { return parsed.trim(); }
+  }
+
+  const parts = [];
+  const collect = (value) => {
+    if (value == null) return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      const text = String(value).trim();
+      if (text) parts.push(text);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+      return;
+    }
+    if (typeof value === 'object') {
+      if (value.answer) collect(value.answer);
+      if (value.notationResponse) collect(value.notationResponse);
+      if (value.optionLabel) collect(value.optionLabel);
+      if (value.keyName) collect(value.keyName);
+      if (Array.isArray(value.options)) {
+        value.options
+          .filter((option) => option?.selected)
+          .forEach((option) => collect(option.optionText));
+      }
+    }
+  };
+
+  collect(parsed);
+  const text = parts.join(' ').replace(/\s+/g, ' ').trim();
+  return text.length > 180 ? `${text.slice(0, 177)}...` : text;
+}
+
+function parseResponseContent(rawContent) {
+  if (typeof rawContent !== 'string') return rawContent;
+  try { return JSON.parse(rawContent); } catch { return rawContent; }
+}
+
+async function getPublicAnalyticsForPrompt(promptId, templateId) {
+  switch (Number(templateId)) {
+    case 1: return getMCAnalytics(promptId);
+    case 3: return getCLAnalytics(promptId);
+    case 4: return getShortResponseAnalytics(promptId);
+    case 6: return getDragAndDropAnalytics(promptId);
+    case 7: return getSampleRaterAnalytics(promptId);
+    case 8: return getNotationAnalytics(promptId);
+    case 9: return getDropDownAnalytics(promptId);
+    default: return null;
+  }
+}
 
 // Rate limiter for the public batch response endpoint
 const responseLimiter = rateLimit({
@@ -23,8 +98,9 @@ const responseLimiter = rateLimit({
  * GET /api/homepage/feed
  *
  * Public (no auth). Returns everything the dynamic homepage needs:
- *   - currentWorkshop  – the workshop with open modules
+ *   - currentWorkshop  – the nearest upcoming workshop with public-visible modules
  *   - openModules      – all open modules with their full prompt lists
+ *   - publicPreviewModules – processing/completed modules with anonymized approved response previews
  *   - firstPromptPath  – convenience path for logged-in CTA
  *   - recentResponses  – privacy-safe snippets for the typewriter ticker
  *   - communityStats   – aggregate counts for social proof
@@ -32,19 +108,21 @@ const responseLimiter = rateLimit({
  */
 homepageRouter.get('/feed', async (_req, res) => {
   try {
-    // ---------- Current Workshop + Open Modules + Prompts ----------
+    // ---------- Current Workshop + Public-Visible Modules + Prompts ----------
     const [workshopRows] = await connection.query(`
       SELECT DISTINCT w.workshop_id, w.workshop_name, w.workshop_description,
              w.workshop_date, w.workshop_location
       FROM workshops w
       JOIN workshop_modules wm ON w.workshop_id = wm.workshop_id
-      WHERE wm.workshop_module_status = 'open'
-      ORDER BY w.workshop_id DESC
+      WHERE wm.workshop_module_status != 'pending'
+        AND w.workshop_date >= CURDATE()
+      ORDER BY w.workshop_date ASC, w.workshop_id DESC
       LIMIT 1
     `);
 
     let currentWorkshop = null;
     let openModules = [];
+    let publicPreviewModules = [];
     let firstPromptPath = null;
 
     if (workshopRows.length) {
@@ -57,11 +135,11 @@ homepageRouter.get('/feed', async (_req, res) => {
         workshopLocation: ws.workshop_location,
       };
 
-      // Fetch all open modules for this workshop
+      // Fetch all non-pending modules for this workshop
       const [moduleRows] = await connection.query(`
         SELECT wm.workshop_module_id, wm.workshop_module_name, wm.workshop_module_status
         FROM workshop_modules wm
-        WHERE wm.workshop_id = ? AND wm.workshop_module_status = 'open'
+        WHERE wm.workshop_id = ? AND wm.workshop_module_status != 'pending'
         ORDER BY wm.workshop_module_id ASC
       `, [ws.workshop_id]);
 
@@ -72,7 +150,8 @@ homepageRouter.get('/feed', async (_req, res) => {
         [promptRows] = await connection.query(`
           SELECT wp.workshop_prompt_id, wp.workshop_module_id,
                  wp.prompt_template_id, wp.workshop_prompt_options,
-                 wp.workshop_prompt_reference
+                 wp.workshop_prompt_reference,
+                 wp.workshop_prompt_admin_analysis
           FROM workshop_prompts wp
           WHERE wp.workshop_module_id IN (?)
           ORDER BY wp.workshop_prompt_id ASC
@@ -94,15 +173,105 @@ homepageRouter.get('/feed', async (_req, res) => {
           templateId: p.prompt_template_id,
           options: opts,
           reference: p.workshop_prompt_reference,
+          adminAnalysis: p.workshop_prompt_admin_analysis || '',
         });
       }
 
-      openModules = moduleRows.map(m => ({
+      const publicModules = moduleRows.map(m => ({
         moduleId: m.workshop_module_id,
         moduleName: m.workshop_module_name,
         moduleStatus: m.workshop_module_status,
         prompts: promptsByModule[m.workshop_module_id] || [],
       }));
+
+      openModules = publicModules.filter((module) => module.moduleStatus === 'open');
+
+      const previewModules = publicModules.filter((module) =>
+        ['processing', 'completed'].includes(module.moduleStatus)
+      );
+
+      if (previewModules.length) {
+        const previewModuleIds = previewModules.map((module) => module.moduleId);
+        const [previewRows] = await connection.query(`
+          SELECT
+            wm.workshop_module_id,
+            wp.workshop_prompt_id,
+            wp.prompt_template_id,
+            wr.workshop_response_id,
+            wr.workshop_response_content,
+            wr.workshop_response_created
+          FROM workshop_responses wr
+          JOIN workshop_prompts wp ON wr.workshop_prompt_id = wp.workshop_prompt_id
+          JOIN workshop_modules wm ON wp.workshop_module_id = wm.workshop_module_id
+          WHERE wm.workshop_module_id IN (?)
+            AND wr.workshop_response_acceptance = 1
+          ORDER BY wr.workshop_response_created DESC
+          LIMIT 30
+        `, [previewModuleIds]);
+
+        const responsesByModule = {};
+        const responsesByPrompt = {};
+        for (const row of previewRows) {
+          const text = extractPublicResponseText(row.workshop_response_content);
+          if (!text) continue;
+          if (!responsesByModule[row.workshop_module_id]) {
+            responsesByModule[row.workshop_module_id] = [];
+          }
+          if (!responsesByPrompt[row.workshop_prompt_id]) {
+            responsesByPrompt[row.workshop_prompt_id] = [];
+          }
+          if (responsesByModule[row.workshop_module_id].length < 6) {
+            responsesByModule[row.workshop_module_id].push({
+              promptId: row.workshop_prompt_id,
+              templateId: row.prompt_template_id,
+              text,
+              created: row.workshop_response_created,
+            });
+          }
+          responsesByPrompt[row.workshop_prompt_id].push({
+            workshop_response_id: row.workshop_response_id,
+            workshop_prompt_id: row.workshop_prompt_id,
+            workshop_response_content: parseResponseContent(row.workshop_response_content),
+            workshop_response_acceptance: 1,
+            workshop_response_created: row.workshop_response_created,
+          });
+        }
+
+        publicPreviewModules = await Promise.all(previewModules.map(async (module) => {
+          const prompts = await Promise.all(module.prompts.map(async (prompt) => {
+            const [analytics, aiAnalysis] = await Promise.all([
+              getPublicAnalyticsForPrompt(prompt.promptId, prompt.templateId).catch((error) => {
+                console.error('Public analytics preview error:', error.message);
+                return null;
+              }),
+              getPromptAIAnalysis(prompt.promptId).catch((error) => {
+                console.error('Public AI preview error:', error.message);
+                return null;
+              }),
+            ]);
+
+            return {
+              promptId: prompt.promptId,
+              templateId: prompt.templateId,
+              options: prompt.options,
+              reference: prompt.reference,
+              adminAnalysis: prompt.adminAnalysis,
+              analytics,
+              aiAnalysis,
+              responses: responsesByPrompt[prompt.promptId] || [],
+            };
+          }));
+
+          return {
+            moduleId: module.moduleId,
+            moduleName: module.moduleName,
+            moduleStatus: module.moduleStatus,
+            promptCount: module.prompts.length,
+            prompts,
+            responsePreviews: responsesByModule[module.moduleId] || [],
+          };
+        }));
+      }
 
       // Build convenience path for logged-in CTA
       if (openModules.length && openModules[0].prompts.length) {
@@ -158,7 +327,7 @@ homepageRouter.get('/feed', async (_req, res) => {
       'SELECT COUNT(*) AS totalResponses FROM workshop_responses'
     );
     const [[{ totalUsers }]] = await connection.query(
-      'SELECT COUNT(*) AS totalUsers FROM users'
+      'SELECT COUNT(*) AS totalUsers FROM users WHERE user_type IS NULL OR user_type != "guest"'
     );
     const [[{ totalWorkshops }]] = await connection.query(
       'SELECT COUNT(*) AS totalWorkshops FROM workshops'
@@ -252,6 +421,7 @@ homepageRouter.get('/feed', async (_req, res) => {
     return res.status(200).json({
       currentWorkshop,
       openModules,
+      publicPreviewModules,
       firstPromptPath,
       recentResponses,
       communityStats,
@@ -352,38 +522,14 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
     // 4. Check if guest has completed all prompts → auto-RSVP
     if (workshopId) {
       try {
-        const [rsvpAccomplishmentRows] = await connection.query(
-          'SELECT * FROM number_of_prompts_per_workshop_view WHERE workshop_id = ?',
-          [workshopId]
-        );
-        const [userAccomplishmentRows] = await connection.query(
-          'SELECT * FROM user_rsvp_ready_view WHERE user_id = ?',
-          [userId]
-        );
-
-        if (
-          rsvpAccomplishmentRows.length > 0 &&
-          rsvpAccomplishmentRows.length === userAccomplishmentRows.length
-        ) {
-          const [existingRsvp] = await connection.query(
-            'SELECT 1 FROM workshop_rsvps WHERE user_id = ? AND workshop_id = ? LIMIT 1',
-            [userId, workshopId]
-          );
-          if (existingRsvp.length === 0) {
-            await connection.query(
-              'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?, ?)',
-              [userId, workshopId]
-            );
-            try {
-              await notificationQueue.add('workshopRsvpUnconfirmed', {
-                userId,
-                workshopId: Number(workshopId),
-              });
-              console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${userId}, workshopId=${workshopId}`);
-            } catch (notifErr) {
-              console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
-            }
-          }
+        const rsvpResult = await ensureWorkshopRsvpForCompletedPrompts({
+          connection,
+          notificationQueue,
+          userId,
+          workshopId,
+        });
+        if (rsvpResult.created) {
+          console.log(`[homepage] auto-rsvp created: userId=${userId}, workshopId=${workshopId}`);
         }
       } catch (rsvpErr) {
         console.error('RSVP check error (non-fatal):', rsvpErr.message);
@@ -412,6 +558,71 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
     });
   } catch (error) {
     console.error('Homepage responses error:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+/**
+ * POST /api/homepage/module-open-notify
+ *
+ * Public email opt-in for visitors who want to know when a new module opens.
+ * Creates or reuses a guest account and enables email-only module_open
+ * notifications. Registered accounts must log in to edit notification settings.
+ */
+homepageRouter.post('/module-open-notify', responseLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
+    const [existingRows] = await connection.query(
+      'SELECT user_id, user_type FROM users WHERE email = ? LIMIT 1',
+      [normalizedEmail]
+    );
+
+    if (existingRows.length) {
+      const existing = existingRows[0];
+      if (existing.user_type !== 'guest') {
+        return res.status(200).json({
+          status: 'existing_user',
+          message: 'That email already has an account. Log in to manage workshop notifications.',
+        });
+      }
+
+      await connection.query(
+        'UPDATE users SET notification_settings = ? WHERE user_id = ?',
+        [JSON.stringify(moduleOpenEmailSettings), existing.user_id]
+      );
+
+      return res.status(200).json({
+        status: 'updated',
+        userId: existing.user_id,
+        message: "You're on the list. We'll email you when a new module opens.",
+      });
+    }
+
+    const emailPrefix = normalizedEmail.split('@')[0] || 'Guest';
+    const guestUsername = `guest_${randomUUID().slice(0, 8)}`;
+    const tempPassword = await bcrypt.hash(randomUUID(), SALT_ROUNDS);
+
+    const [insertResult] = await connection.query(
+      `INSERT INTO users
+        (username, email, first_name, last_name, user_password, user_type, user_phone, notification_settings)
+       VALUES (?, ?, ?, ?, ?, 'guest', '0000000000', ?)`,
+      [guestUsername, normalizedEmail, emailPrefix, '', tempPassword, JSON.stringify(moduleOpenEmailSettings)]
+    );
+
+    return res.status(201).json({
+      status: 'created',
+      userId: insertResult.insertId,
+      message: "You're on the list. We'll email you when a new module opens.",
+    });
+  } catch (error) {
+    console.error('Homepage module-open notify error:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 });

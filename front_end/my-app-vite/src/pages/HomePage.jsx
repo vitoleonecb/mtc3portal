@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
+import { Eye } from "lucide-react";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
 import { NextButton } from "../Buttons.jsx";
@@ -9,15 +10,116 @@ import { TypewriterTicker } from "../components/TypewriterTicker.jsx";
 import { InteractiveButtonWall } from "../components/InteractiveButtonWall.jsx";
 import { DescriptionTabs } from "../components/DescriptionTabs.jsx";
 import { HomepageModuleRunner } from "../components/HomepageModuleRunner.jsx";
+import { validateEmail } from "../utils/validation.js";
+import { ResponseProcessor } from "../Processing.jsx";
 
 import { GlowingBarVerticalChart } from "../components/ui/glowing-bar-vertical-chart.jsx";
 import { GlowingLineChart } from "../LineChartExample.jsx";
+
+function PublicModulePreview({ currentWorkshop, modules }) {
+  const [selectedModuleId, setSelectedModuleId] = useState(modules[0]?.moduleId ?? null);
+  const selectedModule = modules.find((module) => module.moduleId === selectedModuleId) || modules[0] || null;
+  const [selectedPromptId, setSelectedPromptId] = useState(selectedModule?.prompts?.[0]?.promptId ?? null);
+
+  if (!currentWorkshop || modules.length === 0) return null;
+
+  const activeModule = modules.find((module) => module.moduleId === selectedModuleId) || modules[0];
+  const activePrompts = activeModule?.prompts || [];
+  const activePrompt = activePrompts.find((prompt) => prompt.promptId === selectedPromptId) || activePrompts[0] || null;
+  const dotColor = activeModule?.moduleStatus === "completed"
+    ? "rgb(153, 66, 66)"
+    : "rgb(210, 164, 120)";
+
+  const chooseModule = (module) => {
+    setSelectedModuleId(module.moduleId);
+    setSelectedPromptId(module.prompts?.[0]?.promptId ?? null);
+  };
+
+  return (
+    <div className="homepageRunnerFrame publicModulePreviewFrame">
+      <div className="homepageRunnerContent">
+        <Heading2 text={currentWorkshop.workshopName} />
+        {currentWorkshop.workshopDescription && (
+          <p className="homepageFeaturedCTA">{currentWorkshop.workshopDescription}</p>
+        )}
+
+        <div className="publicModulePreviewList">
+          {modules.map((module) => (
+            <button
+              key={module.moduleId}
+              type="button"
+              className={`publicModulePreviewModule publicModulePreviewModule--${module.moduleStatus} ${activeModule?.moduleId === module.moduleId ? "publicModulePreviewModule--active" : ""}`}
+              onClick={() => chooseModule(module)}
+            >
+              <span className="publicModulePreviewHeader">
+                <span className="homepageRunnerModuleName">{module.moduleName}</span>
+                <span className="publicModulePreviewMeta">
+                  <span className={`publicModuleStatus publicModuleStatus--${module.moduleStatus}`}>
+                    {module.moduleStatus}
+                  </span>
+                  <Eye size={18} strokeWidth={1.8} aria-hidden="true" />
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {activePrompts.length > 1 && (
+          <div className="publicPromptPreviewTabs">
+            {activePrompts.map((prompt, index) => (
+              <button
+                key={prompt.promptId}
+                type="button"
+                className={`publicPromptPreviewTab ${activePrompt?.promptId === prompt.promptId ? "publicPromptPreviewTab--active" : ""}`}
+                onClick={() => setSelectedPromptId(prompt.promptId)}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activePrompt ? (
+          <div className="publicPromptPreviewProcessor">
+            <ResponseProcessor
+              promptId={activePrompt.promptId}
+              allResponses={activePrompt.responses || []}
+              templateId={activePrompt.templateId}
+              isAdmin={false}
+              promptOptions={activePrompt.options}
+              dotColor={dotColor}
+              publicPreview
+              publicAnalyticsData={activePrompt.analytics}
+              publicAiAnalysisData={activePrompt.aiAnalysis}
+              publicAdminAnalysis={activePrompt.adminAnalysis || ""}
+              redactIdentity
+            />
+          </div>
+        ) : (
+          <p className="homepageRunnerFinePrint">
+            Community responses are being reviewed.
+          </p>
+        )}
+
+        <div className="homepageCTAs">
+          <Link to="register" className="linkNoUnderLine cardLink">
+            <NextButton text="View All Workshops" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function HomePage() {
   const [feed, setFeed] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState("");
+  const [notifyError, setNotifyError] = useState("");
+  const [notifyStatus, setNotifyStatus] = useState(null);
+  const [notifyMessage, setNotifyMessage] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -55,9 +157,36 @@ export function HomePage() {
   const stats = feed?.communityStats;
   const currentWorkshop = feed?.currentWorkshop;
   const openModules = feed?.openModules || [];
+  const publicPreviewModules = feed?.publicPreviewModules || [];
   const firstPromptPath = feed?.firstPromptPath;
   const analytics = feed?.sampleAnalytics;
-  const hasWorkshop = currentWorkshop && openModules.length > 0;
+  const hasOpenModules = currentWorkshop && openModules.length > 0;
+  const hasPublicPreviewModules = currentWorkshop && publicPreviewModules.length > 0;
+  const hasPublicWorkshop = hasOpenModules || hasPublicPreviewModules;
+
+  const handleModuleNotify = async () => {
+    const error = validateEmail(notifyEmail);
+    if (error) {
+      setNotifyError(error);
+      return;
+    }
+
+    setNotifyError("");
+    setNotifyStatus("saving");
+    setNotifyMessage("");
+
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/homepage/module-open-notify`,
+        { email: notifyEmail.trim() }
+      );
+      setNotifyStatus(res.data.status);
+      setNotifyMessage(res.data.message);
+    } catch (err) {
+      setNotifyStatus("error");
+      setNotifyMessage(err?.response?.data?.error || "Could not save that email. Please try again.");
+    }
+  };
 
   return (
     <>
@@ -88,7 +217,7 @@ export function HomePage() {
         )}
 
         {/* Logged-in (non-guest): show workshop CTA card */}
-        {hasWorkshop && isLoggedIn && !isGuest && (
+        {hasOpenModules && isLoggedIn && !isGuest && (
           <div className="homepageLoggedInCTA">
             <Heading2 text={currentWorkshop.workshopName} />
             {currentWorkshop.workshopDescription && (
@@ -103,14 +232,63 @@ export function HomePage() {
         )}
 
         {/* Not logged in (or guest): show the module runner frame */}
-        {hasWorkshop && (!isLoggedIn || isGuest) && (
+        {hasOpenModules && (!isLoggedIn || isGuest) && (
           <HomepageModuleRunner
             currentWorkshop={currentWorkshop}
             openModules={openModules}
           />
         )}
+        {hasPublicPreviewModules && (!isLoggedIn || isGuest) && (
+          <PublicModulePreview
+            currentWorkshop={currentWorkshop}
+            modules={publicPreviewModules}
+          />
+        )}
+        {!loading && !hasPublicWorkshop && (!isLoggedIn || isGuest) && (
+          <div className="homepageLoggedInCTA">
+            <Heading2 text="New workshop coming soon" />
+            {notifyStatus === "created" || notifyStatus === "updated" ? (
+              <p className="homepageFeaturedCTA">{notifyMessage}</p>
+            ) : notifyStatus === "existing_user" ? (
+              <>
+                <p className="homepageFeaturedCTA">{notifyMessage}</p>
+                <div className="homepageCTAs">
+                  <Link to="login" className="linkNoUnderLine cardLink">
+                    <NextButton text="Log In" />
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="homepageNotifyCapture">
+                <input
+                  className={`textInput ${notifyError ? "textInputError" : ""}`}
+                  type="email"
+                  placeholder="Email for module updates"
+                  value={notifyEmail}
+                  onChange={(event) => {
+                    setNotifyEmail(event.target.value);
+                    if (notifyError) setNotifyError("");
+                    if (notifyStatus === "error") {
+                      setNotifyStatus(null);
+                      setNotifyMessage("");
+                    }
+                  }}
+                />
+                {notifyError && <p className="formInlineError">{notifyError}</p>}
+                {notifyStatus === "error" && <p className="formInlineError">{notifyMessage}</p>}
+                <div className="homepageCTAs">
+                  <NextButton
+                    text={notifyStatus === "saving" ? "Saving..." : "Notify Me"}
+                    onClick={handleModuleNotify}
+                    disabled={notifyStatus === "saving"}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {/* Login / Sign Up CTAs shown when user is not fully registered */}
-        {(!isLoggedIn || isGuest || !hasWorkshop) && (
+        {(!isLoggedIn || isGuest || !hasPublicWorkshop) && (
           <div className="homepageCTAs">
             <Link to="login" className="linkNoUnderLine cardLink">
               <NextButton text="Log In" />

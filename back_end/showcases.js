@@ -4,6 +4,49 @@ import notificationQueue from './queues/notificationQueue.js';
 
 export const showcasesRouter = express.Router();
 
+// ── GET /api/showcases/public ──────────────────────────────
+// Public-safe list of showcases. No ticket/user-specific fields.
+showcasesRouter.get('/public', async (_req, res) => {
+    try {
+        const [rows] = await connection.query(
+            `SELECT showcase_id, showcase_name, showcase_description,
+                    showcase_date, showcase_location, showcase_status
+             FROM showcases
+             ORDER BY showcase_date DESC`
+        );
+
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('GET public showcases error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// ── GET /api/showcases/public/:showcaseId ──────────────────
+// Public-safe detail. Linked workshops remain account-gated.
+showcasesRouter.get('/public/:showcaseId', async (req, res) => {
+    try {
+        const { showcaseId } = req.params;
+
+        const [[showcase]] = await connection.query(
+            `SELECT showcase_id, showcase_name, showcase_description,
+                    showcase_date, showcase_location, showcase_status
+             FROM showcases
+             WHERE showcase_id = ?`,
+            [showcaseId]
+        );
+
+        if (!showcase) {
+            return res.status(404).json({ error: 'Showcase not found' });
+        }
+
+        return res.status(200).json({ ...showcase, workshopsLocked: true });
+    } catch (error) {
+        console.error('GET public showcase error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // ── GET /api/showcases ─────────────────────────────────────
 // List all showcases with the current user's ticket status.
 showcasesRouter.get('', authenticateToken, async (req, res) => {

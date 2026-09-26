@@ -8,12 +8,34 @@ import { Heading1, Heading2, CurrentWorkshopHeading, UpcomingWorkshopsHeading, P
 import { WorkshopCard, CreateButton, WhenWhereRow } from "../Buttons.jsx";
 import { DropDown } from "../Buttons.jsx";
 import { ClockIcon, LocationIcon } from "../Icons.jsx";
+import { Lock } from "lucide-react";
 import { RAW_CHARACTERS } from "../components/card-characters.jsx";
 import { createRng, pickFrom } from "../utils/random.js";
 import { MysqlDateInput } from "../DateInput.jsx";
 import { useOverlay } from "../context/OverlayContext.jsx";
 import { ErrorOverlay } from "../components/ErrorOverlay.jsx";
 import { classifyError } from "../errors/errorRegistry.js";
+
+function isRealWorkshopDate(value) {
+    if (typeof value !== "string") return false;
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!match) return false;
+
+    const [, yearText, monthText, dayText, hourText = "00", minuteText = "00", secondText = "00"] = match;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    if (year < 1000 || month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) {
+        return false;
+    }
+
+    return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
 
 export function ShowcaseDetailPage() {
     const { showcaseId } = useParams();
@@ -32,6 +54,7 @@ export function ShowcaseDetailPage() {
     const [createFormSelected, setCreateFormSelected] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
     const [submitting, setSubmitting] = useState(false);
+    const [workshopDateError, setWorkshopDateError] = useState("");
     const [workshopCreateForm, setWorkshopCreateForm] = useState({
         workshopName: '',
         workshopDescription: '',
@@ -49,24 +72,37 @@ export function ShowcaseDetailPage() {
         catch (err) { console.error("Invalid token:", err); }
     }
     const userId = decodedToken?.user_id;
+    const hasValidToken = Boolean(accessToken && userId);
+    const isLoggedIn = hasValidToken;
 
     // ── Fetch showcase detail + workshops + subscription status ──
     const fetchDetail = async () => {
         try {
+            if (!hasValidToken) {
+                const showcaseRes = await axios.get(
+                    `${import.meta.env.VITE_API_URL}/showcases/public/${showcaseId}`
+                );
+                setShowcase(showcaseRes.data);
+                setWorkshops([]);
+                setTicket(null);
+                setIsMember(false);
+                return;
+            }
+
             const [showcaseRes, ticketRes, subRes] = await Promise.all([
-                axios.get(
-                    `${import.meta.env.VITE_API_URL}/showcases/${showcaseId}`,
-                    { headers: { Authorization: `Bearer ${accessToken}` } }
-                ),
-                axios.get(
-                    `${import.meta.env.VITE_API_URL}/showcases/${showcaseId}/my-ticket`,
-                    { headers: { Authorization: `Bearer ${accessToken}` } }
-                ),
-                axios.get(
-                    `${import.meta.env.VITE_API_URL}/stripe/subscription-status`,
-                    { headers: { Authorization: `Bearer ${accessToken}` } }
-                ),
-            ]);
+                    axios.get(
+                        `${import.meta.env.VITE_API_URL}/showcases/${showcaseId}`,
+                        { headers: { Authorization: `Bearer ${accessToken}` } }
+                    ),
+                    axios.get(
+                        `${import.meta.env.VITE_API_URL}/showcases/${showcaseId}/my-ticket`,
+                        { headers: { Authorization: `Bearer ${accessToken}` } }
+                    ),
+                    axios.get(
+                        `${import.meta.env.VITE_API_URL}/stripe/subscription-status`,
+                        { headers: { Authorization: `Bearer ${accessToken}` } }
+                    ),
+                ]);
             const data = showcaseRes.data;
             setShowcase(data);
             setWorkshops(data.workshops || []);
@@ -83,7 +119,7 @@ export function ShowcaseDetailPage() {
 
     // ── Admin check ──
     useEffect(() => {
-        if (!userId) return;
+        if (!userId || !hasValidToken) return;
         const fetchAdmin = async () => {
             try {
                 const res = await axios.get(
@@ -152,7 +188,20 @@ export function ShowcaseDetailPage() {
     }
 
     function handleDateChange(nextValue) {
+        if (!isRealWorkshopDate(nextValue)) {
+            setWorkshopCreateForm(prev => ({ ...prev, workshopTime: '' }));
+            setWorkshopDateError("Choose a real workshop date before continuing.");
+            return;
+        }
+
+        if (showcase?.showcase_date && new Date(nextValue) > new Date(showcase.showcase_date)) {
+            setWorkshopCreateForm(prev => ({ ...prev, workshopTime: '' }));
+            setWorkshopDateError(`Workshop date cannot be after the showcase date (${formatDate(showcase.showcase_date)}).`);
+            return;
+        }
+
         setWorkshopCreateForm(prev => ({ ...prev, workshopTime: nextValue }));
+        setWorkshopDateError("");
     }
 
     function handleStyleSelect(option) {
@@ -160,7 +209,7 @@ export function ShowcaseDetailPage() {
     }
 
     function isWorkshopDateValid() {
-        if (!workshopCreateForm.workshopTime?.trim()) return false;
+        if (!isRealWorkshopDate(workshopCreateForm.workshopTime)) return false;
         if (!showcase?.showcase_date) return true;
         return new Date(workshopCreateForm.workshopTime) <= new Date(showcase.showcase_date);
     }
@@ -177,7 +226,13 @@ export function ShowcaseDetailPage() {
     }
 
     function next() {
-        if (!isStepValid(currentStep)) return;
+        if (!isStepValid(currentStep)) {
+            if (currentStep === 2) {
+                setWorkshopDateError(workshopDateError || "Choose a real workshop date before continuing.");
+            }
+            return;
+        }
+        setWorkshopDateError("");
         setCurrentStep(s => Math.min(s + 1, 4));
     }
 
@@ -187,6 +242,11 @@ export function ShowcaseDetailPage() {
 
     async function createWorkshop() {
         if (!isStepValid(currentStep)) return;
+        if (!isWorkshopDateValid()) {
+            setWorkshopDateError(workshopDateError || "Choose a real workshop date before creating the workshop.");
+            setCurrentStep(2);
+            return;
+        }
         setSubmitting(true);
         try {
             const payload = {
@@ -248,21 +308,6 @@ export function ShowcaseDetailPage() {
     }, [workshops, locationKey]);
 
     const getDecoration = (id) => workshopDecorations[id] || null;
-
-    // ── Cancel (unclaim) ticket ──
-    const handleCancelTicket = async () => {
-        if (!ticket) return;
-        try {
-            await axios.put(
-                `${import.meta.env.VITE_API_URL}/showcases/tickets/${ticket.ticket_id}/cancel`,
-                {},
-                { headers: { Authorization: `Bearer ${accessToken}` } }
-            );
-            setTicket(null);
-        } catch (err) {
-            console.error("Cancel ticket error:", err);
-        }
-    };
 
     // ── Claim membership ticket (for active subscribers with no ticket) ──
     const handleClaimMembershipTicket = async () => {
@@ -348,7 +393,19 @@ export function ShowcaseDetailPage() {
             {/* ── Workshops section ── */}
             <Heading1 text="Workshops" />
 
-            {currentWorkshop && (
+            {!isLoggedIn && (
+                <div className="workshopCardContainer lockedShowcaseWorkshopsCard">
+                    <div>
+                        <h1 className="workshopCardName">Workshop details locked</h1>
+                        <span id="workshopCardDescription">
+                            Create an account to see the workshops attached to this showcase.
+                        </span>
+                    </div>
+                    <Lock size={22} strokeWidth={1.8} aria-hidden="true" />
+                </div>
+            )}
+
+            {isLoggedIn && currentWorkshop && (
                 <>
                     <CurrentWorkshopHeading rsvpStatus={currentRsvpStatus} />
                     <div className="cardLink">
@@ -366,7 +423,7 @@ export function ShowcaseDetailPage() {
                 </>
             )}
 
-            {upcomingWorkshops.length > 0 && (
+            {isLoggedIn && upcomingWorkshops.length > 0 && (
                 <>
                     <UpcomingWorkshopsHeading />
                     {upcomingWorkshops.map((workshop) => (
@@ -386,7 +443,7 @@ export function ShowcaseDetailPage() {
                 </>
             )}
 
-            {workshops.length === 0 && !createFormSelected && (
+            {isLoggedIn && workshops.length === 0 && !createFormSelected && (
                 <Heading2 text="No workshops assigned to this showcase yet" />
             )}
 
@@ -430,11 +487,10 @@ export function ShowcaseDetailPage() {
                             <MysqlDateInput
                                 value={workshopCreateForm.workshopTime}
                                 onChange={handleDateChange}
+                                className={workshopDateError ? "mysql-picker--error" : ""}
                             />
-                            {workshopCreateForm.workshopTime?.trim() && !isWorkshopDateValid() && (
-                                <span style={{ color: 'red', fontSize: '0.85rem', marginTop: '0.5rem', display: 'block' }}>
-                                    Workshop date cannot be after the showcase date ({formatDate(showcase.showcase_date)})
-                                </span>
+                            {workshopDateError && (
+                                <p className="formInlineError">{workshopDateError}</p>
                             )}
                         </>
                     )}
@@ -472,7 +528,12 @@ export function ShowcaseDetailPage() {
                             </svg>
                         </button>
                         {currentStep < 4 ? (
-                            <button type="button" onClick={next} className="createButton" disabled={!isStepValid(currentStep)}>
+                            <button
+                                type="button"
+                                onClick={next}
+                                className="createButton"
+                                disabled={currentStep !== 2 && !isStepValid(currentStep)}
+                            >
                                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <polyline points="5.25 2.75 12.75 9 5.25 15.25" stroke="black" fill="none" />
                                 </svg>
@@ -502,7 +563,7 @@ export function ShowcaseDetailPage() {
                 </>
             )}
 
-            {pastWorkshops.length > 0 && (
+            {isLoggedIn && pastWorkshops.length > 0 && (
                 <>
                     <PastWorkshopsHeading />
                     {pastWorkshops.map((workshop) => (

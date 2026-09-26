@@ -16,6 +16,26 @@ import { useOverlay } from "../context/OverlayContext.jsx";
 import { ErrorOverlay } from "../components/ErrorOverlay.jsx";
 import { classifyError } from "../errors/errorRegistry.js";
 
+function isRealWorkshopDate(value) {
+    if (typeof value !== "string") return false;
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!match) return false;
+
+    const [, yearText, monthText, dayText, hourText = "00", minuteText = "00", secondText = "00"] = match;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    if (year < 1000 || month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) {
+        return false;
+    }
+
+    return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
 
 export function WorkshopsPage() {
     
@@ -23,10 +43,10 @@ export function WorkshopsPage() {
     const { key: locationKey } = useLocation();
     const [isAdmin, setIsAdmin] = useState(false);
     const [createFormSelected, setCreateFormSelected] = useState(false);
-    const [date, setDate] = useState('');
     const [currentStep, setCurrentStep] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     const [currentRsvpStatus, setCurrentRsvpStatus] = useState(null);
+    const [workshopDateError, setWorkshopDateError] = useState("");
     const { show } = useOverlay();
 
     // State for POST via API
@@ -162,6 +182,7 @@ export function WorkshopsPage() {
 
     function handleDateChange(nextValue) {
         setWorkshopCreateForm(prev => ({ ...prev, workshopTime: nextValue }));
+        setWorkshopDateError("");
       }
 
     function handleStyleSelect(option) {
@@ -172,7 +193,7 @@ export function WorkshopsPage() {
         switch (stepIndex) {
             case 0: return workshopCreateForm.workshopName.trim().length > 0;
             case 1: return workshopCreateForm.workshopDescription.trim().length > 0;
-            case 2: return workshopCreateForm.workshopTime?.trim().length > 0;
+            case 2: return isRealWorkshopDate(workshopCreateForm.workshopTime);
             case 3: return workshopCreateForm.workshopLocation.trim().length > 0;
             case 4: return workshopCreateForm.workshopStyle.trim().length > 0;
             default: return true;
@@ -180,8 +201,14 @@ export function WorkshopsPage() {
     }
 
     function next() {
-        if (!isStepValid(currentStep)) return;
-            setCurrentStep(s => Math.min(s + 1, 4));
+        if (!isStepValid(currentStep)) {
+            if (currentStep === 2) {
+                setWorkshopDateError("Choose a real workshop date before continuing.");
+            }
+            return;
+        }
+        setWorkshopDateError("");
+        setCurrentStep(s => Math.min(s + 1, 4));
       }
     
     function back() {
@@ -190,6 +217,11 @@ export function WorkshopsPage() {
 
     async function createWorkshop() {
         if (!isStepValid(currentStep)) return;
+        if (!isRealWorkshopDate(workshopCreateForm.workshopTime)) {
+            setWorkshopDateError("Choose a real workshop date before creating the workshop.");
+            setCurrentStep(2);
+            return;
+        }
       
         setSubmitting(true);
       
@@ -397,7 +429,11 @@ export function WorkshopsPage() {
                     <MysqlDateInput
                       value={workshopCreateForm.workshopTime}
                       onChange={handleDateChange}
+                      className={workshopDateError ? "mysql-picker--error" : ""}
                     />
+                    {workshopDateError && (
+                      <p className="formInlineError">{workshopDateError}</p>
+                    )}
                   </>
                 )}
             
@@ -435,7 +471,12 @@ export function WorkshopsPage() {
                     </svg>
                   </button>
                   {currentStep < 4 ? (
-                    <button type="button" onClick={next} className="createButton" disabled={!isStepValid(currentStep)}>
+                    <button
+                      type="button"
+                      onClick={next}
+                      className="createButton"
+                      disabled={currentStep !== 2 && !isStepValid(currentStep)}
+                    >
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <polyline points="5.25 2.75 12.75 9 5.25 15.25" stroke="black" fill="none" />
                         </svg>

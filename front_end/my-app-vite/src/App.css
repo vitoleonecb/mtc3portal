@@ -1490,6 +1490,17 @@ rect:hover {
   margin-right: auto;
 }
 
+.formInlineError {
+  color: rgb(153, 66, 66);
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  width: var(--element-width);
+  max-width: 100%;
+  margin: -0.25rem auto 1rem;
+}
+
 .registrationButtonRow {
   display: flex;
   gap: 1rem;
@@ -2799,6 +2810,15 @@ select.dropDown {
 
 .mysql-picker__trigger:hover { box-shadow: -2px 2px black; }
 
+.mysql-picker--error .mysql-picker__trigger {
+  border-color: rgb(153, 66, 66);
+  box-shadow: -4px 4px rgb(153, 66, 66);
+}
+
+.mysql-picker--error .mysql-picker__trigger:hover {
+  box-shadow: -2px 2px rgb(153, 66, 66);
+}
+
 /* Label inside the trigger */
 .mysql-picker__label { font-size: 14px; line-height: 1.4; }
 .mysql-picker__label--placeholder { color: var(--mysqlc-muted); }
@@ -3348,6 +3368,32 @@ margin-top: 2px;
   color: #555;
 }
 
+.homepageRunnerLockedMeta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 3.25rem;
+  min-height: 2.25rem;
+  border: 1px solid black;
+  border-radius: 12px;
+  box-shadow: -4px 4px black;
+  background: white;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.homepageRunnerLockedMeta:hover {
+  box-shadow: -2px 2px black;
+  transform: translate(-2px, 2px);
+}
+
+.homepageRunnerLockedMeta:focus,
+.homepageRunnerLockedMeta:active {
+  box-shadow: none;
+  transform: translate(-4px, 4px);
+}
+
 .homepageRunnerModules {
   display: flex;
   flex-direction: column;
@@ -3397,6 +3443,159 @@ margin-top: 2px;
   margin-left: 0;
   margin-right: 0;
   margin-bottom: 1rem;
+}
+
+.homepageNotifyCapture {
+  margin-top: 1rem;
+}
+
+.homepageNotifyCapture .textInput {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.publicModulePreviewFrame {
+  margin-top: 1.5rem;
+}
+
+.publicModulePreviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.publicModulePreviewModule {
+  border: 1px solid black;
+  border-radius: 12px;
+  box-shadow: -4px 4px black;
+  padding: 1rem;
+  background: white;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+}
+
+.publicModulePreviewModule:hover,
+.publicModulePreviewModule--active {
+  box-shadow: -2px 2px black;
+  transform: translate(-2px, 2px);
+  background: #D2A478;
+}
+
+.publicModulePreviewModule--completed.publicModulePreviewModule--active,
+.publicModulePreviewModule--completed:hover {
+  background: rgb(153, 66, 66);
+  color: white;
+}
+
+.publicModulePreviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.publicModulePreviewMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.publicModuleStatus {
+  border: 1px solid black;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  background: #D2A478;
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.publicModuleStatus--completed {
+  background: rgb(153, 66, 66);
+  color: white;
+}
+
+.publicResponsePreviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.publicPromptPreviewTabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1.25rem 0;
+}
+
+.publicPromptPreviewTab {
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid black;
+  border-radius: 12px;
+  box-shadow: -4px 4px black;
+  background: white;
+  cursor: pointer;
+  font-family: sans-serif;
+  font-weight: lighter;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+}
+
+.publicPromptPreviewTab:hover,
+.publicPromptPreviewTab--active {
+  box-shadow: -2px 2px black;
+  transform: translate(-2px, 2px);
+  background: #D2A478;
+}
+
+.publicPromptPreviewProcessor {
+  margin-top: 1rem;
+}
+
+.publicResponsePreview {
+  border: 1px solid #D9D9D9;
+  border-radius: 12px;
+  padding: 0.75rem;
+  opacity: 0.86;
+}
+
+.publicResponseIdentity {
+  justify-content: flex-start;
+  color: #555;
+  font-family: sans-serif;
+  font-weight: lighter;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+}
+
+.publicResponsePreview p {
+  margin: 0;
+  font-family: sans-serif;
+  font-weight: lighter;
+  line-height: 1.4;
+}
+
+.homepageRunnerFinePrint {
+  font-family: sans-serif;
+  font-weight: lighter;
+  color: #555;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  margin: 0.75rem 0 0;
+}
+
+.lockedShowcaseWorkshopsCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #555;
 }
 
 /* Logged-in CTA card */

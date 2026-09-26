@@ -29,6 +29,10 @@ export const ERROR_DEFINITIONS = {
     title: "Something about that doesn't look right",
     body: "Please review the fields and try again.",
   },
+  RATE_LIMIT: {
+    title: "Too many save attempts",
+    body: "For safety, we limit how often preview responses can be saved. Please wait a bit before trying again.",
+  },
   UNKNOWN: {
     title: "Something went wrong",
     body: "We hit an unexpected error.",
@@ -46,6 +50,7 @@ export function classifyError(error, options = {}) {
   if (!key) {
     if (network) key = "NETWORK";
     else if (status === 401 || status === 403) key = "AUTH";
+    else if (status === 429) key = "RATE_LIMIT";
     else if (status === 400 || status === 422) key = "VALIDATION";
     else if (typeof status === "number" && status >= 500) key = "SERVER";
     else key = "UNKNOWN";

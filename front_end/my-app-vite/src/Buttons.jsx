@@ -259,17 +259,8 @@ export function ScriptSampleRate({ sample }) {
 export function StarRater({ onChange, responseData, disabled }) {
     
     const [hoveredRating, setHoveredRating] = useState(0);
-    const [selectedRating, setSelectedRating] = useState(0);
-
-    useEffect(() => {
-        onChange(selectedRating);
-    },[selectedRating])
-
-    useEffect(() => {
-	if (responseData) {
-		setSelectedRating(responseData);
-	}
-    })
+    const responseRating = Number(responseData || 0);
+    const selectedRating = Number.isNaN(responseRating) ? 0 : responseRating;
 
     const handleMouseEnter = (index) => {
         setHoveredRating(index);
@@ -280,7 +271,7 @@ export function StarRater({ onChange, responseData, disabled }) {
     };
 
     const handleClick = (index) => {
-        setSelectedRating(index);
+        onChange?.(index);
     }
     
     return (
