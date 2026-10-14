@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
-import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 
-import { Heading1, Heading2, CurrentWorkshopHeading, UpcomingWorkshopsHeading, PastWorkshopsHeading } from "../Headings.jsx";
+import { Heading1, Heading2, CurrentWorkshopHeading } from "../Headings.jsx";
 import { WorkshopCard, CreateButton, WhenWhereRow } from "../Buttons.jsx";
 import { DropDown } from "../Buttons.jsx";
 import { ClockIcon, LocationIcon } from "../Icons.jsx";
-import { Lock } from "lucide-react";
+import { Archive, Eye, UserPlus } from "lucide-react";
 import { RAW_CHARACTERS } from "../components/card-characters.jsx";
 import { createRng, pickFrom } from "../utils/random.js";
 import { MysqlDateInput } from "../DateInput.jsx";
 import { useOverlay } from "../context/OverlayContext.jsx";
 import { ErrorOverlay } from "../components/ErrorOverlay.jsx";
 import { classifyError } from "../errors/errorRegistry.js";
+import { ArchiveViewToggle } from "../components/ArchiveViewToggle.jsx";
 
 function isRealWorkshopDate(value) {
     if (typeof value !== "string") return false;
@@ -41,6 +42,8 @@ export function ShowcaseDetailPage() {
     const { showcaseId } = useParams();
     const { key: locationKey } = useLocation();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const view = searchParams.get("view") === "archive" ? "archive" : "current";
 
     const [showcase, setShowcase] = useState(null);
     const [workshops, setWorkshops] = useState([]);
@@ -73,17 +76,17 @@ export function ShowcaseDetailPage() {
     }
     const userId = decodedToken?.user_id;
     const hasValidToken = Boolean(accessToken && userId);
-    const isLoggedIn = hasValidToken;
+    const isLoggedIn = hasValidToken && decodedToken?.user_type !== "guest";
 
     // ── Fetch showcase detail + workshops + subscription status ──
-    const fetchDetail = async () => {
+    const fetchDetail = useCallback(async () => {
         try {
-            if (!hasValidToken) {
+            if (!isLoggedIn) {
                 const showcaseRes = await axios.get(
                     `${import.meta.env.VITE_API_URL}/showcases/public/${showcaseId}`
                 );
                 setShowcase(showcaseRes.data);
-                setWorkshops([]);
+                setWorkshops(showcaseRes.data.workshops || []);
                 setTicket(null);
                 setIsMember(false);
                 return;
@@ -113,13 +116,13 @@ export function ShowcaseDetailPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [accessToken, isLoggedIn, showcaseId]);
 
-    useEffect(() => { fetchDetail(); }, [showcaseId]);
+    useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
     // ── Admin check ──
     useEffect(() => {
-        if (!userId || !hasValidToken) return;
+        if (!userId || !isLoggedIn) return;
         const fetchAdmin = async () => {
             try {
                 const res = await axios.get(
@@ -132,7 +135,7 @@ export function ShowcaseDetailPage() {
             }
         };
         fetchAdmin();
-    }, [userId]);
+    }, [userId, accessToken, isLoggedIn]);
 
     // ── Workshop groups ──
     const { currentWorkshop, upcomingWorkshops, pastWorkshops } = useMemo(() => {
@@ -153,7 +156,7 @@ export function ShowcaseDetailPage() {
 
     // ── RSVP status for current workshop ──
     useEffect(() => {
-        if (!currentWorkshop || !userId) { setCurrentRsvpStatus(null); return; }
+        if (!currentWorkshop || !userId || !isLoggedIn) { setCurrentRsvpStatus(null); return; }
         const fetchRsvp = async () => {
             try {
                 const res = await axios.get(
@@ -170,7 +173,7 @@ export function ShowcaseDetailPage() {
             } catch { setCurrentRsvpStatus(null); }
         };
         fetchRsvp();
-    }, [currentWorkshop, userId]);
+    }, [currentWorkshop, userId, accessToken, isLoggedIn]);
 
     const formatDate = (datetime) => format(new Date(datetime), "EEEE 'at' h:mm a | MM-dd-yyyy");
 
@@ -329,14 +332,21 @@ export function ShowcaseDetailPage() {
     const showcaseDateLabel = showcase.showcase_date
         ? formatDate(showcase.showcase_date)
         : '—';
+    const isPastShowcase = showcase.showcase_date
+        ? new Date(showcase.showcase_date) < new Date()
+        : false;
+    const workshopView = isPastShowcase ? "archive" : view;
 
     const hasTicket = ticket && ticket.ticket_status !== 'cancelled';
 
     // Derive card background color based on ticket state
-    const showcaseCardColor = hasTicket ? '#57A15E' : isMember ? '#D2A478' : '#994242';
+    const showcaseCardColor = isPastShowcase
+        ? '#D9D9D9'
+        : hasTicket ? '#57A15E' : isMember ? '#D2A478' : '#994242';
 
     // ── Container click handler ──
     const handleCardClick = () => {
+        if (isPastShowcase) return;
         if (hasTicket) {
             navigate(`/showcases/${showcaseId}/ticket/view`);
         } else if (isMember) {
@@ -346,15 +356,67 @@ export function ShowcaseDetailPage() {
         }
     };
 
+    const changeWorkshopView = (nextView) => {
+        const nextParams = new URLSearchParams(searchParams);
+        if (nextView === "archive") nextParams.set("view", "archive");
+        else nextParams.delete("view");
+        setSearchParams(nextParams);
+    };
+
+    const renderWorkshopCard = (workshop, allowPreview) => {
+        const isPastWorkshop = new Date(workshop.workshop_date) < new Date();
+        const card = (
+            <WorkshopCard
+                workshopName={workshop.workshop_name}
+                workshopDescription={workshop.workshop_description}
+                workshopDate={formatDate(workshop.workshop_date)}
+                workshopLocation={isLoggedIn ? workshop.workshop_location : undefined}
+                workshopPublic={!!workshop.workshop_public}
+                decoration={getDecoration(workshop.workshop_id)}
+                locationLocked={!isLoggedIn}
+                pastWorkshop={isPastWorkshop}
+                showArrow={isLoggedIn}
+                actions={!isLoggedIn && (allowPreview || !isPastWorkshop) ? (
+                    <>
+                        {allowPreview && (
+                            <Link
+                                to={`/?workshopId=${workshop.workshop_id}#workshop-preview`}
+                                className="publicWorkshopAction publicWorkshopAction--preview"
+                            >
+                                <Eye size={16} strokeWidth={1.8} aria-hidden="true" />
+                                <span>{workshop.respond_available ? "Respond" : "Preview"}</span>
+                            </Link>
+                        )}
+                        {!isPastWorkshop && (
+                            <Link to="/register" className="publicWorkshopAction publicWorkshopAction--join">
+                                <UserPlus size={16} strokeWidth={1.8} aria-hidden="true" />
+                                <span>Sign Up</span>
+                            </Link>
+                        )}
+                    </>
+                ) : null}
+            />
+        );
+
+        if (!isLoggedIn) return <div key={workshop.workshop_id}>{card}</div>;
+        return (
+            <div key={workshop.workshop_id} className="cardLink">
+                <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
+                    {card}
+                </Link>
+            </div>
+        );
+    };
+
     return (
         <>
             <Heading1 text={showcase.showcase_name} />
 
             {/* ── Showcase info + ticket ── */}
             <div
-                className="workshopCardContainer showcaseDetailCard"
+                className={`workshopCardContainer showcaseDetailCard ${isPastShowcase ? "showcaseDetailCard--past" : ""}`.trim()}
                 style={{ display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: '1rem', backgroundColor: showcaseCardColor }}
-                onClick={handleCardClick}
+                onClick={isPastShowcase ? undefined : handleCardClick}
             >
                 {/* Left column: details */}
                 <div style={{ flex: 1, padding: '0 1rem' }}>
@@ -366,7 +428,12 @@ export function ShowcaseDetailPage() {
 
                 {/* Right column: ticket action */}
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch', gap: '0.5rem', padding: '0 1rem' }}>
-                    {hasTicket ? (
+                    {isPastShowcase ? (
+                        <span className="showcaseArchivedLabel">
+                            <Archive size={17} strokeWidth={1.8} aria-hidden="true" />
+                            Archived
+                        </span>
+                    ) : hasTicket ? (
                         <button
                             className="logInButton"
                             style={{ width: '100%' }}
@@ -392,64 +459,40 @@ export function ShowcaseDetailPage() {
 
             {/* ── Workshops section ── */}
             <Heading1 text="Workshops" />
-
-            {!isLoggedIn && (
-                <div className="workshopCardContainer lockedShowcaseWorkshopsCard">
-                    <div>
-                        <h1 className="workshopCardName">Workshop details locked</h1>
-                        <span id="workshopCardDescription">
-                            Create an account to see the workshops attached to this showcase.
-                        </span>
-                    </div>
-                    <Lock size={22} strokeWidth={1.8} aria-hidden="true" />
-                </div>
+            {!isPastShowcase && (
+                <ArchiveViewToggle value={workshopView} onChange={changeWorkshopView} currentLabel="Upcoming" />
             )}
 
-            {isLoggedIn && currentWorkshop && (
+            {workshopView === "current" && currentWorkshop && (
                 <>
                     <CurrentWorkshopHeading rsvpStatus={currentRsvpStatus} />
-                    <div className="cardLink">
-                        <Link to={`/workshops/${currentWorkshop.workshop_id}/modules`} className="linkNoUnderLine">
-                            <WorkshopCard
-                                workshopName={currentWorkshop.workshop_name}
-                                workshopDescription={currentWorkshop.workshop_description}
-                                workshopDate={formatDate(currentWorkshop.workshop_date)}
-                                workshopLocation={currentWorkshop.workshop_location}
-                                workshopPublic={!!currentWorkshop.workshop_public}
-                                decoration={getDecoration(currentWorkshop.workshop_id)}
-                            />
-                        </Link>
-                    </div>
+                    {renderWorkshopCard(currentWorkshop, Boolean(currentWorkshop.preview_available))}
                 </>
             )}
 
-            {isLoggedIn && upcomingWorkshops.length > 0 && (
+            {workshopView === "current" && upcomingWorkshops.length > 0 && (
                 <>
-                    <UpcomingWorkshopsHeading />
-                    {upcomingWorkshops.map((workshop) => (
-                        <div key={workshop.workshop_id} className="cardLink">
-                            <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
-                                <WorkshopCard
-                                    workshopName={workshop.workshop_name}
-                                    workshopDescription={workshop.workshop_description}
-                                    workshopDate={formatDate(workshop.workshop_date)}
-                                    workshopLocation={workshop.workshop_location}
-                                    workshopPublic={!!workshop.workshop_public}
-                                    decoration={getDecoration(workshop.workshop_id)}
-                                />
-                            </Link>
-                        </div>
-                    ))}
+                    {upcomingWorkshops.map((workshop) => renderWorkshopCard(workshop, Boolean(workshop.preview_available)))}
                 </>
             )}
 
-            {isLoggedIn && workshops.length === 0 && !createFormSelected && (
-                <Heading2 text="No workshops assigned to this showcase yet" />
+            {workshopView === "current" && !currentWorkshop && upcomingWorkshops.length === 0 && !createFormSelected && (
+                <Heading2 text="No upcoming workshops" />
             )}
 
-            {isAdmin && <CreateButton handleClick={() => setCreateFormSelected(true)} />}
+            {workshopView === "archive" && pastWorkshops.length > 0 && (
+                <>
+                    {pastWorkshops.map((workshop) => renderWorkshopCard(workshop, Boolean(workshop.preview_available)))}
+                </>
+            )}
 
-            {createFormSelected && (
+            {workshopView === "archive" && pastWorkshops.length === 0 && (
+                <Heading2 text="No archived workshops" />
+            )}
+
+            {workshopView === "current" && isAdmin && <CreateButton handleClick={() => setCreateFormSelected(true)} />}
+
+            {workshopView === "current" && createFormSelected && (
                 <>
                     {currentStep === 0 && (
                         <>
@@ -563,25 +606,6 @@ export function ShowcaseDetailPage() {
                 </>
             )}
 
-            {isLoggedIn && pastWorkshops.length > 0 && (
-                <>
-                    <PastWorkshopsHeading />
-                    {pastWorkshops.map((workshop) => (
-                        <div key={workshop.workshop_id} className="cardLink">
-                            <Link to={`/workshops/${workshop.workshop_id}/modules`} className="linkNoUnderLine">
-                                <WorkshopCard
-                                    workshopName={workshop.workshop_name}
-                                    workshopDescription={workshop.workshop_description}
-                                    workshopDate={formatDate(workshop.workshop_date)}
-                                    workshopLocation={workshop.workshop_location}
-                                    workshopPublic={!!workshop.workshop_public}
-                                    decoration={getDecoration(workshop.workshop_id)}
-                                />
-                            </Link>
-                        </div>
-                    ))}
-                </>
-            )}
         </>
     );
 }

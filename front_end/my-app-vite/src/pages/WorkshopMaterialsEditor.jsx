@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useLayoutEffect } from "react";
+import React, { useCallback, useContext, useEffect, useState, useLayoutEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 
@@ -1360,6 +1360,21 @@ export function WorkshopMaterialsEditor() {
 
   const isFirst = materialIndex === 0;
 
+  const handleMaterialChange = useCallback((updated) => {
+    setMaterialsList((previous) => {
+      const current = previous[materialIndex];
+      if (!current) return previous;
+      const next = [...previous];
+      next[materialIndex] = {
+        ...current,
+        material_type: updated.type,
+        content: updated.content,
+        title: updated.content?.title || current.title || "",
+      };
+      return next;
+    });
+  }, [materialIndex]);
+
   const renderMaterialForm = () => {
     const m = materialsList[materialIndex];
     if (!m) {
@@ -1371,16 +1386,7 @@ export function WorkshopMaterialsEditor() {
         title: m.title,
         ...m.content,
       },
-      onChange: (updated) => {
-        const updatedList = [...materialsList];
-        updatedList[materialIndex] = {
-          ...updatedList[materialIndex],
-          material_type: updated.type,
-          content: updated.content,
-          title: updated.content?.title || updatedList[materialIndex].title || "",
-        };
-        setMaterialsList(updatedList);
-      },
+      onChange: handleMaterialChange,
     };
 
     switch (m.material_type) {

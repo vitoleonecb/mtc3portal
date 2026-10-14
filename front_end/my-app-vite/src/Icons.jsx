@@ -272,7 +272,6 @@ export function AccountAvatarButton() {
     if (typeof accessToken === 'string' && accessToken.trim() !== '') {
       try {
         const decoded = jwtDecode(accessToken);
-        console.log('[Header] Decoded token avatar_config:', decoded?.avatar_config);
         seed = decoded?.username || decoded?.first_name || decoded?.email || String(decoded?.user_id || 'User');
 
         const cfg = decoded?.avatar_config;

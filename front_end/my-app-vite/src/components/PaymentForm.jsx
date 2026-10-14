@@ -30,7 +30,7 @@ export function PaymentForm({ onSuccess, onError, submitLabel = 'Pay', returnUrl
             ? stripe.confirmSetup.bind(stripe)
             : stripe.confirmPayment.bind(stripe);
 
-        const { error } = await confirmFn({
+        const { error, paymentIntent } = await confirmFn({
             elements,
             confirmParams: {
                 return_url: returnUrl || `${window.location.origin}/showcases`,
@@ -43,7 +43,7 @@ export function PaymentForm({ onSuccess, onError, submitLabel = 'Pay', returnUrl
             onError?.(error.message);
             setProcessing(false);
         } else {
-            onSuccess?.();
+            onSuccess?.({ paymentIntentId: paymentIntent?.id });
             setProcessing(false);
         }
     };

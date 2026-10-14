@@ -78,7 +78,7 @@ try {
 
     // Always fetch full user record
     const [[userRow]] = await connection.query(
-    'SELECT user_id, email, user_type FROM users WHERE email = ? LIMIT 1',
+    'SELECT user_id, email, user_type, email_verified FROM users WHERE email = ? LIMIT 1',
     [decoded.email]
     );
 
@@ -99,7 +99,8 @@ try {
     req.user = {
     ...decoded,
     is_admin: isAdmin,
-    user_type: userRow.user_type
+    user_type: userRow.user_type,
+    email_verified: Boolean(userRow.email_verified)
     };
 
     next();
@@ -137,4 +138,3 @@ if (!process.env.DISABLE_APP_LISTEN) {
     process.exit(1);
   });
 }
-

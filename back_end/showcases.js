@@ -10,7 +10,8 @@ showcasesRouter.get('/public', async (_req, res) => {
     try {
         const [rows] = await connection.query(
             `SELECT showcase_id, showcase_name, showcase_description,
-                    showcase_date, showcase_location, showcase_status
+                    showcase_date, showcase_location,
+                    CASE WHEN showcase_date <= NOW() THEN 'completed' ELSE 'upcoming' END AS showcase_status
              FROM showcases
              ORDER BY showcase_date DESC`
         );
@@ -23,14 +24,16 @@ showcasesRouter.get('/public', async (_req, res) => {
 });
 
 // ── GET /api/showcases/public/:showcaseId ──────────────────
-// Public-safe detail. Linked workshops remain account-gated.
+// Public-safe detail with linked workshop metadata. Private event, participant,
+// response, and ticket data stay behind authenticated endpoints.
 showcasesRouter.get('/public/:showcaseId', async (req, res) => {
     try {
         const { showcaseId } = req.params;
 
         const [[showcase]] = await connection.query(
             `SELECT showcase_id, showcase_name, showcase_description,
-                    showcase_date, showcase_location, showcase_status
+                    showcase_date, showcase_location,
+                    CASE WHEN showcase_date <= NOW() THEN 'completed' ELSE 'upcoming' END AS showcase_status
              FROM showcases
              WHERE showcase_id = ?`,
             [showcaseId]
@@ -40,7 +43,29 @@ showcasesRouter.get('/public/:showcaseId', async (req, res) => {
             return res.status(404).json({ error: 'Showcase not found' });
         }
 
-        return res.status(200).json({ ...showcase, workshopsLocked: true });
+        const [workshops] = await connection.query(
+            `SELECT w.workshop_id, w.workshop_name, w.workshop_description,
+                    w.workshop_date, w.workshop_public,
+                    EXISTS (
+                        SELECT 1
+                        FROM workshop_modules wm
+                        WHERE wm.workshop_id = w.workshop_id
+                          AND wm.workshop_module_status != 'pending'
+                    ) AS preview_available,
+                    (w.workshop_date > NOW() AND EXISTS (
+                        SELECT 1
+                        FROM workshop_modules wm
+                        JOIN workshop_prompts wp ON wp.workshop_module_id = wm.workshop_module_id
+                        WHERE wm.workshop_id = w.workshop_id
+                          AND wm.workshop_module_status = 'open'
+                    )) AS respond_available
+             FROM workshops w
+             WHERE w.showcase_id = ?
+             ORDER BY w.workshop_date ASC`,
+            [showcaseId]
+        );
+
+        return res.status(200).json({ ...showcase, workshops });
     } catch (error) {
         console.error('GET public showcase error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -96,7 +121,11 @@ showcasesRouter.get('/:showcaseId', authenticateToken, async (req, res) => {
         }
 
         const [workshops] = await connection.query(
-            'SELECT * FROM workshops WHERE showcase_id = ? ORDER BY workshop_date ASC',
+            `SELECT w.*,
+                    EXISTS (SELECT 1 FROM workshop_modules wm
+                            WHERE wm.workshop_id = w.workshop_id
+                              AND wm.workshop_module_status != 'pending') AS preview_available
+             FROM workshops w WHERE w.showcase_id = ? ORDER BY w.workshop_date ASC`,
             [showcaseId]
         );
 
@@ -239,13 +268,18 @@ showcasesRouter.post('/:showcaseId/batch-tickets', authenticateTokenAdmin, async
     try {
         const { showcaseId } = req.params;
 
-        // Verify showcase exists
+        // Verify the showcase exists and has not already happened.
         const [[showcase]] = await connection.query(
-            'SELECT showcase_id FROM showcases WHERE showcase_id = ?',
+            `SELECT showcase_id, (showcase_date > NOW()) AS ticket_claims_open
+             FROM showcases
+             WHERE showcase_id = ?`,
             [showcaseId]
         );
         if (!showcase) {
             return res.status(404).json({ error: 'Showcase not found' });
+        }
+        if (!showcase.ticket_claims_open) {
+            return res.status(410).json({ error: 'Ticket claims have ended for this showcase.' });
         }
 
         // Find active subscribers without a ticket for this showcase
@@ -417,13 +451,18 @@ showcasesRouter.post('/:showcaseId/claim-membership-ticket', authenticateToken, 
             return res.status(403).json({ error: 'Active membership required' });
         }
 
-        // Verify showcase exists
+        // Verify the showcase exists and has not already happened.
         const [[showcase]] = await connection.query(
-            'SELECT showcase_id FROM showcases WHERE showcase_id = ?',
+            `SELECT showcase_id, (showcase_date > NOW()) AS ticket_claims_open
+             FROM showcases
+             WHERE showcase_id = ?`,
             [showcaseId]
         );
         if (!showcase) {
             return res.status(404).json({ error: 'Showcase not found' });
+        }
+        if (!showcase.ticket_claims_open) {
+            return res.status(410).json({ error: 'Ticket claims have ended for this showcase.' });
         }
 
         // Check for existing ticket (any status)

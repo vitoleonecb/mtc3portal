@@ -19,6 +19,7 @@ import { newShowcaseEmail } from '../templates/emails/newShowcase.js';
 import { confirmEmailTemplate } from '../templates/emails/confirmEmail.js';
 import { resetPasswordEmail } from '../templates/emails/resetPassword.js';
 import { guestRegistrationInviteEmail } from '../templates/emails/guestRegistrationInvite.js';
+import { createGuestWorkshopToken, guestWorkshopContinueUrl, guestWorkshopRegistrationUrl } from '../services/guestWorkshopLinks.js';
 
 dotenv.config({ path: '../.env' });
 
@@ -54,7 +55,7 @@ async function getEligibleUsers(subOption) {
 /** Look up a single user by ID (for targeted notifications). */
 async function getUserById(userId) {
   const [[user]] = await db.query(
-    'SELECT user_id, email, user_phone, first_name, notification_settings FROM users WHERE user_id = ?',
+    'SELECT user_id, email, user_phone, first_name, user_type, notification_settings FROM users WHERE user_id = ?',
     [userId]
   );
   return user;
@@ -243,6 +244,7 @@ const notificationWorker = new Worker(
         const { userId, workshopId } = job.data;
         const user = await getUserById(userId);
         if (!user) break;
+        if (user.user_type === 'guest') break;
         const settings = typeof user.notification_settings === 'string'
           ? JSON.parse(user.notification_settings) : (user.notification_settings || {});
         if (settings.channel === 'none' || !settings.workshop_rsvp) break;
@@ -442,13 +444,40 @@ const notificationWorker = new Worker(
       // 10. Guest Registration Invite
       // ═══════════════════════════════════════════════════════
       case 'guestRegistrationInvite': {
-        const { userId, email } = job.data;
+        const { userId, workshopId, rsvpEarned = false } = job.data;
         const user = await getUserById(userId);
+        if (!user || user.user_type !== 'guest') break;
         const userName = user?.first_name || 'there';
+        const email = user.email;
 
-        const registerUrl = `${APP_BASE_URL}/register?guest=${userId}&email=${encodeURIComponent(email)}`;
+        let effectiveWorkshopId = workshopId;
+        if (!effectiveWorkshopId) {
+          const [[recent]] = await db.query(
+            `SELECT wm.workshop_id
+             FROM workshop_responses wr
+             JOIN workshop_prompts wp ON wp.workshop_prompt_id = wr.workshop_prompt_id
+             JOIN workshop_modules wm ON wm.workshop_module_id = wp.workshop_module_id
+             WHERE wr.user_id = ?
+             ORDER BY wr.workshop_response_created DESC LIMIT 1`,
+            [userId]
+          );
+          effectiveWorkshopId = recent?.workshop_id;
+        }
+        if (!effectiveWorkshopId) {
+          console.warn(`[notificationWorker] Cannot send guest continuation without workshop: userId=${userId}`);
+          break;
+        }
+
+        const [[workshop]] = await db.query('SELECT workshop_name FROM workshops WHERE workshop_id = ?', [effectiveWorkshopId]);
+
+        const guestToken = createGuestWorkshopToken(process.env.ACCESS_TOKEN_SECRET, {
+          userId, email, workshopId: effectiveWorkshopId,
+        });
+        const registerUrl = guestWorkshopRegistrationUrl(APP_BASE_URL, { workshopId: effectiveWorkshopId, token: guestToken });
+        const continueUrl = guestWorkshopContinueUrl(APP_BASE_URL, effectiveWorkshopId, guestToken);
         const { subject, html } = guestRegistrationInviteEmail({
-          userName, email, registerUrl, userId,
+          userName, email, registerUrl, continueUrl, userId,
+          workshopName: workshop?.workshop_name, rsvpEarned,
         });
         // Transactional email — send directly, no preference check
         await sendEmail(email, subject, html);

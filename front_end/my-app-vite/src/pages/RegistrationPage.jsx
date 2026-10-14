@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import axios from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import { useOverlay } from "../context/OverlayContext.jsx";
 
 // Shared validation helpers
 import { validateEmail, validatePassword, validateConfirmPassword } from "../utils/validation.js";
+import { promptStorageKey, readPreviewResponses, removePreviewResponses } from "../utils/homepagePreviewStorage.js";
 
 // Local validation helpers
 const validateName = (value, fieldName) => {
@@ -82,16 +83,46 @@ export function RegistrationPage() {
     const { show, hide } = useOverlay();
     const [searchParams] = useSearchParams();
 
-    // Guest-upgrade mode: detect ?guest=<userId>
-    const guestUserId = searchParams.get('guest');
-    const isGuestUpgrade = !!guestUserId;
+    const guestToken = searchParams.get('guestToken');
+    const previewWorkshopId = Number(searchParams.get('previewWorkshopId'));
+    const isGuestUpgrade = !!guestToken;
+    const legacyGuestLink = !guestToken && searchParams.has('guest');
+    const [guestEmail, setGuestEmail] = useState(() => sessionStorage.getItem('guestEmail') || '');
+    const [guestWorkshopId, setGuestWorkshopId] = useState(null);
+    const [guestLinkStatus, setGuestLinkStatus] = useState(isGuestUpgrade ? 'loading' : legacyGuestLink ? 'invalid' : 'none');
+    const [linkRequestEmail, setLinkRequestEmail] = useState(() => searchParams.get('email') || sessionStorage.getItem('guestEmail') || '');
+    const [linkRequestStatus, setLinkRequestStatus] = useState('');
 
-    // Pre-fill email from sessionStorage (homepage runner) or URL param (email link fallback)
-    const guestEmail = useMemo(() => {
-        const fromSession = sessionStorage.getItem('guestEmail');
-        if (fromSession) return fromSession;
-        return searchParams.get('email') || '';
-    }, []);
+    useEffect(() => {
+        if (!guestToken) return;
+        let cancelled = false;
+        axios.post(`${import.meta.env.VITE_API_URL}/homepage/guest-progress`, { guestToken })
+            .then(({ data }) => {
+                if (cancelled) return;
+                setGuestEmail(data.email);
+                setGuestWorkshopId(Number(data.workshopId));
+                setGuestLinkStatus('valid');
+            })
+            .catch(() => { if (!cancelled) setGuestLinkStatus('invalid'); });
+        return () => { cancelled = true; };
+    }, [guestToken]);
+
+    const requestFreshLink = async () => {
+        const error = validateEmail(linkRequestEmail);
+        if (error) { setLinkRequestStatus(error); return; }
+        if (!Number.isInteger(previewWorkshopId) || previewWorkshopId <= 0) {
+            setLinkRequestStatus('This link is missing its workshop. Please contact support.');
+            return;
+        }
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL}/homepage/guest-link`, {
+                email: linkRequestEmail.trim(), workshopId: previewWorkshopId,
+            });
+            setLinkRequestStatus('If this email has saved workshop work, a fresh link is on its way.');
+        } catch {
+            setLinkRequestStatus('Could not request a new link. Please try again later.');
+        }
+    };
 
     // In guest-upgrade mode, skip the email step (already set on the guest record)
     const steps = useMemo(() => {
@@ -103,6 +134,9 @@ export function RegistrationPage() {
 
     const handleSubmit = async () => {
         try {
+            if (isGuestUpgrade && guestLinkStatus !== 'valid') {
+                throw new Error('This account link is unavailable. Open a fresh link from your email.');
+            }
             console.log('[Registration] Submitting avatar_config:', avatarConfig);
 
             // Use guest email for upgrade mode, otherwise use form email
@@ -124,6 +158,7 @@ export function RegistrationPage() {
                 user_phone: phone,
                 avatar_config: avatarConfig,
                 notification_settings: notifSettings,
+                ...(isGuestUpgrade ? { guestToken } : {}),
             },
             { headers: {'Content-Type': 'application/json'} });
             console.log(`User Created: ${formData['userName']}`);
@@ -136,39 +171,36 @@ export function RegistrationPage() {
             );
             localStorage.setItem('accessToken', loginResponse.data.accessToken);
 
-            // Submit any stashed guest responses from the homepage runner
-            try {
-                const stashed = sessionStorage.getItem('guestResponses');
-                if (stashed) {
-                    const { workshopId, responses } = JSON.parse(stashed);
-                    if (Array.isArray(responses) && responses.length > 0) {
-                        const token = loginResponse.data.accessToken;
-                        for (const r of responses) {
-                            try {
-                                await axios.post(
-                                    `${import.meta.env.VITE_API_URL}/workshops/${workshopId}/modules/0/prompts/${r.promptId}/response`,
-                                    { workshop_response_content: r.content, prompt_template_id: r.templateId },
-                                    { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
-                                );
-                            } catch (respErr) {
-                                console.error('Failed to save stashed response:', r.promptId, respErr);
-                            }
-                        }
+            let unsavedPreviewCount = 0;
+            const importWorkshopId = isGuestUpgrade ? guestWorkshopId : previewWorkshopId;
+            if (Number.isInteger(importWorkshopId) && importWorkshopId > 0) {
+                const previewResponses = readPreviewResponses(importWorkshopId);
+                for (const response of Object.values(previewResponses)) {
+                    try {
+                        await axios.post(
+                            `${import.meta.env.VITE_API_URL}/workshops/${importWorkshopId}/modules/${response.moduleId}/prompts/${response.promptId}/response`,
+                            { workshop_response_content: response.content },
+                            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${loginResponse.data.accessToken}` } }
+                        );
+                        removePreviewResponses(importWorkshopId, [promptStorageKey(response.moduleId, response.promptId)]);
+                    } catch (respErr) {
+                        unsavedPreviewCount++;
+                        console.error('Failed to save preview response:', response.promptId, respErr);
                     }
-                    sessionStorage.removeItem('guestResponses');
                 }
-            } catch (stashErr) {
-                console.error('Error processing stashed responses:', stashErr);
             }
 
             // Clean up guest sessionStorage
             sessionStorage.removeItem('guestEmail');
+            sessionStorage.removeItem('guestResponses');
 
             // Show success overlay
             show(
                 <div className="ErrorOverlayContent">
                     <Heading1 text="Account Created" />
-                    <Heading2 text={`Welcome, ${formData['firstName']}!`} />
+                    <Heading2 text={unsavedPreviewCount
+                        ? `Account created, but ${unsavedPreviewCount} preview response${unsavedPreviewCount === 1 ? '' : 's'} could not be saved. Your answers remain on this device.`
+                        : `Welcome, ${formData['firstName']}!`} />
                     <div className="ErrorOverlayButtons">
                         <button
                             type="button"
@@ -183,9 +215,14 @@ export function RegistrationPage() {
         }
         catch (error) {
             console.log(`Internal Server Error: ${error}`);
+            if (isGuestUpgrade && error.response?.status === 403) {
+                setGuestLinkStatus('invalid');
+                return;
+            }
 
             const serverMsg = error.response?.data?.message
                 || error.response?.data?.error
+                || error.message
                 || 'Something went wrong. Please try again.';
 
             show(
@@ -249,7 +286,7 @@ const [avatarConfig, setAvatarConfig] = useState(() => {
                     const res = await axios.get(
                         `${import.meta.env.VITE_API_URL}/users/email/${encodeURIComponent(value.trim())}/exists`
                     );
-                    if (res.data.exists) return 'This email is already registered';
+                    if (res.data.exists) return 'This email already has an account or saved guest work. Use your emailed account link or log in.';
                 } catch (err) {
                     console.error('Email check failed:', err);
                     // Allow to proceed if check fails (backend will catch it)
@@ -386,6 +423,16 @@ const [avatarConfig, setAvatarConfig] = useState(() => {
     const toggleSubOption = (key) => {
         setNotifSettings(prev => ({ ...prev, [key]: !prev[key] }));
     };
+
+    if (guestLinkStatus === 'loading') return <Heading2 text="Loading your account link..." />;
+    if (guestLinkStatus === 'invalid') return (
+        <div className="homepageEmailCapture">
+            <Heading2 text="This account link is unavailable. Request a fresh link to continue." />
+            <input className="textInput" type="email" placeholder="Your email" value={linkRequestEmail} onChange={(event) => setLinkRequestEmail(event.target.value)} />
+            <NextButton text="Send Fresh Link" onClick={requestFreshLink} />
+            {linkRequestStatus && <p className="registrationError">{linkRequestStatus}</p>}
+        </div>
+    );
 
     return (
         <>

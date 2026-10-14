@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
 import { LogInButton } from "../Buttons.jsx";
@@ -142,13 +142,16 @@ export function LogInPage() {
                 />
                 {error && <p className="loginError">{error}</p>}
                 <div className="loginButtonRow">
-                    <button
-                        type="button"
-                        className="forgotPasswordLink"
-                        onClick={() => setIsForgotPassword(true)}
-                    >
-                        Forgot Password?
-                    </button>
+                    <div className="loginSupportLinks">
+                        <button
+                            type="button"
+                            className="forgotPasswordLink"
+                            onClick={() => setIsForgotPassword(true)}
+                        >
+                            Forgot Password?
+                        </button>
+                        <Link to="/register" className="forgotPasswordLink">Sign Up</Link>
+                    </div>
                     <LogInButton />
                 </div>
             </form>    

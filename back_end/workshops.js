@@ -4,8 +4,52 @@ import moduleQueue from './queues/moduleQueue.js';
 import notificationQueue from './queues/notificationQueue.js';
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 import { ensureWorkshopRsvpForCompletedPrompts } from './services/rsvpService.js';
+import { workshopRsvpAccessError } from './services/workshopRsvpAccess.js';
+import { getPromptContext, promptMatchesRoute, hasAnsweredPrompt } from './services/workshopAccessPolicy.js';
 
 export const workshopsRouter = express.Router();
+
+async function saveOpenPromptResponse({ workshopId, moduleId, promptId, userId, content }) {
+    const prompt = await getPromptContext(connection, promptId);
+    if (!promptMatchesRoute(prompt, workshopId, moduleId)) {
+        return { status: 404, error: 'Prompt not found in this module' };
+    }
+    if (prompt.moduleStatus !== 'open') {
+        return { status: 409, error: 'This module is no longer open for responses' };
+    }
+    if (content == null) {
+        return { status: 400, error: 'Response content is required' };
+    }
+
+    const [existing] = await connection.query(
+        `SELECT workshop_response_id, workshop_response_acceptance
+         FROM workshop_responses WHERE user_id = ? AND workshop_prompt_id = ?
+         ORDER BY workshop_response_id DESC LIMIT 1`,
+        [userId, promptId]
+    );
+    if (existing.length && existing[0].workshop_response_acceptance !== 0) {
+        return { status: 409, error: 'A response already exists for this prompt' };
+    }
+
+    const storedContent = typeof content === 'string' ? content : JSON.stringify(content);
+    const autoAccept = [1, 3, 6, 7, 9].includes(Number(prompt.templateId)) ? 1 : 0;
+    if (existing.length) {
+        await connection.query(
+            `UPDATE workshop_responses
+             SET workshop_response_content = ?, workshop_response_acceptance = ?
+             WHERE workshop_response_id = ?`,
+            [storedContent, autoAccept, existing[0].workshop_response_id]
+        );
+    } else {
+        await connection.query(
+            `INSERT INTO workshop_responses
+               (user_id, workshop_prompt_id, workshop_response_content, workshop_response_acceptance)
+             VALUES (?, ?, ?, ?)`,
+            [userId, promptId, storedContent, autoAccept]
+        );
+    }
+    return { status: 201, promptId: Number(promptId), revised: existing.length > 0 };
+}
 
 function isRealMysqlDate(value) {
     if (typeof value !== 'string') return false;
@@ -119,8 +163,24 @@ workshopsRouter.get('/:workshopid/modulesprogress', authenticateToken, async (re
 workshopsRouter.get('/:workshopid/modules/:moduleid/prompts', authenticateToken, async(req, res, next) => {
     console.log("Decoded token:", req.user);
     try{
-        const { moduleid } = req.params;
-        const [rows] = await connection.query('SELECT * FROM workshop_prompts WHERE workshop_module_id = ?', [moduleid]);
+        if (req.user.user_type === 'guest') {
+            return res.status(403).json({ error: 'Create an account to view private modules.' });
+        }
+        const { workshopid, moduleid } = req.params;
+        const [[module]] = await connection.query(
+            `SELECT workshop_module_status AS status FROM workshop_modules
+             WHERE workshop_id = ? AND workshop_module_id = ?`,
+            [workshopid, moduleid]
+        );
+        if (!module) return res.status(404).json({ error: 'Module not found' });
+        if (module.status === 'pending' && !req.user.is_admin) {
+            return res.status(403).json({ error: 'This module is not published yet' });
+        }
+        const columns = req.user.is_admin ? '*'
+            : 'workshop_prompt_id, workshop_module_id, prompt_template_id, workshop_prompt_options, workshop_prompt_reference';
+        const [rows] = await connection.query(
+            `SELECT ${columns} FROM workshop_prompts WHERE workshop_module_id = ?`, [moduleid]
+        );
         res.status(200).send(rows);
     } catch(error) {
         console.error(`[error] GET /workshops/modules/${req.params.moduleid}/prompts:`, error.message);
@@ -235,12 +295,18 @@ workshopsRouter.get('/prompts/:promptid/response', authenticateToken, async (req
 // POST A Response To A Prompt
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authenticateToken, async (req, res, next) => {
     try {
+        if (req.user.user_type === 'guest') {
+            return res.status(403).json({ error: 'Use the public preview save flow to submit guest responses.' });
+        }
         const { workshopid, moduleid, promptid } = req.params;
         const user_id = req.user.user_id;
         const { workshop_response_content } = req.body;
         
-        const [response] = await connection.query('INSERT INTO workshop_responses (workshop_response_content, user_id, workshop_prompt_id) VALUES (?, ?, ?)',[JSON.stringify(workshop_response_content), user_id, promptid]);
-        console.log(`[response] submitted: userId=${user_id}, promptId=${promptid}, moduleId=${moduleid}, workshopId=${workshopid}, insertId=${response.insertId}`);
+        const saved = await saveOpenPromptResponse({
+            workshopId: workshopid, moduleId: moduleid, promptId: promptid,
+            userId: user_id, content: workshop_response_content,
+        });
+        if (saved.error) return res.status(saved.status).json({ error: saved.error });
         
         const rsvpResult = await ensureWorkshopRsvpForCompletedPrompts({
             connection,
@@ -252,7 +318,7 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authent
             console.log(`[response] auto-rsvp created: userId=${user_id}, workshopId=${workshopid}`);
             return res.status(201).send(`User RSVP unlocked`);
         }
-        return res.status(201).send(response);
+        return res.status(201).json({ ok: true, prompt_id: saved.promptId, revised: saved.revised });
     } catch (error) {
         console.error(`[error] POST response: workshopId=${req.params.workshopid}, promptId=${req.params.promptid}`, error.message);
         res.status(500).send(`Server Error: ${error}`);
@@ -263,26 +329,23 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid', authent
 workshopsRouter.post('/rsvp/create', authenticateToken, async (req, res, next) => {
    
     try {
-        const { user_id, workshop_id } = req.body;
-
-        const [response] = await connection.query(
-            'INSERT INTO workshop_rsvps (user_id, workshop_id) VALUES (?,?)',
-            [user_id, workshop_id]
-        );
-
-        // Enqueue RSVP notification (email / SMS based on user prefs)
-        try {
-            await notificationQueue.add('workshopRsvpUnconfirmed', {
-                userId: user_id,
-                workshopId: Number(workshop_id),
-            });
-            console.log(`[queue] enqueued: queue=notification, jobName=workshopRsvpUnconfirmed, userId=${user_id}, workshopId=${workshop_id}`);
-        } catch (notifErr) {
-            console.error('Failed to enqueue workshopRsvpUnconfirmed:', notifErr.message);
+        if (req.user.user_type === 'guest') {
+            return res.status(403).json({ error: 'Create an account to activate your workshop RSVP' });
         }
-
-        console.log(`[rsvp] created: userId=${user_id}, workshopId=${workshop_id}`);
-        res.status(201).send(`RSVP Created Successfully`);
+        const { workshop_id } = req.body;
+        if (!Number.isInteger(Number(workshop_id)) || Number(workshop_id) <= 0) {
+            return res.status(400).json({ error: 'Valid workshop_id is required' });
+        }
+        if (req.body.user_id != null && Number(req.body.user_id) !== Number(req.user.user_id)) {
+            return res.status(403).json({ error: 'Cannot create another user\'s RSVP' });
+        }
+        const result = await ensureWorkshopRsvpForCompletedPrompts({
+            connection, notificationQueue, userId: req.user.user_id, workshopId: workshop_id,
+        });
+        if (!result.eligible) {
+            return res.status(403).json({ error: 'Complete all workshop modules before requesting an RSVP' });
+        }
+        return res.status(result.created ? 201 : 200).json({ ok: true, created: result.created });
     } catch (error) {
         console.error(`[error] POST /rsvp/create:`, error.message);
         res.status(500).send(`Server Error: ${error}`)
@@ -291,9 +354,11 @@ workshopsRouter.post('/rsvp/create', authenticateToken, async (req, res, next) =
 
 // PUT RSVP Status (confirm / unconfirm toggle)
 // Body: { confirmed: boolean }
-workshopsRouter.put('/:workshopid/rsvp/:userid/update', async (req, res, next) => {
+workshopsRouter.put('/:workshopid/rsvp/:userid/update', authenticateToken, async (req, res, next) => {
     try {
         const { workshopid, userid } = req.params;
+        const accessError = workshopRsvpAccessError(req.user, userid);
+        if (accessError) return res.status(accessError.status).json(accessError);
         const { confirmed } = req.body || {};
 
         // Map boolean-ish values. When unconfirming, reset the column to its
@@ -333,6 +398,8 @@ workshopsRouter.put('/:workshopid/rsvp/:userid/update', async (req, res, next) =
 workshopsRouter.get('/:workshopid/rsvp/:userid/status', authenticateToken, async (req, res, next) => {
     try {
         const { userid, workshopid } = req.params;
+        const accessError = workshopRsvpAccessError(req.user, userid);
+        if (accessError) return res.status(accessError.status).json(accessError);
 
         const [response] = await connection.query(
             'SELECT * FROM workshop_rsvps WHERE user_id = ? and workshop_id = ?',
@@ -349,6 +416,8 @@ workshopsRouter.get('/:workshopid/rsvp/:userid/status', authenticateToken, async
 workshopsRouter.get('/:workshopid/rsvp/:userid', authenticateToken, async (req, res, next) => {
     try {
         const { userid, workshopid } = req.params;
+        const accessError = workshopRsvpAccessError(req.user, userid);
+        if (accessError) return res.status(accessError.status).json(accessError);
 
         const [rows] = await connection.query(
 'SELECT u.first_name AS first_name, u.username AS username, u.avatar_config AS avatar_config, w.workshop_name AS workshop_name, w.workshop_description AS workshop_description, w.workshop_date AS workshop_date, w.workshop_location AS workshop_location, w.workshop_public AS workshop_public, wr.rsvp_confirmation_status AS rsvp_confirmation_status FROM workshops w JOIN workshop_rsvps wr ON (w.workshop_id = wr.workshop_id) JOIN users u ON (wr.user_id = u.user_id) WHERE w.workshop_id = ? AND u.user_id = ?',
@@ -523,6 +592,16 @@ workshopsRouter.post('/rsvp/checkin/:token', authenticateTokenAdmin, async (req,
 // GET Analytics
 workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid/analytics', authenticateToken, async (req, res, next) => {
     try {
+        if (req.user.user_type === 'guest') {
+            return res.status(403).json({ error: 'Create an account to view analytics.' });
+        }
+        const prompt = await getPromptContext(connection, req.params.promptid);
+        if (!promptMatchesRoute(prompt, req.params.workshopid, req.params.moduleid)) {
+            return res.status(404).json({ error: 'Prompt not found in this module' });
+        }
+        if (!req.user.is_admin && !await hasAnsweredPrompt(connection, req.user.user_id, req.params.promptid)) {
+            return res.status(403).json({ error: 'Respond to this prompt before viewing analytics.' });
+        }
         const { userid, promptid } = req.params;
 
         const { templateId } = req.body;
@@ -565,8 +644,25 @@ workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid/analytics'
 
 workshopsRouter.get('/:workshopid/modules/:moduleid/prompts/:promptid', authenticateToken, async (req, res, next) => {
     try {
-        const { promptid } = req.params;
-        const [promptResponses] = await connection.query('SELECT wr.workshop_response_content, wr.workshop_prompt_id,workshop_response_id, wr.workshop_response_acceptance, workshop_response_created, wr.user_id, u.username, u.first_name, u.last_name FROM workshop_responses wr JOIN users u ON (wr.user_id = u.user_id) WHERE wr.workshop_prompt_id = ?', [promptid]);
+        if (req.user.user_type === 'guest') {
+            return res.status(403).json({ error: 'Create an account to view community responses.' });
+        }
+        const { workshopid, moduleid, promptid } = req.params;
+        const prompt = await getPromptContext(connection, promptid);
+        if (!promptMatchesRoute(prompt, workshopid, moduleid)) {
+            return res.status(404).json({ error: 'Prompt not found in this module' });
+        }
+        if (!req.user.is_admin && !await hasAnsweredPrompt(connection, req.user.user_id, promptid)) {
+            return res.status(403).json({ error: 'Respond to this prompt before viewing community responses.' });
+        }
+        const [promptResponses] = await connection.query(
+            `SELECT wr.workshop_response_content, wr.workshop_prompt_id, wr.workshop_response_id,
+                    wr.workshop_response_acceptance, wr.workshop_response_created,
+                    wr.user_id, u.username, u.first_name, u.last_name
+             FROM workshop_responses wr JOIN users u ON wr.user_id = u.user_id
+             WHERE wr.workshop_prompt_id = ? ${req.user.is_admin ? '' : 'AND wr.workshop_response_acceptance = 1'}`,
+            [promptid]
+        );
         console.log('User ID:', req.user?.user_id, 'Role:', req.user?.is_admin);
         console.log('Prompt responses count:', promptResponses.length);
         res.set('Cache-Control','no-store').status(200).json(promptResponses);
@@ -821,33 +917,24 @@ workshopsRouter.get('/:workshopid/modules/:moduleid', authenticateTokenAdmin, as
 // POST Response to Module
 workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/response', authenticateToken, async (req, res) => {
     try {
-      const { promptid } = req.params;
-      const { workshop_response_content, prompt_template_id } = req.body;
+      if (req.user.user_type === 'guest') {
+        return res.status(403).json({ error: 'Use the public preview save flow to submit guest responses.' });
+      }
+      const { workshopid, moduleid, promptid } = req.params;
+      const { workshop_response_content } = req.body;
       const user_id = req.user.user_id;
-  
-      // Normalize content: avoid double-JSON; store as a JSON string consistently
-      const content =
-        typeof workshop_response_content === 'string'
-          ? workshop_response_content
-          : JSON.stringify(workshop_response_content);
-  
-      // Accept/auto-accept flag for certain templates
-      const autoAccept = [1, 3, 6, 7, 9].includes(Number(prompt_template_id)) ? 1 : 0;
-  
-      // Idempotent upsert — safe on retries / double clicks
-      await connection.query(
-        `
-        INSERT INTO workshop_responses
-          (user_id, workshop_prompt_id, workshop_response_content, workshop_response_acceptance)
-        VALUES
-          (?, ?, ?, ?)
-        `,
-        [user_id, promptid, content, autoAccept]
-      );
-  
-      console.log(`[response] submitted: userId=${user_id}, promptId=${promptid}, autoAccept=${!!autoAccept}`);
-      // Return once, and only once
-      return res.status(201).json({ ok: true, prompt_id: Number(promptid) });
+      const saved = await saveOpenPromptResponse({
+        workshopId: workshopid, moduleId: moduleid, promptId: promptid,
+        userId: user_id, content: workshop_response_content,
+      });
+      if (saved.error) return res.status(saved.status).json({ ok: false, error: saved.error });
+      const rsvpResult = await ensureWorkshopRsvpForCompletedPrompts({
+        connection, notificationQueue, userId: user_id, workshopId: workshopid,
+      });
+      return res.status(201).json({
+        ok: true, prompt_id: saved.promptId, revised: saved.revised,
+        rsvpCreated: rsvpResult.created,
+      });
     } catch (error) {
       console.error('Submit response error:', error);
       return res.status(500).json({ ok: false, error: error.code || String(error) });
@@ -905,6 +992,14 @@ workshopsRouter.post('/:workshopid/modules/:moduleid/prompts/:promptid/automated
     try {
         const { workshopid, moduleid, promptid } = req.params;
         const { workshop_response_content, user_id, testing, workshop_response_created } = req.body;
+
+        const prompt = await getPromptContext(connection, promptid);
+        if (!promptMatchesRoute(prompt, workshopid, moduleid)) {
+            return res.status(404).json({ error: 'Prompt not found in this module' });
+        }
+        if (prompt.moduleStatus !== 'open') {
+            return res.status(409).json({ error: 'This module is no longer open for responses' });
+        }
 
         const content = JSON.stringify(workshop_response_content);
 

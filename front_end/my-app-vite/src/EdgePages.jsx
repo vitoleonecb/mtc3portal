@@ -43,7 +43,7 @@ export function ModuleEdge({ nextModulePath, currentWorkshopPath, remainingModul
     
     return (
 		<>
-			{remainingModules === 0 ? (
+			{RSVPEarned ? (
 				<div className="EdgeBox">
 					<Heading1 text="Module Complete!" style={{ gridColumn: "1 / -1", gridRow: "1" }} />
 					<Heading2 text="Your RSVP is ready." style={{ gridColumn: "1 / -1", gridRow: "2" }} />
@@ -51,7 +51,7 @@ export function ModuleEdge({ nextModulePath, currentWorkshopPath, remainingModul
 					<NextButton to={RSVPPath} text="RSVP" style={{ gridColumn: "1", gridRow: "3" }} />
 					<NextButton to={currentWorkshopPath} text="Leave" style={{ gridColumn: "3", gridRow: "3" }} />
 				</div>
-			) : (
+			) : remainingModules > 0 ? (
 				<div className="EdgeBox">
 					<Heading1 text="Module Complete!" style={{ gridColumn: "1 / -1", gridRow: "1" }} />
 					<Heading2
@@ -59,6 +59,12 @@ export function ModuleEdge({ nextModulePath, currentWorkshopPath, remainingModul
 						style={{ gridColumn: "1 / -1", gridRow: "2" }}
 					/>
 					<NextButton to={nextModulePath} text="Next" style={{ gridColumn: "1", gridRow: "3" }} />
+					<NextButton to={currentWorkshopPath} text="Leave" style={{ gridColumn: "3", gridRow: "3" }} />
+				</div>
+			) : (
+				<div className="EdgeBox">
+					<Heading1 text="Module Complete!" style={{ gridColumn: "1 / -1", gridRow: "1" }} />
+					<Heading2 text="Your RSVP unlocks after all required modules are complete." style={{ gridColumn: "1 / -1", gridRow: "2" }} />
 					<NextButton to={currentWorkshopPath} text="Leave" style={{ gridColumn: "3", gridRow: "3" }} />
 				</div>
 			)}
@@ -79,6 +85,8 @@ export function RSVP() {
     const [attendees, setAttendees] = useState([]);
     const [avatarConfig, setAvatarConfig] = useState(null);
     const [checkinToken, setCheckinToken] = useState(null);
+    const [rsvpAccessError, setRsvpAccessError] = useState(null);
+    const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
     const accessToken = localStorage.getItem('accessToken');
 
     const { workshopId, userId } = useParams();
@@ -145,6 +153,11 @@ export function RSVP() {
 
             } catch (error) {
                 console.error(`Front End Error: ${error}`);
+                const verificationRequired = error.response?.data?.code === 'EMAIL_VERIFICATION_REQUIRED';
+                setNeedsEmailVerification(verificationRequired);
+                setRsvpAccessError(verificationRequired
+                  ? 'Verify your email to view and confirm your RSVP.'
+                  : 'This RSVP is unavailable.');
             }
         };
         fetchRSVP();
@@ -165,6 +178,20 @@ export function RSVP() {
         };
         fetchAttendees();
     }, [workshopId, rsvpConfirmed]);
+
+    if (rsvpAccessError) {
+      return (
+        <div className="EdgeBox">
+          <Heading1 text="RSVP Locked" />
+          <Heading2 text={rsvpAccessError} />
+          {needsEmailVerification && (
+            <Link to="/confirm-email" className="linkNoUnderLine cardLink">
+              <NextButton text="Resend Confirmation Email" />
+            </Link>
+          )}
+        </div>
+      );
+    }
 
     const titleText = firstName && workshopName
       ? `${firstName}'s RSVP for ${workshopName}`

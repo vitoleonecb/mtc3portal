@@ -19,6 +19,7 @@ The MVP should support a complete public-to-member journey:
 ### Public homepage and no-account prompt preview
 
 - Public visitors should be able to test the interaction model through current modules from the current workshop on the homepage.
+- The default homepage selects the nearest upcoming workshop for public participation. A workshop selected from a showcase card opens only that workshop: its open modules accept preview responses while its event time is still upcoming; processing/completed modules remain read-only. Once the workshop time has passed, its entire public preview is read-only even if a module still says `open`. Visitors navigate between modules within a workshop, not between workshops inside the runner.
 - The current workshop should be selected by nearest upcoming workshop date, not simply latest workshop ID with open modules.
 - Workshops must always have a real `workshop_date`; creation without a date is invalid, and migrations must not backfill placeholder dates.
 - The preview should hold responses locally until the visitor offers an email.
@@ -26,25 +27,41 @@ The MVP should support a complete public-to-member journey:
 - After email capture, those preview responses may be submitted to the database.
 - The local-response holding behavior needs to be audited and tested.
 - Current end-of-preview copy is misleading if it claims that entering an email immediately earns an RSVP. An RSVP requires completing all required modules for the workshop, not just the homepage preview module.
-- Preferred copy direction: email capture saves or continues the visitor's work, creates a path into the full workshop, and explains that RSVP eligibility requires completing the remaining required modules.
+- Preferred copy direction: keep each runner state concise. Email capture should say that it saves responses and continues the visitor toward an RSVP; detailed eligibility rules do not need to be repeated in every save/result state.
 - Public/guest users may save responses midway through preview participation. After saving, the UI should offer both account creation and a path back to continue remaining modules/prompts.
+- A partial guest email save stores the responses but creates no workshop RSVP. The guest receives an email explaining that the remaining required modules must be completed to earn an RSVP; workshop location remains account-gated.
+- The partial-save email's Continue link reopens the exact workshop being answered, including an upcoming workshop without a linked showcase even if the homepage default changes. Any upcoming workshop with an open module may accept public preview responses by exact link; the runner shows only that workshop. Past unlinked workshops do not gain a public archive preview.
+- Guest email links carry a time-limited, signed workshop-specific continuation token. Following one restores that guest's saved answers and email, resumes at the next unanswered prompt, and allows later saves without asking for email again. The token is not a full login. Guest-record account upgrades require this emailed proof of ownership; email or guest ID alone is insufficient.
+- The preview landing view shows prompts left per module; a finished module becomes a black completed row with a read-only answer-review action. Continue skips completed modules and starts at the first unanswered prompt. For a guest using an emailed continuation link, the final available answer saves automatically. Only a server-confirmed RSVP shows the congratulations state and its single `Join Workshop` account-creation action; an unsigned visitor still provides email before database save.
+- Public account registration and guest upgrades always create a regular user account; browser-provided role values cannot grant admin access. Guest upgrades reset email verification and send a new confirmation link.
+- When a guest has saved responses to every required prompt in the current workshop, create one unconfirmed RSVP on the guest record. Send a distinct email explaining that it has been earned but account creation is required to access and confirm it. Admin check-in may still scan an unconfirmed RSVP.
+- Upgrading that guest record to a full account must preserve the responses and reserved RSVP. The user must also verify their email before accessing the RSVP details or confirming it; an already-issued login token does not bypass verification. Admin access and scanning unconfirmed RSVPs remain allowed.
+- Registration links from the verified preview and guest email carry the workshop ID and guest token, so the email step is skipped for an authenticated continuation. Importing locally held preview answers during registration checks workshop-wide RSVP eligibility after each saved answer, so finishing the last required prompt during import creates one RSVP without requiring a separate prompt-page visit.
 - Public homepage snippets and public showcase browsing can be read-only without an account. Any CRUD or personalized access requires email/account context.
-- Public guest users should not see workshop date/time/location. Show the relevant icon/emoji affordance with a lock icon and tooltip explaining that the details are revealed to registered users, with a link/path to join.
+- Public guest users may see workshop date/time, but not workshop location. On public workshop cards show only the map-pin and lock icons, with a tooltip linking to login or signup; do not print the workshop address or a location label there. Reveal workshop location only after login. Showcase locations remain public.
 - Public guest users should have more flexible current-workshop preview access:
   - pending modules remain hidden;
   - open modules can be previewed/responded to through the public preview path;
-  - processing/completed modules may show public-safe response/analysis previews, with names and private details hidden or locked;
+  - processing/completed modules may show public-safe response previews, with names and private details hidden or locked; current processing previews omit analysis sections, while completed or archived previews show locked Admin Analysis and AI Analysis headings with a registration/login tooltip;
   - when no public-previewable module is available, use simple "New workshop coming soon" messaging with an email opt-in for module-open notifications.
 - If a returning guest saves responses again with the same email, the MVP must handle the case intentionally instead of falling into generic errors. Current likely direction: require full signup/login before overwriting existing prompt responses.
 
 ### Public archive
 
-- Previous workshops should be accessible to public visitors through a public archive.
-- The existing homepage "all workshops" style CTA should route to a real archive page if it does not already.
-- The archive can combine public-facing workshop and showcase lists, scoped to archived/completed items.
-- Existing completed workshop pages may currently be gated by access token checks; MVP should add a safe public archive/read-only view instead of exposing private participant/admin pages directly.
-- Public archive views should avoid exposing private response details, personal analytics, hidden event details, or tools that require login.
-- The public archive should create curiosity and confidence: what happened, what kinds of prompts existed, what public/community outputs are safe to show, and how someone can join future workshops/showcases.
+- Archive is a scoped view inside the public showcase tree, not a separate top-level page or navigation item.
+- `/showcases` should default to current/upcoming showcases and offer an explicit `Archive` view for past showcase cards.
+- A showcase detail page should use the same current/archive pattern for its linked workshop cards, preserving the user's drill-down context.
+- Past showcase detail pages are archive-only and should not repeat an Upcoming/Archive control.
+- Public visitors may see safe workshop card metadata in both views: name, description, date/time, and whether a homepage preview is available. Workshop location and its display label stay behind login; public cards use the map-pin/lock tooltip already used by the homepage preview. Showcase locations remain public.
+- For current/upcoming workshops, logged-out and guest users should see two concise actions: `Respond` when the workshop has open modules and its event time is upcoming (otherwise `Preview` when read-only), plus `Sign Up` for account creation. Both preview actions open that exact workshop; the default homepage offers participation in the nearest upcoming workshop.
+- Past workshop cards with non-pending modules should also offer `Preview`, including approved response snippets and locked Admin Analysis and AI Analysis headings. Private module detail, participant data, personal analytics, materials, unapproved responses, and analysis content remain account-gated.
+- Past workshop cards do not offer `Sign Up` or `Respond`. If a public preview exists, its action says `Preview`; otherwise it has no public action.
+- Showcase and linked-workshop archive views should not repeat the active tab label in a separate heading. Apply this equally to public and logged-in views.
+- Public response snippets omit participant names and response identifiers. The public feed never includes stored admin or AI analysis content, even after the workshop date has passed. Current completed and archived previews show an analysis lock and registration/login tooltip; current processing previews omit analysis sections.
+- Public APIs must return a purpose-built safe projection. Do not send private content to the browser and conceal it with blur or CSS.
+- Past showcase sales and membership claims close at the showcase time. A successful payment begun before closing may still be fulfilled afterward, but ticket-confirmation routes must verify the paid Stripe PaymentIntent, its amount, and its showcase and user ownership before writing a ticket.
+- A cancelled ticket row currently blocks repurchase because the one-ticket-per-user/showcase constraint still owns that slot. Define refund/reissue behavior before allowing a second purchase attempt.
+- The archive should create curiosity and confidence through real safe data, not sample/test records. Curated demo content is acceptable only when clearly labeled as a demonstration.
 
 ### Account and email requirements
 
@@ -56,7 +73,7 @@ The MVP should support a complete public-to-member journey:
   - RSVP to a workshop;
   - purchase tickets;
   - view responses;
-  - view modules other than the public homepage preview module;
+  - view modules other than the selected public homepage preview;
   - view personal analytics;
   - access the private dashboard.
 - If a visitor uses an email that belongs to an existing registered user during the guest/preview flow, keep the preview work local until login rather than attaching it automatically or rejecting it.
@@ -85,8 +102,10 @@ The MVP should support a complete public-to-member journey:
 - `processing`: all prompt submission is locked immediately. Admins can approve/decline responses, write admin analysis, and manually request AI analysis. Admins should not submit their own prompt responses during processing.
 - `completed`: users with appropriate access can view final analysis/community output and materials.
 - Materials should only become visible to a user when the relevant module is `completed`.
+- While materials remain workshop-level records without module ownership, participants receive them only after every module in that workshop is `completed`; admins may access them for authoring at any stage.
 - Workshops may contain multiple modules. RSVP eligibility requires completing all required modules in the workshop.
 - RSVP must not be created after only one module in a multi-module workshop unless that workshop truly has only one required module.
+- Guest RSVP records are reservations, not self-confirmed attendance; the account upgrade gates access and self-confirmation, but admin check-in can scan an unconfirmed RSVP.
 - Implementation note: current MVP RSVP readiness checks all distinct prompts in a workshop against the user's distinct prompt responses for that same workshop. This should be revisited if a separate "required module/prompt" flag is added.
 
 ### Community responses and analytics visibility
@@ -152,11 +171,12 @@ Potential reminder behavior for partial public preview saves:
 
 - Showcases should be publicly browsable.
 - Add a homepage/nav call-to-action for upcoming showcases.
-- Public users may view showcase marketing details, but time and location can be hidden behind login/account creation.
-- Locked time/location fields should use a lock icon and tooltip explaining that login or account creation unlocks details.
+- Public users may view showcase date, time, and location so they can judge travel feasibility before deciding whether to attend or buy a ticket.
+- Workshop locations remain account-gated because workshops require an account and RSVP.
 - Users must register or provide email/account context before buying a ticket because tickets need to be emailed and associated with a user.
 - Public users may buy one-off showcase tickets by providing an email before Stripe checkout. Existing registered-user emails should be directed to login rather than silently attaching ticket purchases without authentication.
-- Public showcase detail pages can hide attached workshops behind a locked account-creation affordance.
+- Public showcase detail pages should expose safe linked-workshop cards. Any card with public-previewable modules offers `Preview`; account creation remains the path to RSVP and private workshop data.
+- Past showcase detail pages are read-only archives: do not show ticket purchase/claim actions, and reject new ticket purchases or membership claims at the backend once the showcase time has passed.
 - Fixed paid ticket price for MVP: `$30`.
 - Non-member ticket purchase flow should also present membership as an alternative option.
 - Members have tickets included in membership. They claim/confirm an included ticket rather than paying per showcase.
@@ -262,12 +282,12 @@ Candidate thresholds:
 
 1. Create a central access policy for roles, module phases, membership, ownership, and visibility. Enforce it in the backend first.
 2. Audit and test homepage preview local response capture, email submission, guest handling, and copy.
-3. Add a public archive for previous/completed workshops and showcases.
+3. Add scoped public archive views to the showcase and linked-workshop flow.
 4. Build the logged-in "next action" dashboard.
 5. Fix response moderation UX and backend state transitions, including rejected-response editing while still open.
 6. Make AI analysis manual and limited to short response, notation, and drag-and-drop prompts.
 7. Finish notification templates, preferences, and delivery events.
-8. Make showcases publicly browsable with locked time/location for logged-out users.
+8. Make showcases publicly browsable with public date/time/location while keeping workshop locations account-gated.
 9. Harden Stripe ticket/subscription flows and add payment disclaimers/refund policy handling.
 10. Add a simple access-level foundation and expose locked tool states.
 11. Add production readiness checks, smoke tests, and deployment validation.
@@ -275,7 +295,6 @@ Candidate thresholds:
 ## Open questions
 
 - If a public visitor finishes the preview and logs in later, should the app offer to merge/import the held responses?
-- Should the public archive show every completed module's prompt shells, or only curated workshop/showcase summaries?
 - Should archive community snippets be admin-curated, automatically pulled from approved responses, or both?
 - What exact automatic membership refund formula should be implemented, and what Stripe events/actions should trigger it?
 - What are the minimum MVP tiers in code: Participant/Member/Analyst/Designer only, with Observer remaining non-persisted?

@@ -149,6 +149,7 @@ Run from `back_end/`:
 cp .env.example .env
 npm install
 npm run dev      # or: npm start (both invoke node app.js)
+npm test         # focused backend access-policy and RSVP tests
 ```
 
 Run workers in separate terminals when exercising async behavior (Redis must be running):
@@ -247,10 +248,11 @@ npm install
 npm run dev       # Start Vite dev server
 npm run build     # Production build
 npm run lint      # ESLint
+npm test          # homepage preview storage tests
 npm run preview   # Preview production build
 ```
 
-No test script or test runner is currently configured. `src/App.test.js` is a legacy file and should not be treated as runnable coverage without adding test tooling.
+The focused preview storage tests use Node's built-in test runner. `src/App.test.js` is a legacy file and is not part of that coverage.
 
 ---
 
@@ -273,6 +275,7 @@ No test script or test runner is currently configured. `src/App.test.js` is a le
 ## External integration cautions
 
 - Stripe webhook signature verification requires the unparsed raw request body.
+- Showcase ticket confirmation checks a succeeded Stripe PaymentIntent against the exact showcase, user, currency, and amount before creating a ticket; do not trust client-side success alone. Public guest confirmation additionally checks the email recorded on the intent. The webhook applies the same payment checks and sends a ticket notice only for a newly inserted ticket.
 - Stripe webhook/ticket creation paths should remain idempotent because providers can retry events.
 - Postmark, Twilio, and OpenAI paths are designed to fail soft when credentials are absent; preserve clear logging without leaking secrets or user content.
 - Never perform real charges or send real email/SMS as part of routine validation. Use test credentials or mocks/manual inspection.
@@ -311,6 +314,7 @@ There is no configured automated test suite. Do not claim tests passed when only
 - **Respond to prompts** — interact with various template types (multiple choice, checklist, short response, drag-and-drop, rating, notation, dropdown). Responses are saved to the backend per-prompt.
 - **Track progress** — see module-level and prompt-level progress bars. When all prompts in a module are complete, the system automatically advances module status and checks for workshop-level completion.
 - **Earn an RSVP** — completing all modules in a workshop unlocks an RSVP. The RSVP page shows event details, attendee list, and a QR code for check-in.
+- **Guest workshop journey** — a visitor may save partial current-workshop responses by email and receives a reminder to finish. Completing all required prompts creates one unconfirmed guest RSVP; the earned notice directs them to create an account. Upgrading the same user record preserves the RSVP; the participant must verify email before accessing or self-confirming it. Admin check-in may scan an unconfirmed RSVP.
 - **View community responses** — after responding to a prompt (or after RSVP), see aggregated analytics and individual peer responses via `ResponseProcessor`.
 - **Browse and attend showcases** — view upcoming showcases, purchase tickets (Stripe), and view tickets with QR codes.
 - **Manage profile** — update account info, avatar, and notification preferences from the settings page.

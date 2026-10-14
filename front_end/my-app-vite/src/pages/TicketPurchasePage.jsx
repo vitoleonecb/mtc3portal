@@ -17,6 +17,7 @@ export function TicketPurchasePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [purchased, setPurchased] = useState(false);
+    const [confirmationPending, setConfirmationPending] = useState(false);
     const [isMember, setIsMember] = useState(false);
     const [email, setEmail] = useState('');
     const [emailError, setEmailError] = useState('');
@@ -72,7 +73,7 @@ export function TicketPurchasePage() {
             }
         };
         fetchShowcase();
-    }, [showcaseId]);
+    }, [showcaseId, accessToken, hasValidToken]);
 
     const handleBuyTicket = async () => {
         setError(null);
@@ -104,23 +105,29 @@ export function TicketPurchasePage() {
         }
     };
 
-    const handlePaymentSuccess = async () => {
+    const handlePaymentSuccess = async ({ paymentIntentId } = {}) => {
         setClientSecret(null);
+        if (!paymentIntentId) {
+            setConfirmationPending(true);
+            return;
+        }
         try {
             if (isLoggedIn) {
                 await axios.post(
                     `${import.meta.env.VITE_API_URL}/stripe/confirm-ticket/${showcaseId}`,
-                    {},
+                    { paymentIntentId },
                     { headers: { Authorization: `Bearer ${accessToken}` } }
                 );
             } else {
                 await axios.post(
                     `${import.meta.env.VITE_API_URL}/stripe/public/confirm-ticket/${showcaseId}`,
-                    { email: email.trim() }
+                    { email: email.trim(), paymentIntentId }
                 );
             }
         } catch (err) {
             console.error('confirm-ticket error:', err);
+            setConfirmationPending(true);
+            return;
         }
         setPurchased(true);
     };
@@ -128,6 +135,9 @@ export function TicketPurchasePage() {
     if (loading) return <div>Loading…</div>;
 
     const stackStyle = { display: 'flex', flexDirection: 'column', alignItems: 'stretch' };
+    const isPastShowcase = showcase?.showcase_date
+        ? new Date(showcase.showcase_date) < new Date()
+        : false;
 
     if (purchased) {
         return (
@@ -146,6 +156,36 @@ export function TicketPurchasePage() {
                     <div className="logInButtonContainer" style={{ marginTop: '1rem' }}>
                         <button className="logInButton" onClick={() => navigate(`/showcases/${showcaseId}/ticket/view`)}>
                             View Ticket
+                        </button>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    if (confirmationPending) {
+        return (
+            <div className="EdgeBox" style={stackStyle}>
+                <Heading1 text="Payment Processing" />
+                <Heading2 text="We are confirming your ticket." />
+                <p className="RSVPDetailText">Check your showcase ticket before trying another payment.</p>
+                <button className="logInButton" onClick={() => navigate(`/showcases/${showcaseId}`)}>Back to Showcase</button>
+            </div>
+        );
+    }
+
+    if (isPastShowcase) {
+        return (
+            <>
+                <Heading1 text="Showcase Archive" />
+                <div className="EdgeBox" style={stackStyle}>
+                    <Heading2 text="Ticket sales have ended" />
+                    <p className="RSVPDetailText">
+                        {showcase?.showcase_name} has already taken place.
+                    </p>
+                    <div className="logInButtonContainer" style={{ marginTop: '1rem' }}>
+                        <button className="logInButton" onClick={() => navigate(`/showcases/${showcaseId}?view=archive`)}>
+                            View Archive
                         </button>
                     </div>
                 </div>

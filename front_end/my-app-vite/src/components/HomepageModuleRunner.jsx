@@ -1,15 +1,19 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Calendar, Lock, MapPin } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Calendar, Check, Eye, Lock, MapPin } from "lucide-react";
+import { format } from "date-fns";
 import axios from "axios";
 import { validateEmail } from "../utils/validation.js";
 import { useOverlay } from "../context/OverlayContext.jsx";
 import { ErrorOverlay } from "./ErrorOverlay.jsx";
 import { classifyError } from "../errors/errorRegistry.js";
+import { previewStorageKey, promptStorageKey, readPreviewResponses, removePreviewResponses } from "../utils/homepagePreviewStorage.js";
+import { allAvailablePromptsAnswered, moduleProgress, nextUnansweredModuleIndex, nextUnansweredPromptIndex } from "../utils/homepagePreviewProgress.js";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
 import { NextButton } from "../Buttons.jsx";
 import { ProgressBar } from "../Icons.jsx";
+import { LockedTooltip } from "./ui/locked-tooltip.jsx";
 
 import {
   MultipleChoiceTemplate,
@@ -21,21 +25,11 @@ import {
   DropDownTemplate,
 } from "../Templates.jsx";
 
-const STORAGE_PREFIX = "homepagePreviewResponses";
-
-const getPromptStorageKey = (moduleId, promptId) => `${moduleId}:${promptId}`;
-
-const readStoredResponses = (storageKey) => {
-  if (!storageKey || typeof window === "undefined") return {};
-
+const formatWorkshopDate = (datetime) => {
   try {
-    const stored = window.localStorage.getItem(storageKey);
-    if (!stored) return {};
-    const parsed = JSON.parse(stored);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch (err) {
-    console.warn("Unable to read stored homepage preview responses:", err);
-    return {};
+    return format(new Date(datetime), "EEEE 'at' h:mm a | MM-dd-yyyy");
+  } catch {
+    return String(datetime || "");
   }
 };
 
@@ -43,7 +37,7 @@ const readStoredResponses = (storageKey) => {
  * HomepageModuleRunner
  *
  * A self-contained "flash player frame" that lets anonymous visitors run
- * through all prompts in the current workshop's open modules.
+ * through all open prompts in one upcoming workshop.
  *
  * Three phases:
  *   1. Workshop landing  – info card + module list + "Respond" button
@@ -51,35 +45,40 @@ const readStoredResponses = (storageKey) => {
  *   3. Save & account    – email capture → batch POST or navigate to /register
  *
  * Props:
- *   currentWorkshop  – { workshopId, workshopName, workshopDescription, workshopDate, workshopLocation }
+ *   currentWorkshop  – { workshopId, workshopName, workshopDescription, workshopDate, hasWorkshopLocation }
  *   openModules      – [{ moduleId, moduleName, prompts: [{ promptId, templateId, options, reference }] }]
  */
-export function HomepageModuleRunner({ currentWorkshop, openModules }) {
+export function HomepageModuleRunner({ currentWorkshop, openModules, guestToken }) {
   const navigate = useNavigate();
   const { show } = useOverlay();
 
   // --- Phase management ---
-  const [phase, setPhase] = useState("landing"); // 'landing' | 'running' | 'edge' | 'save'
+  const [phase, setPhase] = useState("landing"); // 'landing' | 'running' | 'edge' | 'save' | 'finishing' | 'earned'
 
   // --- Module / prompt tracking ---
   const [moduleIndex, setModuleIndex] = useState(0);
   const [promptIndex, setPromptIndex] = useState(0);
   const [promptMode, setPromptMode] = useState("edit"); // 'edit' | 'view'
+  const [isReviewing, setIsReviewing] = useState(false);
 
   // --- Response state ---
   const [responseData, setResponseData] = useState([]);
-  const storageKey = useMemo(
-    () => currentWorkshop?.workshopId ? `${STORAGE_PREFIX}:${currentWorkshop.workshopId}` : null,
-    [currentWorkshop?.workshopId]
-  );
-  const [allResponses, setAllResponses] = useState(() => readStoredResponses(storageKey));
+  const storageKey = currentWorkshop?.workshopId ? previewStorageKey(currentWorkshop.workshopId) : null;
+  const [allResponses, setAllResponses] = useState(() => readPreviewResponses(currentWorkshop?.workshopId, openModules));
+  const [serverResponses, setServerResponses] = useState({});
+  const [activeGuestToken, setActiveGuestToken] = useState(null);
+  const [guestProgressLoading, setGuestProgressLoading] = useState(Boolean(guestToken));
+  const [guestLinkError, setGuestLinkError] = useState("");
+  const [linkRequestEmail, setLinkRequestEmail] = useState("");
+  const [linkRequestStatus, setLinkRequestStatus] = useState("");
+  const [showLinkRequest, setShowLinkRequest] = useState(false);
 
   // --- Save phase state ---
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'created' | 'appended' | 'existing_user' | 'error'
-  const [saveMessage, setSaveMessage] = useState("");
-  const [guestUserId, setGuestUserId] = useState(null);
+  const [savedCount, setSavedCount] = useState(0);
+  const [rsvpEarned, setRsvpEarned] = useState(false);
 
   // Derived values
   const currentModule = openModules[moduleIndex] || null;
@@ -88,23 +87,59 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
   const totalPrompts = prompts.length;
 
   useEffect(() => {
-    setAllResponses(readStoredResponses(storageKey));
-  }, [storageKey]);
-
-  useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
 
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify(allResponses));
+      if (Object.keys(allResponses).length) {
+        window.localStorage.setItem(storageKey, JSON.stringify(allResponses));
+      } else {
+        window.localStorage.removeItem(storageKey);
+      }
     } catch (err) {
       console.warn("Unable to store homepage preview responses:", err);
     }
   }, [allResponses, storageKey]);
 
+  useEffect(() => {
+    if (!guestToken) return;
+    let cancelled = false;
+    axios.post(`${import.meta.env.VITE_API_URL}/homepage/guest-progress`, { guestToken })
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (Number(data.workshopId) !== Number(currentWorkshop.workshopId)) {
+          setGuestLinkError("This link belongs to a different workshop.");
+          return;
+        }
+        const allowed = new Map(openModules.flatMap((module) => module.prompts.map((prompt) => [
+          promptStorageKey(module.moduleId, prompt.promptId), Number(prompt.templateId),
+        ])));
+        const restored = {};
+        for (const response of data.responses) {
+          const key = promptStorageKey(response.moduleId, response.promptId);
+          if (allowed.get(key) === Number(response.templateId)) restored[key] = response;
+        }
+        setServerResponses(restored);
+        setEmail(data.email);
+        setRsvpEarned(Boolean(data.rsvpEarned));
+        setActiveGuestToken(guestToken);
+      })
+      .catch(() => {
+        if (!cancelled) setGuestLinkError("This continuation link is unavailable. Request a fresh link below.");
+      })
+      .finally(() => { if (!cancelled) setGuestProgressLoading(false); });
+    return () => { cancelled = true; };
+  }, [guestToken, currentWorkshop.workshopId, openModules]);
+
   const getStoredResponse = (module, prompt) => {
     if (!module || !prompt) return null;
-    return allResponses[getPromptStorageKey(module.moduleId, prompt.promptId)] || null;
+    const key = promptStorageKey(module.moduleId, prompt.promptId);
+    return serverResponses[key] || allResponses[key] || null;
   };
+
+  const hasResponse = (module, prompt) => Boolean(getStoredResponse(module, prompt));
+  const getModuleProgress = (module) => moduleProgress(module, hasResponse);
+
+  const findNextModuleIndex = () => nextUnansweredModuleIndex(openModules, hasResponse);
 
   // Count how many prompts in the current module have saved responses
   const answeredInModule = currentModule
@@ -214,13 +249,29 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
   // ────────────────────────────────────────────
   const startRunning = (mIdx = 0) => {
     const nextModule = openModules[mIdx];
-    const firstPrompt = nextModule?.prompts?.[0];
+    const nextIdx = nextUnansweredPromptIndex(nextModule, hasResponse);
+    const promptIdx = nextIdx >= 0 ? nextIdx : 0;
+    const firstPrompt = nextModule?.prompts?.[promptIdx];
     const existing = getStoredResponse(nextModule, firstPrompt);
 
     setModuleIndex(mIdx);
-    setPromptIndex(0);
+    setIsReviewing(false);
+    setPromptIndex(promptIdx);
     setPromptMode(existing ? "view" : "edit");
     setResponseData(existing?.content ?? initResponseData(firstPrompt));
+    setPhase("running");
+  };
+
+  const startReview = (mIdx) => {
+    const module = openModules[mIdx];
+    const firstPrompt = module?.prompts?.[0];
+    const saved = getStoredResponse(module, firstPrompt);
+    if (!saved) return;
+    setModuleIndex(mIdx);
+    setPromptIndex(0);
+    setPromptMode("view");
+    setResponseData(saved.content);
+    setIsReviewing(true);
     setPhase("running");
   };
 
@@ -238,47 +289,64 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
 
     if (isEmpty) return;
 
-    setAllResponses((prev) => ({
-      ...prev,
-      [getPromptStorageKey(currentModule.moduleId, currentPrompt.promptId)]: {
+    const nextResponses = {
+      ...allResponses,
+      [promptStorageKey(currentModule.moduleId, currentPrompt.promptId)]: {
+        moduleId: currentModule.moduleId,
         promptId: currentPrompt.promptId,
         templateId: currentPrompt.templateId,
         content: responseData,
       },
-    }));
+    };
+    setAllResponses(nextResponses);
 
-    setPromptMode("view");
+    const allAvailableAnswered = allAvailablePromptsAnswered(openModules, (module, prompt) => {
+      const key = promptStorageKey(module.moduleId, prompt.promptId);
+      return Boolean(serverResponses[key] || nextResponses[key]);
+    });
+    if (activeGuestToken && allAvailableAnswered) {
+      await saveResponses({ responsesMap: nextResponses, finish: true });
+    } else {
+      setPromptMode("view");
+    }
   };
 
   // ────────────────────────────────────────────
   // Navigate to next prompt or module edge
   // ────────────────────────────────────────────
   const handleNext = () => {
-    if (promptIndex < totalPrompts - 1) {
-      const nextIdx = promptIndex + 1;
+    if (isReviewing) {
+      if (promptIndex >= totalPrompts - 1) {
+        setIsReviewing(false);
+        setPhase("landing");
+        return;
+      }
+      const nextPrompt = prompts[promptIndex + 1];
+      setPromptIndex(promptIndex + 1);
+      setResponseData(getStoredResponse(currentModule, nextPrompt)?.content ?? initResponseData(nextPrompt));
+      return;
+    }
+
+    const nextIdx = prompts.findIndex((prompt, index) => index > promptIndex && !getStoredResponse(currentModule, prompt));
+    if (nextIdx >= 0) {
       setPromptIndex(nextIdx);
       setPromptMode("edit");
-
-      // If they already answered this prompt, restore it
-      const nextPrompt = prompts[nextIdx];
-      const existing = getStoredResponse(currentModule, nextPrompt);
-      if (existing) {
-        setResponseData(existing.content);
-        setPromptMode("view");
-      } else {
-        setResponseData(initResponseData(nextPrompt));
-      }
+      setResponseData(initResponseData(prompts[nextIdx]));
     } else {
-      // End of this module
-      if (moduleIndex < openModules.length - 1) {
+      if (findNextModuleIndex() >= 0) {
         setPhase("edge");
       } else {
-        setPhase("save");
+        setPhase(rsvpEarned ? "earned" : "save");
       }
     }
   };
 
   const handleBack = () => {
+    if (isReviewing && promptIndex === 0) {
+      setIsReviewing(false);
+      setPhase("landing");
+      return;
+    }
     if (promptIndex > 0) {
       const prevIdx = promptIndex - 1;
       setPromptIndex(prevIdx);
@@ -298,62 +366,99 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
   // Module edge → next module
   // ────────────────────────────────────────────
   const goToNextModule = () => {
-    const nextMIdx = moduleIndex + 1;
-    startRunning(nextMIdx);
+    const nextMIdx = findNextModuleIndex();
+    setSaveStatus(null);
+    if (nextMIdx >= 0) startRunning(nextMIdx);
+    else setPhase(rsvpEarned ? "earned" : "save");
   };
 
   // ────────────────────────────────────────────
   // Batch save via email
   // ────────────────────────────────────────────
-  const handleSaveWithEmail = async () => {
-    const error = validateEmail(email);
+  const saveResponses = async ({ responsesMap = allResponses, finish = false } = {}) => {
+    const error = activeGuestToken ? "" : validateEmail(email);
     if (error) {
       setEmailError(error);
       return;
     }
     setEmailError("");
     setSaveStatus("saving");
+    if (finish) setPhase("finishing");
 
-    const responses = Object.values(allResponses);
+    const responses = Object.values(responsesMap);
+    if (responses.length === 0) {
+      setPhase(rsvpEarned ? "earned" : "save");
+      setSaveStatus(rsvpEarned ? "appended" : "awaiting_modules");
+      return;
+    }
     try {
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/homepage/responses`, {
-        email: email.trim(),
+        ...(activeGuestToken ? { guestToken: activeGuestToken } : { email: email.trim() }),
         workshopId: currentWorkshop.workshopId,
         responses,
       });
 
-      const { status, message, userId } = res.data;
-      setSaveStatus(status);
-      setSaveMessage(message);
+      const { status, userId, savedPromptIds = [], skippedPromptIds = [] } = res.data;
+      const earned = Boolean(res.data.rsvpEarned || rsvpEarned);
+      setRsvpEarned(earned);
+      setSavedCount(savedPromptIds.length);
+      setSaveStatus(finish && !earned ? "awaiting_modules" : skippedPromptIds.length ? "existing_guest_response" : status);
+      if (status === "created" || status === "appended") {
+        const savedIds = new Set(savedPromptIds.map(Number));
+        const clearedIds = activeGuestToken
+          ? new Set([...savedIds, ...skippedPromptIds.map(Number)])
+          : savedIds;
+        if (activeGuestToken) {
+          setServerResponses((previous) => ({ ...previous, ...Object.fromEntries(
+            Object.entries(responsesMap).filter(([, response]) => savedIds.has(response.promptId))
+          ) }));
+        }
+        const savedKeys = Object.keys(responsesMap).filter((key) => clearedIds.has(responsesMap[key].promptId));
+        removePreviewResponses(currentWorkshop.workshopId, savedKeys);
+        setAllResponses((previous) => Object.fromEntries(
+          Object.entries(previous).filter(([, response]) => !clearedIds.has(response.promptId))
+        ));
+      }
       if (userId) {
-        setGuestUserId(userId);
         sessionStorage.setItem("guestEmail", email.trim());
       }
+      if (finish) setPhase(earned ? "earned" : "save");
     } catch (err) {
       console.error("Save error:", err);
-      const classification = classifyError(err);
-      show(<ErrorOverlay classification={classification} />);
+      if (finish) {
+        setPhase("finishingError");
+      } else {
+        const classification = classifyError(err);
+        show(<ErrorOverlay classification={classification} />);
+      }
       setSaveStatus("error");
-      setSaveMessage(err?.response?.data?.error || "Something went wrong. Please try again.");
     }
   };
+
+  const handleSaveWithEmail = () => saveResponses();
 
   // ────────────────────────────────────────────
   // Stash responses and navigate to full registration
   // ────────────────────────────────────────────
   const handleCreateAccount = () => {
-    const responses = Object.values(allResponses);
-    sessionStorage.setItem(
-      "guestResponses",
-      JSON.stringify({ workshopId: currentWorkshop.workshopId, responses })
-    );
     if (email.trim()) {
       sessionStorage.setItem("guestEmail", email.trim());
     }
-    if (guestUserId) {
-      navigate(`/register?guest=${guestUserId}`);
-    } else {
-      navigate("/register");
+    const params = new URLSearchParams({ previewWorkshopId: String(currentWorkshop.workshopId) });
+    if (activeGuestToken) params.set("guestToken", activeGuestToken);
+    navigate(`/register?${params}`);
+  };
+
+  const requestFreshLink = async () => {
+    const error = validateEmail(linkRequestEmail);
+    if (error) { setLinkRequestStatus(error); return; }
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/homepage/guest-link`, {
+        email: linkRequestEmail.trim(), workshopId: currentWorkshop.workshopId,
+      });
+      setLinkRequestStatus("If this email has saved workshop work, a fresh link is on its way.");
+    } catch {
+      setLinkRequestStatus("Could not request a new link. Please try again later.");
     }
   };
 
@@ -441,8 +546,8 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
   // --- Phase 1: Workshop Landing ---
   if (phase === "landing") {
     const ws = currentWorkshop;
-    const hasLockedDate = Boolean(ws.workshopDate);
-    const hasLockedLocation = Boolean(ws.workshopLocation);
+    const hasDate = Boolean(ws.workshopDate);
+    const hasLockedLocation = Boolean(ws.hasWorkshopLocation);
 
     return (
       <div className="homepageRunnerFrame">
@@ -450,50 +555,87 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
           <Heading1 text={ws.workshopName} />
           {ws.workshopDescription && <Heading2 text={ws.workshopDescription} />}
 
-          {(hasLockedDate || hasLockedLocation) && (
+          {(hasDate || hasLockedLocation) && (
             <div className="homepageRunnerMeta">
-              {hasLockedDate && (
-                <button
-                  className="homepageRunnerMetaItem homepageRunnerLockedMeta"
-                  type="button"
-                  title="Create an account to see workshop date and time."
-                  onClick={() => navigate("/register")}
-                  aria-label="Workshop date and time locked until account creation"
-                >
+              {hasDate && (
+                <div className="homepageRunnerMetaItem homepageRunnerDateMeta">
                   <Calendar size={16} strokeWidth={1.8} aria-hidden="true" />
-                  <Lock size={14} strokeWidth={1.8} />
-                </button>
+                  <span>{formatWorkshopDate(ws.workshopDate)}</span>
+                </div>
               )}
               {hasLockedLocation && (
-                <button
-                  className="homepageRunnerMetaItem homepageRunnerLockedMeta"
-                  type="button"
-                  title="Create an account to see workshop location."
-                  onClick={() => navigate("/register")}
-                  aria-label="Workshop location locked until account creation"
+                <LockedTooltip
+                  className="homepageRunnerLocationTooltip"
+                  interactive
+                  message={(
+                    <span>
+                      <Link to="/register" className="lockedTooltipRegisterLink">Register</Link>
+                      {" to view location"}
+                    </span>
+                  )}
                 >
-                  <MapPin size={16} strokeWidth={1.8} aria-hidden="true" />
-                  <Lock size={14} strokeWidth={1.8} />
-                </button>
+                  <div
+                    className="homepageRunnerMetaItem homepageRunnerLocationMeta"
+                    tabIndex={0}
+                    aria-label="Workshop location available after registration"
+                  >
+                    <MapPin size={16} strokeWidth={1.8} aria-hidden="true" />
+                    <Lock size={14} strokeWidth={1.8} aria-hidden="true" />
+                  </div>
+                </LockedTooltip>
               )}
             </div>
           )}
 
           {openModules.length > 0 && (
             <div className="homepageRunnerModules">
-              {openModules.map((mod) => (
-                <div key={mod.moduleId} className="homepageRunnerModuleItem">
-                  <span className="homepageRunnerModuleName">{mod.moduleName}</span>
-                  <span className="homepageRunnerModuleCount">
-                    {mod.prompts.length} prompt{mod.prompts.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
-              ))}
+              {openModules.map((mod, index) => {
+                const progress = getModuleProgress(mod);
+                return (
+                  <div key={mod.moduleId} className={`homepageRunnerModuleItem${progress.complete ? " homepageRunnerModuleItem--completed" : ""}`}>
+                    <span className="homepageRunnerModuleName">{mod.moduleName}</span>
+                    <span className="homepageRunnerModuleMeta">
+                      <span className="homepageRunnerModuleCount">
+                        {progress.complete ? <><Check size={16} strokeWidth={2} aria-hidden="true" /> Completed</> : `${progress.left} prompt${progress.left !== 1 ? "s" : ""} left`}
+                      </span>
+                      {progress.complete && (
+                        <button type="button" className="homepageRunnerReviewButton" onClick={() => startReview(index)} title={`Review answers for ${mod.moduleName}`} aria-label={`Review answers for ${mod.moduleName}`}>
+                          <Eye size={18} strokeWidth={1.8} aria-hidden="true" />
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           <div className="homepageRunnerLandingCTA">
-            <NextButton text="Respond" onClick={() => startRunning(0)} />
+            {guestProgressLoading ? <p className="homepageRunnerFinePrint">Loading saved responses...</p> : (
+              <>
+                {findNextModuleIndex() >= 0 ? (
+                  <>
+                    <NextButton text={Object.keys(serverResponses).length || Object.keys(allResponses).length ? "Continue Responding" : "Respond"} onClick={() => startRunning(findNextModuleIndex())} />
+                    {activeGuestToken && <NextButton text="Create Full Account" onClick={handleCreateAccount} />}
+                  </>
+                ) : rsvpEarned ? (
+                  <NextButton text="Join Workshop" onClick={handleCreateAccount} />
+                ) : (
+                  <NextButton text="Finish Workshop" onClick={() => activeGuestToken ? saveResponses({ finish: true }) : setPhase("save")} />
+                )}
+              </>
+            )}
+            {!activeGuestToken && !guestProgressLoading && (
+              <NextButton text="Resume Saved Work" onClick={() => setShowLinkRequest((shown) => !shown)} />
+            )}
+            {(showLinkRequest || guestLinkError) && (
+              <div className="homepageEmailCapture">
+                <p className="homepageRunnerFinePrint">{guestLinkError || "We can email a secure link to your saved workshop work."}</p>
+                <input className="textInput" type="email" placeholder="Your email" value={linkRequestEmail} onChange={(event) => setLinkRequestEmail(event.target.value)} />
+                <NextButton text="Send Fresh Link" onClick={requestFreshLink} />
+                {linkRequestStatus && <p className="homepageRunnerFinePrint">{linkRequestStatus}</p>}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -507,7 +649,7 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
     return (
       <div className="homepageRunnerFrame">
         <div className="homepageRunnerHeader">
-          <span className="homepageRunnerModuleLabel">{currentModule?.moduleName}</span>
+          <span className="homepageRunnerModuleLabel">{isReviewing ? `Review: ${currentModule?.moduleName}` : currentModule?.moduleName}</span>
           <ProgressBar current={answeredInModule} max={totalPrompts} />
         </div>
 
@@ -521,11 +663,11 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
         </div>
 
         <div className="homepageRunnerNav">
-          {promptIndex > 0 && (
+          {(promptIndex > 0 || isReviewing) && (
             <NextButton text="Back" onClick={handleBack} />
           )}
           <NextButton
-            text={promptMode === "edit" ? "Submit" : "Next"}
+            text={isReviewing && promptIndex === totalPrompts - 1 ? "Done" : promptMode === "edit" ? "Submit" : "Next"}
             onClick={async () => {
               if (promptMode === "edit") {
                 await handleSubmit();
@@ -541,7 +683,7 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
 
   // --- Phase 2.5: Module Edge ---
   if (phase === "edge") {
-    const remaining = openModules.length - moduleIndex - 1;
+    const remaining = openModules.filter((module) => getModuleProgress(module).left > 0).length;
     return (
       <div className="homepageRunnerFrame">
         <div className="homepageRunnerContent" style={{ textAlign: "center" }}>
@@ -558,38 +700,65 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
     );
   }
 
+  if (phase === "finishing") {
+    return <div className="homepageRunnerFrame"><div className="homepageRunnerContent homepageRunnerFinalState"><Heading1 text="Saving your answers..." /></div></div>;
+  }
+
+  if (phase === "finishingError") {
+    return (
+      <div className="homepageRunnerFrame"><div className="homepageRunnerContent homepageRunnerFinalState">
+        <Heading1 text="Your answers need another try" />
+        <NextButton text="Retry Save" onClick={() => saveResponses({ finish: true })} />
+      </div></div>
+    );
+  }
+
+  if (phase === "earned") {
+    return (
+      <div className="homepageRunnerFrame"><div className="homepageRunnerContent homepageRunnerFinalState">
+        <Heading1 text="You earned an RSVP!" />
+        <NextButton text="Join Workshop" onClick={handleCreateAccount} />
+      </div></div>
+    );
+  }
+
   // --- Phase 3: Save & Account ---
   if (phase === "save") {
-    const responseCount = Object.keys(allResponses).length;
-    const hasRemainingModules = moduleIndex < openModules.length - 1;
-    const saveHeading = hasRemainingModules ? "Progress Saved" : "Responses Ready";
-    const saveCopy = hasRemainingModules
-      ? `You completed ${responseCount} prompt${responseCount !== 1 ? "s" : ""}. Save your work so you can continue the remaining modules.`
-      : `You completed ${responseCount} prompt${responseCount !== 1 ? "s" : ""}. Save your work and create an account to finish the full RSVP path.`;
+    const hasRemainingModules = findNextModuleIndex() >= 0;
+    const hasUnsavedResponses = Object.keys(allResponses).length > 0;
+    const saveHeading = (() => {
+      if (saveStatus === "saving") return "Saving Responses";
+      if (saveStatus === "created" || saveStatus === "appended") return "Responses Saved";
+      if (saveStatus === "existing_user") return "Log In to Save Responses";
+      if (saveStatus === "existing_guest_response") return "Some Responses Already Saved";
+      if (saveStatus === "error") return "Try Saving Again";
+      if (saveStatus === "awaiting_modules") return "Answers Saved";
+      return hasUnsavedResponses ? "Save Responses" : "Responses Saved";
+    })();
 
     return (
       <div className="homepageRunnerFrame">
         <div className="homepageRunnerContent">
           <Heading1 text={saveHeading} />
-          <Heading2 text={saveCopy} />
-          <p className="homepageRunnerFinePrint">
-            RSVP eligibility unlocks after all required workshop modules and prompts are complete.
-          </p>
+          {saveStatus === null && hasUnsavedResponses && <Heading2 text="Save your responses to continue this workshop." />}
+          {saveStatus === "awaiting_modules" ? (
+            <p className="homepageRunnerFinePrint">Your answers are saved. An RSVP unlocks when all required modules are complete.</p>
+          ) : <p className="homepageRunnerFinePrint">An RSVP unlocks after all required modules are complete.</p>}
 
-          {saveStatus === null || saveStatus === "saving" ? (
+          {(saveStatus === null || saveStatus === "saving") && hasUnsavedResponses ? (
             <div className="homepageEmailCapture">
-              <input
+              {!activeGuestToken && <input
                 className={`textInput ${emailError ? 'textInputError' : ''}`}
                 type="email"
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(""); }}
                 disabled={saveStatus === "saving"}
-              />
+              />}
               {emailError && <p className="registrationError">{emailError}</p>}
               <div className="homepageRunnerNav">
                 <NextButton
-                  text={saveStatus === "saving" ? "Saving…" : "Save with Email"}
+                  text={saveStatus === "saving" ? "Saving…" : activeGuestToken ? "Save Responses" : "Save with Email"}
                   onClick={handleSaveWithEmail}
                   disabled={saveStatus === "saving"}
                 />
@@ -598,24 +767,41 @@ export function HomepageModuleRunner({ currentWorkshop, openModules }) {
             </div>
           ) : (
             <div className="homepageEmailCapture">
-              <Heading2 text={saveMessage} />
+              {!hasUnsavedResponses && saveStatus === null && (
+                <div className="homepageRunnerNav">
+                  {activeGuestToken ? <NextButton text="Create Full Account" onClick={handleCreateAccount} /> : <p className="homepageRunnerFinePrint">Use your emailed link to continue saved work.</p>}
+                </div>
+              )}
               {saveStatus === "existing_user" && (
                 <div className="homepageRunnerNav">
                   <NextButton text="Log In" onClick={() => navigate("/login")} />
-                  <NextButton text="Create Full Account" onClick={handleCreateAccount} />
                 </div>
+              )}
+              {saveStatus === "existing_guest_response" && (
+                <>
+                  <p className="homepageRunnerFinePrint">{savedCount ? "New answers were saved. " : "No new answers were saved. "}{activeGuestToken ? "Earlier answers are already saved to your guest record." : "Earlier answers remain on this device; use your emailed link to review them."}</p>
+                  <div className="homepageRunnerNav">
+                    {hasRemainingModules && <NextButton text="Continue Responding" onClick={goToNextModule} />}
+                    {activeGuestToken ? <NextButton text="Create Full Account" onClick={handleCreateAccount} /> : <p className="homepageRunnerFinePrint">Use the link in your email to create your account.</p>}
+                  </div>
+                </>
               )}
               {(saveStatus === "created" || saveStatus === "appended") && (
                 <div className="homepageRunnerNav">
                   {hasRemainingModules && (
                     <NextButton text="Continue Responding" onClick={goToNextModule} />
                   )}
-                  <NextButton text="Create Full Account" onClick={handleCreateAccount} />
+                  {activeGuestToken ? <NextButton text="Create Full Account" onClick={handleCreateAccount} /> : <p className="homepageRunnerFinePrint">Use the link in your email to create your account.</p>}
                 </div>
               )}
               {saveStatus === "error" && (
                 <div className="homepageRunnerNav">
                   <NextButton text="Try Again" onClick={() => setSaveStatus(null)} />
+                </div>
+              )}
+              {saveStatus === "awaiting_modules" && (
+                <div className="homepageRunnerNav">
+                  {activeGuestToken && <NextButton text="Create Full Account" onClick={handleCreateAccount} />}
                 </div>
               )}
             </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
 import { CreateButton } from "../Buttons.jsx";
@@ -9,11 +9,14 @@ import { ShowcaseCard } from "../components/ShowcaseCard.jsx";
 import { MysqlDateInput } from "../DateInput.jsx";
 import { RAW_CHARACTERS } from "../components/card-characters.jsx";
 import { createRng, pickFrom } from "../utils/random.js";
+import { ArchiveViewToggle } from "../components/ArchiveViewToggle.jsx";
 
 export function ShowcasesPage() {
     const [showcases, setShowcases] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const { key: locationKey } = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const view = searchParams.get("view") === "archive" ? "archive" : "current";
 
     // ── Showcase creation form state ──
     const [showcaseFormOpen, setShowcaseFormOpen] = useState(false);
@@ -35,21 +38,22 @@ export function ShowcasesPage() {
     }
     const userId = decodedToken?.user_id;
     const hasValidToken = Boolean(accessToken && userId);
+    const hasAccountAccess = hasValidToken && decodedToken?.user_type !== "guest";
 
     // ── Fetch showcases ──
     useEffect(() => {
         const fetchShowcases = async () => {
             try {
-                const endpoint = hasValidToken
+                const endpoint = hasAccountAccess
                     ? `${import.meta.env.VITE_API_URL}/showcases`
                     : `${import.meta.env.VITE_API_URL}/showcases/public`;
-                const config = hasValidToken
+                const config = hasAccountAccess
                     ? { headers: { Authorization: `Bearer ${accessToken}` } }
                     : undefined;
                 const res = await axios.get(endpoint, config);
                 setShowcases(res.data);
             } catch (err) {
-                if (hasValidToken && err?.response?.status === 401) {
+                if (hasAccountAccess && err?.response?.status === 401) {
                     try {
                         const publicRes = await axios.get(`${import.meta.env.VITE_API_URL}/showcases/public`);
                         setShowcases(publicRes.data);
@@ -63,11 +67,11 @@ export function ShowcasesPage() {
             }
         };
         fetchShowcases();
-    }, [accessToken, hasValidToken]);
+    }, [accessToken, hasAccountAccess]);
 
     // ── Admin check ──
     useEffect(() => {
-        if (!userId || !hasValidToken) return;
+        if (!userId || !hasAccountAccess) return;
         const fetchAdmin = async () => {
             try {
                 const res = await axios.get(
@@ -80,7 +84,7 @@ export function ShowcasesPage() {
             }
         };
         fetchAdmin();
-    }, [userId]);
+    }, [userId, accessToken, hasAccountAccess]);
 
     // ── Group showcases: current (nearest future), upcoming (other future), past ──
     const { currentShowcase, upcomingShowcases, pastShowcases } = useMemo(() => {
@@ -204,9 +208,19 @@ export function ShowcasesPage() {
         return map;
     }, [showcases, locationKey]);
 
-    const renderShowcaseCard = (showcase) => (
+    const changeView = (nextView) => {
+        const nextParams = new URLSearchParams(searchParams);
+        if (nextView === "archive") nextParams.set("view", "archive");
+        else nextParams.delete("view");
+        setSearchParams(nextParams);
+    };
+
+    const renderShowcaseCard = (showcase, archived = false) => (
         <div key={showcase.showcase_id} className="cardLink">
-            <Link to={`/showcases/${showcase.showcase_id}`} className="linkNoUnderLine">
+            <Link
+                to={`/showcases/${showcase.showcase_id}${archived ? "?view=archive" : ""}`}
+                className="linkNoUnderLine"
+            >
                 <ShowcaseCard showcase={showcase} decoration={showcaseDecorations[showcase.showcase_id] || null} />
             </Link>
         </div>
@@ -215,28 +229,38 @@ export function ShowcasesPage() {
     return (
         <>
             <Heading1 text="Showcases" />
+            <ArchiveViewToggle value={view} onChange={changeView} />
 
-            {currentShowcase && (
+            {view === "current" && currentShowcase && (
                 <>
-                    <Heading2 text="Current" />
                     {renderShowcaseCard(currentShowcase)}
                 </>
             )}
 
-            {upcomingShowcases.length > 0 && (
+            {view === "current" && upcomingShowcases.length > 0 && (
                 <>
                     <Heading2 text="Upcoming" />
-                    {upcomingShowcases.map(renderShowcaseCard)}
+                    {upcomingShowcases.map((showcase) => renderShowcaseCard(showcase))}
                 </>
             )}
 
-            {!currentShowcase && upcomingShowcases.length === 0 && pastShowcases.length === 0 && !showcaseFormOpen && (
-                <Heading2 text="No showcases yet" />
+            {view === "current" && !currentShowcase && upcomingShowcases.length === 0 && !showcaseFormOpen && (
+                <Heading2 text="No upcoming showcases" />
             )}
 
-            {isAdmin && <CreateButton handleClick={() => setShowcaseFormOpen(true)} />}
+            {view === "archive" && pastShowcases.length > 0 && (
+                <>
+                    {pastShowcases.map((showcase) => renderShowcaseCard(showcase, true))}
+                </>
+            )}
 
-            {showcaseFormOpen && (
+            {view === "archive" && pastShowcases.length === 0 && (
+                <Heading2 text="No archived showcases" />
+            )}
+
+            {view === "current" && isAdmin && <CreateButton handleClick={() => setShowcaseFormOpen(true)} />}
+
+            {view === "current" && showcaseFormOpen && (
                 <>
                     {showcaseStep === 0 && (
                         <>
@@ -301,12 +325,6 @@ export function ShowcasesPage() {
                 </>
             )}
 
-            {pastShowcases.length > 0 && (
-                <>
-                    <Heading2 text="Archive" />
-                    {pastShowcases.map(renderShowcaseCard)}
-                </>
-            )}
         </>
     );
 }

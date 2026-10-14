@@ -660,6 +660,30 @@ div.progressContainer {
   transition: ease .4s;
 }
 
+.showcaseDetailCard--past,
+.showcaseDetailCard--past:hover {
+  color: black;
+  box-shadow: -4px 4px black;
+  cursor: default;
+}
+
+.showcaseArchivedLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid black;
+  border-radius: 12px;
+  background: white;
+  color: black;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  font-weight: lighter;
+  white-space: nowrap;
+}
+
 .linkNoUnderLine {
   text-decoration: none;
   color: #000;
@@ -726,6 +750,10 @@ div.progressContainer {
   pointer-events: none;
   z-index: 50;
   animation: lockedTooltipFadeIn 0.15s ease;
+}
+
+.lockedTooltipBubble--interactive {
+  pointer-events: auto;
 }
 
 @keyframes lockedTooltipFadeIn {
@@ -1541,6 +1569,12 @@ rect:hover {
   width: auto;
 }
 
+.loginSupportLinks {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .forgotPasswordLink {
   background: none;
   border: none;
@@ -1553,6 +1587,16 @@ rect:hover {
 }
 
 .forgotPasswordLink:hover {
+  color: rgb(120, 40, 40);
+}
+
+.lockedAccessLink {
+  color: rgb(153, 66, 66);
+  text-decoration: underline;
+}
+
+.lockedAccessLink:hover,
+.lockedAccessLink:focus {
   color: rgb(120, 40, 40);
 }
 
@@ -3368,30 +3412,48 @@ margin-top: 2px;
   color: #555;
 }
 
-.homepageRunnerLockedMeta {
+.homepageRunnerDateMeta,
+.homepageRunnerLocationMeta {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0.35rem;
-  min-width: 3.25rem;
-  min-height: 2.25rem;
-  border: 1px solid black;
-  border-radius: 12px;
-  box-shadow: -4px 4px black;
-  background: white;
-  cursor: pointer;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.homepageRunnerLockedMeta:hover {
-  box-shadow: -2px 2px black;
-  transform: translate(-2px, 2px);
+.homepageRunnerLocationMeta {
+  cursor: help;
+  outline-offset: 4px;
 }
 
-.homepageRunnerLockedMeta:focus,
-.homepageRunnerLockedMeta:active {
-  box-shadow: none;
-  transform: translate(-4px, 4px);
+.homepageRunnerLocationTooltip {
+  display: inline-block;
+  width: auto;
+}
+
+.homepageRunnerLocationTooltip .lockedTooltipBubble {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: 0;
+  transform: none;
+  animation: none;
+}
+
+.homepageRunnerLocationTooltip .lockedTooltipBubble--interactive::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  width: 100%;
+  height: 6px;
+}
+
+.lockedTooltipRegisterLink {
+  color: rgb(153, 66, 66);
+  text-decoration: underline;
+}
+
+.lockedTooltipRegisterLink:hover,
+.lockedTooltipRegisterLink:focus {
+  color: rgb(120, 40, 40);
 }
 
 .homepageRunnerModules {
@@ -3408,12 +3470,29 @@ margin-top: 2px;
   padding: 0.75rem 1rem;
   border: 1px solid #D9D9D9;
   border-radius: 12px;
+  gap: 0.75rem;
+}
+
+.homepageRunnerModuleItem--completed {
+  background: black;
+  border-color: black;
+  color: white;
 }
 
 .homepageRunnerModuleName {
   font-family: sans-serif;
   font-weight: lighter;
   font-size: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.homepageRunnerModuleMeta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .homepageRunnerModuleCount {
@@ -3421,15 +3500,68 @@ margin-top: 2px;
   font-weight: lighter;
   font-size: 0.85rem;
   color: #555;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.homepageRunnerModuleItem--completed .homepageRunnerModuleCount {
+  color: white;
+}
+
+.homepageRunnerReviewButton {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid white;
+  border-radius: 10px;
+  background: black;
+  color: white;
+  cursor: pointer;
+}
+
+.homepageRunnerReviewButton:hover {
+  background: #D2A478;
+  color: black;
+}
+
+.homepageRunnerReviewButton:focus-visible {
+  outline: 2px solid #D2A478;
+  outline-offset: 2px;
 }
 
 .homepageRunnerLandingCTA {
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
   margin-top: 1.5rem;
 }
 
 .homepageRunnerLandingCTA .logInButtonContainer {
+  width: auto;
+  margin: 0;
+}
+
+.homepageRunnerLandingCTA .homepageEmailCapture {
+  flex-basis: 100%;
+}
+
+.homepageRunnerFinalState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  text-align: center;
+}
+
+.homepageRunnerFinalState .logInButtonContainer {
   width: auto;
   margin: 0;
 }
@@ -3482,12 +3614,7 @@ margin-top: 2px;
 .publicModulePreviewModule--active {
   box-shadow: -2px 2px black;
   transform: translate(-2px, 2px);
-  background: #D2A478;
-}
-
-.publicModulePreviewModule--completed.publicModulePreviewModule--active,
-.publicModulePreviewModule--completed:hover {
-  background: rgb(153, 66, 66);
+  background: black;
   color: white;
 }
 
@@ -3513,6 +3640,7 @@ margin-top: 2px;
   font-weight: lighter;
   font-size: 0.8rem;
   text-transform: capitalize;
+  color: black;
 }
 
 .publicModuleStatus--completed {
@@ -3558,6 +3686,78 @@ margin-top: 2px;
   margin-top: 1rem;
 }
 
+.publicAnalysisLocks {
+  display: grid;
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.publicAnalysisLockedSection h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+  font-weight: lighter;
+}
+
+.publicAnalysisLockTooltip {
+  width: fit-content;
+  margin-inline: auto;
+}
+
+.publicAnalysisLockButton {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  padding: 0;
+  color: black;
+  background: white;
+  border: 1px solid black;
+  border-radius: 12px;
+  box-shadow: -4px 4px black;
+  cursor: help;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.publicAnalysisLockButton:hover {
+  box-shadow: -2px 2px black;
+  transform: translate(-2px, 2px);
+}
+
+.publicAnalysisLockButton:focus-visible {
+  box-shadow: none;
+  outline: 2px solid #D2A478;
+  outline-offset: 3px;
+}
+
+.publicAnalysisLockTooltip .lockedTooltipBubble {
+  top: calc(100% + 8px);
+  bottom: auto;
+  left: 0;
+  transform: none;
+  animation: none;
+}
+
+.publicAnalysisLockTooltip .lockedTooltipBubble--interactive::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  width: 100%;
+  height: 8px;
+}
+
+/* ResponseProcessor normally owns the main page column. In this preview it is
+   already inside that column, so its major surfaces should fill the frame. */
+.publicPromptPreviewProcessor .Heading1,
+.publicPromptPreviewProcessor .charting,
+.publicPromptPreviewProcessor .AdminAnalysisContainer,
+.publicPromptPreviewProcessor .AiAnalysisContainer,
+.publicPromptPreviewProcessor .ProcessorScroller {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .publicResponsePreview {
   border: 1px solid #D9D9D9;
   border-radius: 12px;
@@ -3596,6 +3796,168 @@ margin-top: 2px;
   justify-content: space-between;
   gap: 1rem;
   color: #555;
+}
+
+.lockedShowcaseWorkshopsCard > svg {
+  flex-shrink: 0;
+  margin-right: 1rem;
+}
+
+.archiveViewToggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  width: var(--element-width);
+  margin: 1rem auto 1.5rem;
+  transition: width .5s ease;
+}
+
+.archiveViewToggleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 3rem;
+  border: 1px solid black;
+  border-radius: 12px;
+  box-shadow: -4px 4px black;
+  background: white;
+  color: black;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.archiveViewToggleButton:hover {
+  box-shadow: -2px 2px black;
+  transform: translate(-2px, 2px);
+}
+
+.archiveViewToggleButton:focus-visible,
+.archiveViewToggleButton:active {
+  box-shadow: none;
+  transform: translate(-4px, 4px);
+  outline: 2px solid #D2A478;
+  outline-offset: 3px;
+}
+
+.archiveViewToggleButton--active {
+  background: black;
+  color: white;
+  box-shadow: -2px 2px black;
+  transform: translate(-2px, 2px);
+}
+
+.workshopCardContainer--actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+}
+
+.workshopCardContainer--actions:hover {
+  background-color: white;
+  color: black;
+  box-shadow: -4px 4px black;
+  cursor: default;
+}
+
+.workshopCardContainer--actions:hover svg path,
+.workshopCardContainer--actions:hover svg circle,
+.workshopCardContainer--actions:hover svg line,
+.workshopCardContainer--actions:hover svg polyline {
+  stroke: currentColor;
+}
+
+.publicWorkshopCardActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 7.5rem;
+  padding-right: 1rem;
+}
+
+.publicWorkshopAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid black;
+  border-radius: 12px;
+  box-shadow: -4px 4px black;
+  color: black;
+  background: white;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  font-weight: lighter;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.publicWorkshopAction--join {
+  background: #D2A478;
+}
+
+.publicWorkshopAction:hover {
+  background: black;
+  color: white;
+  box-shadow: -2px 2px black;
+  transform: translate(-2px, 2px);
+}
+
+.publicWorkshopAction:focus-visible,
+.publicWorkshopAction:active {
+  box-shadow: none;
+  transform: translate(-4px, 4px);
+  outline: 2px solid #D2A478;
+  outline-offset: 3px;
+}
+
+.publicWorkshopLocationTooltip {
+  display: inline-block;
+  width: auto;
+  margin-left: 1rem;
+}
+
+.publicWorkshopLocationTooltip .lockedTooltipBubble {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: 0;
+  transform: none;
+  animation: none;
+}
+
+.publicWorkshopLockedLocation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.5rem;
+  color: #555;
+  font-family: sans-serif;
+  font-size: 0.9rem;
+  font-weight: lighter;
+  cursor: help;
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .workshopCardContainer--actions {
+    grid-template-columns: 1fr;
+  }
+
+  .publicWorkshopCardActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    padding: 0 1rem;
+  }
+
+  .publicWorkshopCardActions > :only-child {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Logged-in CTA card */

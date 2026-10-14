@@ -1,5 +1,13 @@
 # Homepage Behavior Audit
 
+## Hardening update (2026-10-04)
+
+- The default `/api/homepage/feed` remains the only public response runner. A `workshopId` selected from a showcase card returns one workshop in read-only mode, including open modules without public community results.
+- Public email saves now reject a non-current workshop, a prompt outside the selected workshop/module, and prompts whose module is no longer `open`, before guest creation.
+- Browser-stored preview answers are filtered by the current workshop's module, prompt, and template identities. Successful email saves clear submitted local answers; registration uses those same identified answers instead of the old `sessionStorage.guestResponses` and `modules/0` path.
+- Direct API checks confirmed a selected processing workshop and a selected open past workshop return read-only feeds, while a pending-only workshop returns 404 and saves for past workshops return 409 without writing data.
+- The development database had no current public-previewable workshop on this date. Browser runner and successful email-save checks await an open current workshop and a designated test email.
+
 Audit date: 2026-09-24
 
 Manual test update: 2026-09-25
@@ -33,17 +41,16 @@ Confirmed:
 - Manual testing confirmed guest-save followed by full account creation upgrades/uses the same user ID without duplicating responses.
 - Homepage preview responses are now stored in `localStorage` by workshop/module/prompt identity after local prompt submit, so submitted preview answers can survive refreshes before email save.
 - After a successful guest email save, the homepage save screen now offers a "Continue Responding" path when additional preview modules remain.
-- Public homepage date/time/location values are no longer rendered directly; locked icon controls route visitors toward account creation.
+- Public homepage date/time is visible. Location remains hidden behind a flat icon-and-lock affordance whose tooltip links to registration.
 - `/api/homepage/feed` now selects the nearest upcoming dated workshop with open modules. Workshops are required to have real dates.
 - RSVP readiness now uses direct workshop-scoped prompt/response counts instead of unscoped view row comparisons.
 - Public homepage feed now selects the nearest upcoming workshop with any non-pending module. Open modules still use the response runner; processing/completed modules can appear as public-safe anonymized approved response previews.
-- Public processing/completed previews now reuse the normal response-processing UI shape: prompt analytics, admin analysis, AI analysis, and response cards are rendered from public-safe data while identity fields are redacted.
+- Public processing/completed previews reuse prompt analytics and show text-only response snippets. Current processing previews omit analysis sections; current completed and archived previews show locked analysis headings without the stored analysis content.
 - Homepage "Members" count now excludes users with `user_type = 'guest'`.
+- Public feed privacy check (2026-10-04): ticker entries are text-only; processing/completed prompt previews contain short text-only response snippets. The earlier archived-analysis exposure was reversed: the public feed omits stored admin/AI analysis for every workshop. After this change, local logged-out requests for archived completed workshop 53 and current processing workshop 56 returned no admin/AI analysis fields. Open and current completed views still need a manual UI pass.
 
 Not aligned yet:
 
-- The homepage "View Workshops" CTA points to `workshops`, but `App.jsx` does not currently register a `/workshops` route.
-- `WorkshopsPage.jsx` exists but calls auth-protected `/api/workshops`, so it is not a safe public archive as-is.
 - The guest registration stash path uses `sessionStorage`, not `localStorage`, and posts to a suspicious URL with `modules/0`, which works only because the backend route ignores `moduleid`.
 - Manual testing exposed a repeat-save edge case: saving another set of responses under the same guest email can hit the public rate limiter and/or produce a poor "Something went wrong" experience. HTTP 429 now has a frontend error classification, but product behavior for returning guests who want to revise/overwrite responses still needs design.
 
@@ -64,8 +71,8 @@ Behavior:
   - limits to 1.
 - For that workshop, fetches all non-pending modules.
 - Open modules are returned as `openModules` for the homepage runner.
-- Processing/completed modules are returned as `publicPreviewModules` with approved responses only, prompt analytics, admin analysis, and AI analysis.
-- Public preview response payloads do not include responder names, usernames, email addresses, moderation controls, or private user IDs.
+- Processing/completed modules are returned as `publicPreviewModules` with approved text snippets and prompt analytics. Stored admin/AI analysis is never returned by the public feed.
+- Public preview response payloads do not include responder names, usernames, email addresses, moderation controls, private user IDs, response IDs, or raw response records.
 - Returns:
   - `currentWorkshop`;
   - `openModules`;
@@ -75,10 +82,10 @@ Behavior:
   - `communityStats`;
   - `sampleAnalytics`.
 
-Potential privacy issue:
+Privacy boundary:
 
-- `currentWorkshop` still includes `workshopLocation` and `workshopDate` in the API response for frontend compatibility.
-- The public homepage runner no longer renders those raw values; it shows locked icon controls with tooltips that route toward account creation.
+- `currentWorkshop` includes the public workshop date and a `hasWorkshopLocation` boolean, but not the location value.
+- The public homepage runner uses that boolean to show a locked location affordance without sending the private location to the browser.
 
 ### `POST /api/homepage/responses`
 
@@ -120,15 +127,8 @@ Behavior:
 - Determines logged-in and guest state from `localStorage.accessToken`.
 - Logged-in non-guest users see a simple current workshop CTA.
 - Logged-out users and guest users see `HomepageModuleRunner`.
-- The analytics section includes a CTA:
-  - `Link to="workshops"`
-  - text: `View Workshops`
-
-Issue:
-
-- `App.jsx` does not register a `/workshops` route.
-- `WorkshopsPage.jsx` exists but is not imported/registered in `App.jsx`.
-- Even if registered, `WorkshopsPage.jsx` currently depends on auth-protected `/api/workshops`, so it does not satisfy the public archive goal.
+- Workshop discovery routes through the public `/showcases` tree.
+- A `workshopId` query parameter can select a linked current or archived workshop for the existing public preview UI.
 
 ### `HomepageModuleRunner.jsx`
 
@@ -149,7 +149,7 @@ Behavior:
   - offers "Next Module";
   - offers "Save Responses."
 - At save phase:
-  - copy explains that saving preserves work and that RSVP eligibility requires all required workshop modules/prompts.
+  - copy briefly explains that saving preserves responses and continues the visitor toward an RSVP without repeating the full eligibility rule in every state.
 - Email save posts to `/homepage/responses`.
 - "Create Full Account" stashes responses into `sessionStorage.guestResponses`.
 
@@ -194,8 +194,8 @@ Findings:
 
 Conclusion:
 
-- There is not currently a real public workshop archive.
-- Adding `/archive` is the cleaner MVP path instead of trying to expose `WorkshopsPage.jsx` directly.
+- Archive should remain part of the existing showcase drill-down rather than becoming a separate top-level route.
+- Public showcase detail should use a dedicated safe workshop projection rather than the authenticated `/api/workshops` response.
 
 ## Manual tests recommended
 
@@ -238,8 +238,12 @@ These need runtime confirmation with a real/dev database:
    - make the nearest upcoming workshop contain only processing/completed public-visible modules;
    - load the homepage logged out;
    - confirm module cards are navigable, show an eye icon, and switch the selected prompt preview;
-   - confirm charts, admin analysis, AI analysis, and response cards render when data exists;
-   - confirm responder identity is redacted.
+   - confirm charts and text-only response snippets render when data exists;
+   - confirm sample-rater analytics render after refresh;
+   - confirm current processing previews omit analysis sections;
+   - confirm current completed and archived previews show Admin Analysis and AI Analysis headings with a large lock and registration/login tooltip;
+   - confirm the public feed JSON contains no stored admin/AI analysis for any workshop;
+   - confirm responder identity is absent from the JSON and display.
 
 ## Questions / decisions raised by the audit
 
@@ -250,8 +254,7 @@ These need runtime confirmation with a real/dev database:
    - 24 hours later;
    - around 7 hours before module processing cutoff;
    - both?
-4. Should the public archive show only workshop/showcase cards first, or include public prompt/module detail pages in phase one?
-5. Should the RSVP completion rule count only open modules, all modules, all required modules, or all non-pending modules?
+4. Should the RSVP completion rule count only open modules, all modules, all required modules, or all non-pending modules?
 
 ## Recommended first implementation slice
 
@@ -259,8 +262,8 @@ These need runtime confirmation with a real/dev database:
 2. Key storage by current workshop ID and prompt ID.
 3. Update save-phase and module-edge copy so RSVP is not promised prematurely.
 4. Clear local saved preview responses after successful `/homepage/responses` save or after confirmed account upgrade.
-5. Add `/archive` route and public archive endpoint rather than reviving `/workshops` as public.
-6. Hide workshop date/time/location from public users behind lock-icon/tooltip UI.
+5. Add scoped archive views under `/showcases` and public-safe linked workshop data.
+6. Show workshop date/time publicly and keep location behind a lock-icon tooltip with a registration link.
 7. Change homepage current-workshop selection to nearest upcoming workshop by date.
 8. Fix RSVP readiness so multi-module workshops require all required prompts/modules before RSVP.
 9. Add a post-save option to continue the remaining homepage preview modules/prompts.

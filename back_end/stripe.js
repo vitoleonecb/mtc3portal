@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { authenticateToken, connection } from './app.js';
 import notificationQueue from './queues/notificationQueue.js';
+import { isValidShowcaseTicketPayment, SHOWCASE_TICKET_AMOUNT } from './services/showcaseTicketPayment.js';
 
 let _stripe;
 function getStripe() {
@@ -80,6 +81,41 @@ async function getOrCreateGuestUserByEmail(email) {
     );
 
     return { userId: insertResult.insertId, email: normalizedEmail };
+}
+
+async function getTicketableShowcase(showcaseId) {
+    const [[showcase]] = await connection.query(
+        `SELECT showcase_id, showcase_date,
+                (showcase_date > NOW()) AS ticket_sales_open
+         FROM showcases
+         WHERE showcase_id = ?`,
+        [showcaseId]
+    );
+
+    if (!showcase) {
+        return { error: 'Showcase not found', status: 404 };
+    }
+    if (!showcase.ticket_sales_open) {
+        return { error: 'Ticket sales have ended for this showcase.', status: 410 };
+    }
+    return { showcase };
+}
+
+async function getVerifiedTicketPayment(paymentIntentId, showcaseId, userId) {
+    if (typeof paymentIntentId !== 'string' || !/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+        return { error: 'A valid payment reference is required.', status: 400 };
+    }
+    let intent;
+    try {
+        intent = await getStripe().paymentIntents.retrieve(paymentIntentId);
+    } catch (error) {
+        console.warn('Ticket payment lookup failed:', error.message);
+        return { error: 'Payment could not be verified.', status: 422 };
+    }
+    if (!isValidShowcaseTicketPayment(intent, showcaseId, userId)) {
+        return { error: 'Payment is not complete for this ticket.', status: 422 };
+    }
+    return { intent };
 }
 
 // ────────────────────────────────────────────────────────────
@@ -199,28 +235,24 @@ stripeRouter.post('/buy-ticket/:showcaseId', authenticateToken, async (req, res)
         const email = req.user.email;
         const { showcaseId } = req.params;
 
-        // Check showcase exists
-        const [[showcase]] = await connection.query(
-            'SELECT showcase_id FROM showcases WHERE showcase_id = ?',
-            [showcaseId]
-        );
-        if (!showcase) {
-            return res.status(404).json({ error: 'Showcase not found' });
+        const showcaseResult = await getTicketableShowcase(showcaseId);
+        if (showcaseResult.error) {
+            return res.status(showcaseResult.status).json({ error: showcaseResult.error });
         }
 
-        // Check user doesn't already have a ticket
+        // A cancelled row still occupies the one-ticket-per-user database key.
         const [[existingTicket]] = await connection.query(
-            'SELECT ticket_id FROM showcase_tickets WHERE showcase_id = ? AND user_id = ? AND ticket_status != "cancelled"',
+            'SELECT ticket_id FROM showcase_tickets WHERE showcase_id = ? AND user_id = ?',
             [showcaseId, userId]
         );
         if (existingTicket) {
-            return res.status(400).json({ error: 'You already have a ticket for this showcase.' });
+            return res.status(409).json({ error: 'A ticket record already exists for this showcase. Contact the team before purchasing again.' });
         }
 
         const customerId = await getOrCreateStripeCustomer(userId, email);
 
         const paymentIntent = await getStripe().paymentIntents.create({
-            amount: 3000, // $30.00
+            amount: SHOWCASE_TICKET_AMOUNT, // $30.00
             currency: 'usd',
             customer: customerId,
             metadata: {
@@ -249,6 +281,11 @@ stripeRouter.post('/public/buy-ticket/:showcaseId', async (req, res) => {
         const { showcaseId } = req.params;
         const { email } = req.body;
 
+        const showcaseResult = await getTicketableShowcase(showcaseId);
+        if (showcaseResult.error) {
+            return res.status(showcaseResult.status).json({ error: showcaseResult.error });
+        }
+
         const guest = await getOrCreateGuestUserByEmail(email);
         if (guest.error) {
             return res.status(guest.status).json({
@@ -257,26 +294,18 @@ stripeRouter.post('/public/buy-ticket/:showcaseId', async (req, res) => {
             });
         }
 
-        const [[showcase]] = await connection.query(
-            'SELECT showcase_id FROM showcases WHERE showcase_id = ?',
-            [showcaseId]
-        );
-        if (!showcase) {
-            return res.status(404).json({ error: 'Showcase not found' });
-        }
-
         const [[existingTicket]] = await connection.query(
-            'SELECT ticket_id FROM showcase_tickets WHERE showcase_id = ? AND user_id = ? AND ticket_status != "cancelled"',
+            'SELECT ticket_id FROM showcase_tickets WHERE showcase_id = ? AND user_id = ?',
             [showcaseId, guest.userId]
         );
         if (existingTicket) {
-            return res.status(400).json({ error: 'This email already has a ticket for this showcase.' });
+            return res.status(409).json({ error: 'This email already has a ticket record for this showcase. Contact the team before purchasing again.' });
         }
 
         const customerId = await getOrCreateStripeCustomer(guest.userId, guest.email);
 
         const paymentIntent = await getStripe().paymentIntents.create({
-            amount: 3000,
+            amount: SHOWCASE_TICKET_AMOUNT,
             currency: 'usd',
             customer: customerId,
             receipt_email: guest.email,
@@ -312,6 +341,9 @@ stripeRouter.post('/confirm-ticket/:showcaseId', authenticateToken, async (req, 
         const { showcaseId } = req.params;
         const { paymentIntentId } = req.body;
 
+        const payment = await getVerifiedTicketPayment(paymentIntentId, showcaseId, userId);
+        if (payment.error) return res.status(payment.status).json({ error: payment.error });
+
         // Check for existing non-cancelled ticket
         const [[existing]] = await connection.query(
             'SELECT ticket_id, ticket_status, ticket_type FROM showcase_tickets WHERE showcase_id = ? AND user_id = ? AND ticket_status != "cancelled"',
@@ -325,8 +357,12 @@ stripeRouter.post('/confirm-ticket/:showcaseId', authenticateToken, async (req, 
             `INSERT IGNORE INTO showcase_tickets
                 (showcase_id, user_id, ticket_type, ticket_status, stripe_payment_intent_id, price_paid)
              VALUES (?, ?, 'one_off', 'confirmed', ?, 30.00)`,
-            [showcaseId, userId, paymentIntentId || null]
+            [showcaseId, userId, payment.intent.id]
         );
+
+        if (result.affectedRows === 0) {
+            return res.status(409).json({ error: 'A ticket record already exists for this showcase.' });
+        }
 
         return res.status(201).json({
             ticket: { ticket_id: result.insertId, ticket_status: 'confirmed', ticket_type: 'one_off' }
@@ -345,14 +381,29 @@ stripeRouter.post('/public/confirm-ticket/:showcaseId', async (req, res) => {
     try {
         const { showcaseId } = req.params;
         const { email, paymentIntentId } = req.body;
-
-        const guest = await getOrCreateGuestUserByEmail(email);
-        if (guest.error) {
-            return res.status(guest.status).json({
-                error: guest.error,
-                status: guest.existingUser ? 'existing_user' : undefined,
-            });
+        const normalizedEmail = normalizeEmail(email);
+        if (!isValidEmail(normalizedEmail) || typeof paymentIntentId !== 'string'
+            || !/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+            return res.status(400).json({ error: 'Valid email and payment reference are required.' });
         }
+        let intent;
+        try {
+            intent = await getStripe().paymentIntents.retrieve(paymentIntentId);
+        } catch (error) {
+            console.warn('Ticket payment lookup failed:', error.message);
+            return res.status(422).json({ error: 'Payment could not be verified.' });
+        }
+        const userId = Number(intent.metadata?.user_id);
+        if (!Number.isInteger(userId) || userId <= 0
+            || normalizeEmail(intent.metadata?.email) !== normalizedEmail
+            || !isValidShowcaseTicketPayment(intent, showcaseId, userId)) {
+            return res.status(422).json({ error: 'Payment is not complete for this ticket.' });
+        }
+        const [[guest]] = await connection.query(
+            'SELECT user_id AS userId FROM users WHERE user_id = ? AND email = ? LIMIT 1',
+            [userId, normalizedEmail]
+        );
+        if (!guest) return res.status(422).json({ error: 'Payment owner could not be verified.' });
 
         const [[existing]] = await connection.query(
             'SELECT ticket_id, ticket_status, ticket_type FROM showcase_tickets WHERE showcase_id = ? AND user_id = ? AND ticket_status != "cancelled"',
@@ -366,8 +417,12 @@ stripeRouter.post('/public/confirm-ticket/:showcaseId', async (req, res) => {
             `INSERT IGNORE INTO showcase_tickets
                 (showcase_id, user_id, ticket_type, ticket_status, stripe_payment_intent_id, price_paid)
              VALUES (?, ?, 'one_off', 'confirmed', ?, 30.00)`,
-            [showcaseId, guest.userId, paymentIntentId || null]
+            [showcaseId, guest.userId, intent.id]
         );
+
+        if (result.affectedRows === 0) {
+            return res.status(409).json({ error: 'A ticket record already exists for this showcase.' });
+        }
 
         try {
             await notificationQueue.add('showcaseTicket', {
@@ -530,9 +585,15 @@ stripeRouter.post('/webhook', async (req, res) => {
 
                 const showcaseId = Number(pi.metadata.showcase_id);
                 const userId = Number(pi.metadata.user_id);
+                if (!Number.isInteger(showcaseId) || showcaseId <= 0
+                    || !Number.isInteger(userId) || userId <= 0
+                    || !isValidShowcaseTicketPayment(pi, showcaseId, userId)) {
+                    console.warn('[webhook] ignored invalid showcase ticket payment:', pi.id);
+                    break;
+                }
 
                 // Idempotent insert (UNIQUE KEY on showcase_id + user_id)
-                await connection.query(
+                const [insertResult] = await connection.query(
                     `INSERT IGNORE INTO showcase_tickets
                         (showcase_id, user_id, ticket_type, ticket_status, stripe_payment_intent_id, price_paid)
                      VALUES (?, ?, 'one_off', 'confirmed', ?, 30.00)`,
@@ -541,11 +602,13 @@ stripeRouter.post('/webhook', async (req, res) => {
                 console.log(`[webhook] payment_intent.succeeded — ticket created for showcase ${showcaseId}, user ${userId}`);
 
                 // Notify user about their new ticket
-                try {
-                    await notificationQueue.add('showcaseTicket', { showcaseId, userId });
-                    console.log(`[queue] enqueued: queue=notification, jobName=showcaseTicket, showcaseId=${showcaseId}, userId=${userId}`);
-                } catch (notifErr) {
-                    console.error('Failed to enqueue showcaseTicket notification:', notifErr.message);
+                if (insertResult.affectedRows > 0) {
+                    try {
+                        await notificationQueue.add('showcaseTicket', { showcaseId, userId });
+                        console.log(`[queue] enqueued: queue=notification, jobName=showcaseTicket, showcaseId=${showcaseId}, userId=${userId}`);
+                    } catch (notifErr) {
+                        console.error('Failed to enqueue showcaseTicket notification:', notifErr.message);
+                    }
                 }
                 break;
             }

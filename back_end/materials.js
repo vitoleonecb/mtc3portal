@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticateToken, authenticateTokenAdmin, connection } from './app.js';
+import { canViewWorkshopMaterials } from './services/workshopAccessPolicy.js';
 
 export const materialsRouter = express.Router();
 
@@ -10,11 +11,19 @@ export const materialsRouter = express.Router();
 // - title, created/updated timestamps handled by DB defaults
 
 // GET all materials for a workshop (optionally filter by type)
-// Any authenticated user can view materials.
+// Workshop-level materials become available to participants after every module completes.
 materialsRouter.get('/workshops/:workshopid', authenticateToken, async (req, res) => {
   try {
     const { workshopid } = req.params;
     const { type } = req.query || {};
+
+    if (req.user.user_type === 'guest') {
+      return res.status(403).json({ error: 'Create an account to view workshop materials.' });
+    }
+
+    if (!await canViewWorkshopMaterials(connection, workshopid, req.user.is_admin)) {
+      return res.status(403).json({ error: 'Materials are available after the workshop is completed.' });
+    }
 
     const where = ['workshop_id = ?'];
     const params = [workshopid];

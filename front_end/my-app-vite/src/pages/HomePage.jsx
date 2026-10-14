@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
-import { Eye } from "lucide-react";
+import { Eye, Lock } from "lucide-react";
 
 import { Heading1, Heading2 } from "../Headings.jsx";
 import { NextButton } from "../Buttons.jsx";
@@ -12,11 +12,36 @@ import { DescriptionTabs } from "../components/DescriptionTabs.jsx";
 import { HomepageModuleRunner } from "../components/HomepageModuleRunner.jsx";
 import { validateEmail } from "../utils/validation.js";
 import { ResponseProcessor } from "../Processing.jsx";
+import { LockedTooltip } from "../components/ui/locked-tooltip.jsx";
 
 import { GlowingBarVerticalChart } from "../components/ui/glowing-bar-vertical-chart.jsx";
 import { GlowingLineChart } from "../LineChartExample.jsx";
 
-function PublicModulePreview({ currentWorkshop, modules }) {
+function PublicAnalysisLock({ title }) {
+  return (
+    <section className="publicAnalysisLockedSection" aria-label={`${title} requires an account`}>
+      <h2>{title}</h2>
+      <LockedTooltip
+        className="publicAnalysisLockTooltip"
+        interactive
+        message={(
+          <span>
+            <Link to="/register" className="lockedTooltipRegisterLink">Register</Link>
+            {" or "}
+            <Link to="/login" className="lockedTooltipRegisterLink">log in</Link>
+            {" to view this analysis."}
+          </span>
+        )}
+      >
+        <button type="button" className="publicAnalysisLockButton" aria-label={`${title} locked. Register or log in to view.`}>
+          <Lock size={36} strokeWidth={1.8} aria-hidden="true" />
+        </button>
+      </LockedTooltip>
+    </section>
+  );
+}
+
+function PublicModulePreview({ currentWorkshop, modules, isUnregistered }) {
   const [selectedModuleId, setSelectedModuleId] = useState(modules[0]?.moduleId ?? null);
   const selectedModule = modules.find((module) => module.moduleId === selectedModuleId) || modules[0] || null;
   const [selectedPromptId, setSelectedPromptId] = useState(selectedModule?.prompts?.[0]?.promptId ?? null);
@@ -29,6 +54,8 @@ function PublicModulePreview({ currentWorkshop, modules }) {
   const dotColor = activeModule?.moduleStatus === "completed"
     ? "rgb(153, 66, 66)"
     : "rgb(210, 164, 120)";
+  const isArchivedWorkshop = currentWorkshop.workshopDate && new Date(currentWorkshop.workshopDate) < new Date();
+  const showAnalysisLocks = isUnregistered && (isArchivedWorkshop || activeModule?.moduleStatus === "completed");
 
   const chooseModule = (module) => {
     setSelectedModuleId(module.moduleId);
@@ -79,21 +106,41 @@ function PublicModulePreview({ currentWorkshop, modules }) {
           </div>
         )}
 
-        {activePrompt ? (
+        {activeModule?.moduleStatus === "open" ? (
+          <p className="homepageRunnerFinePrint">
+            {isArchivedWorkshop
+              ? "This workshop has ended. Responses are closed."
+              : "This module is open. Community results are not public yet."}
+          </p>
+        ) : activePrompt ? (
           <div className="publicPromptPreviewProcessor">
             <ResponseProcessor
               promptId={activePrompt.promptId}
-              allResponses={activePrompt.responses || []}
+              allResponses={[]}
               templateId={activePrompt.templateId}
               isAdmin={false}
               promptOptions={activePrompt.options}
               dotColor={dotColor}
               publicPreview
+              publicResponseCount={activePrompt.responses?.length || 0}
               publicAnalyticsData={activePrompt.analytics}
-              publicAiAnalysisData={activePrompt.aiAnalysis}
-              publicAdminAnalysis={activePrompt.adminAnalysis || ""}
               redactIdentity
             />
+            {activePrompt.responses?.length > 0 && (
+              <div className="publicResponsePreviewList">
+                {activePrompt.responses.map((response, index) => (
+                  <p key={`${activePrompt.promptId}-${index}`} className="publicResponsePreview">
+                    {response.text}
+                  </p>
+                ))}
+              </div>
+            )}
+            {showAnalysisLocks && (
+              <div className="publicAnalysisLocks">
+                <PublicAnalysisLock title="Admin Analysis" />
+                <PublicAnalysisLock title="AI Analysis" />
+              </div>
+            )}
           </div>
         ) : (
           <p className="homepageRunnerFinePrint">
@@ -102,8 +149,8 @@ function PublicModulePreview({ currentWorkshop, modules }) {
         )}
 
         <div className="homepageCTAs">
-          <Link to="register" className="linkNoUnderLine cardLink">
-            <NextButton text="View All Workshops" />
+          <Link to="/showcases" className="linkNoUnderLine cardLink">
+            <NextButton text="Browse Showcases" />
           </Link>
         </div>
       </div>
@@ -112,7 +159,12 @@ function PublicModulePreview({ currentWorkshop, modules }) {
 }
 
 export function HomePage() {
+  const [searchParams] = useSearchParams();
+  const selectedWorkshopId = searchParams.get("workshopId");
+  const guestToken = searchParams.get("guestToken");
+  const isSelectedPreview = Boolean(selectedWorkshopId);
   const [feed, setFeed] = useState(null);
+  const [feedError, setFeedError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
@@ -139,20 +191,25 @@ export function HomePage() {
   useEffect(() => {
     let cancelled = false;
     const fetchFeed = async () => {
+      setFeed(null);
+      setFeedError(false);
+      setLoading(true);
       try {
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/homepage/feed`
+          `${import.meta.env.VITE_API_URL}/homepage/feed`,
+          { params: selectedWorkshopId ? { workshopId: selectedWorkshopId } : undefined }
         );
         if (!cancelled) setFeed(res.data);
       } catch (err) {
         console.error("Homepage feed error:", err);
+        if (!cancelled) setFeedError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
     fetchFeed();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedWorkshopId]);
 
   const stats = feed?.communityStats;
   const currentWorkshop = feed?.currentWorkshop;
@@ -191,7 +248,7 @@ export function HomePage() {
   return (
     <>
       {/* =========== SECTION A: Hero + Module Runner or Workshop CTA =========== */}
-      <section className="homepageSection homepageHero">
+      <section id="workshop-preview" className="homepageSection homepageHero">
         <Heading1
           text="Machine Theater Collective"
           style={{ textAlign: "center" }}
@@ -224,7 +281,7 @@ export function HomePage() {
               <p className="homepageFeaturedCTA">{currentWorkshop.workshopDescription}</p>
             )}
             <div className="homepageCTAs">
-              <Link to={firstPromptPath || `/workshops`} className="linkNoUnderLine cardLink">
+              <Link to={firstPromptPath || `/showcases`} className="linkNoUnderLine cardLink">
                 <NextButton text="Continue in Workshop" />
               </Link>
             </div>
@@ -234,19 +291,31 @@ export function HomePage() {
         {/* Not logged in (or guest): show the module runner frame */}
         {hasOpenModules && (!isLoggedIn || isGuest) && (
           <HomepageModuleRunner
+            key={currentWorkshop.workshopId}
             currentWorkshop={currentWorkshop}
             openModules={openModules}
+            guestToken={guestToken}
           />
         )}
-        {hasPublicPreviewModules && (!isLoggedIn || isGuest) && (
+        {hasPublicPreviewModules && (isSelectedPreview || !isLoggedIn || isGuest) && (
           <PublicModulePreview
+            key={currentWorkshop.workshopId}
             currentWorkshop={currentWorkshop}
             modules={publicPreviewModules}
+            isUnregistered={!isLoggedIn || isGuest}
           />
         )}
-        {!loading && !hasPublicWorkshop && (!isLoggedIn || isGuest) && (
+        {!loading && isSelectedPreview && feedError && (
           <div className="homepageLoggedInCTA">
-            <Heading2 text="New workshop coming soon" />
+            <Heading2 text="Workshop preview unavailable" />
+            <Link to="/showcases" className="linkNoUnderLine cardLink">
+              <NextButton text="Browse Showcases" />
+            </Link>
+          </div>
+        )}
+        {!loading && !isSelectedPreview && !hasPublicWorkshop && (!isLoggedIn || isGuest) && (
+          <div className="homepageLoggedInCTA">
+            <Heading2 text={currentWorkshop ? `${currentWorkshop.workshopName} is coming soon` : "New workshop coming soon"} />
             {notifyStatus === "created" || notifyStatus === "updated" ? (
               <p className="homepageFeaturedCTA">{notifyMessage}</p>
             ) : notifyStatus === "existing_user" ? (
@@ -330,7 +399,7 @@ export function HomePage() {
             <GlowingLineChart analyticsData={analytics} promptId={analytics.promptId} />
           </div>
           <div className="homepageCTAs" style={{ marginTop: 24 }}>
-            <Link to="workshops" className="linkNoUnderLine cardLink">
+            <Link to="/showcases" className="linkNoUnderLine cardLink">
               <NextButton text="View Workshops" />
             </Link>
           </div>

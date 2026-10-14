@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 import notificationQueue from './queues/notificationQueue.js';
+import { verifyGuestWorkshopToken } from './services/guestWorkshopLinks.js';
 
 const SALT_ROUNDS = 10;
 
@@ -220,7 +221,13 @@ usersRouter.get('/username/:username/exists', async (req, res) => {
 
 usersRouter.post('/registration', async (req, res, next) => {
     try {
-        const {username, email, first_name, last_name, user_password, user_type, user_phone, avatar_config, notification_settings} = req.body;
+        const {username, email, first_name, last_name, user_password, user_phone, avatar_config, notification_settings, guestToken} = req.body;
+        const guestIdentity = guestToken
+            ? verifyGuestWorkshopToken(guestToken, process.env.ACCESS_TOKEN_SECRET)
+            : null;
+        if (guestToken && (!guestIdentity || guestIdentity.email !== String(email || '').toLowerCase())) {
+            return res.status(403).json({ message: 'This guest account link is invalid or expired.' });
+        }
 
         // Check for existing username (always reject if taken by another user)
         const [userNameRows] = await connection.query('SELECT * FROM users WHERE username = ?', [username]);
@@ -230,6 +237,9 @@ usersRouter.post('/registration', async (req, res, next) => {
         // If the email belongs to an existing guest account, upgrade it
         // instead of rejecting as a duplicate.
         if (emailRows.length > 0 && emailRows[0].user_type === 'guest') {
+            if (!guestIdentity || guestIdentity.userId !== Number(emailRows[0].user_id)) {
+                return res.status(403).json({ message: 'Use the account link sent to your email to continue registration.' });
+            }
             // Make sure the chosen username isn't already taken by someone else
             if (userNameRows.length > 0 && userNameRows[0].user_id !== emailRows[0].user_id) {
                 return res.status(400).send('username already exists');
@@ -240,15 +250,14 @@ usersRouter.post('/registration', async (req, res, next) => {
 
             await connection.query(
                 `UPDATE users SET username = ?, first_name = ?, last_name = ?,
-                 user_password = ?, user_type = ?, user_phone = ?, avatar_config = ?,
-                 notification_settings = ?
+                 user_password = ?, user_type = 'user', email_verified = FALSE,
+                 user_phone = ?, avatar_config = ?, notification_settings = ?
                  WHERE user_id = ?`,
                 [
                     username,
                     first_name,
                     last_name,
                     hashedPassword,
-                    user_type || 'user',
                     user_phone,
                     avatar_config ? JSON.stringify(avatar_config) : null,
                     notification_settings ? JSON.stringify(notification_settings) : null,
@@ -289,7 +298,7 @@ usersRouter.post('/registration', async (req, res, next) => {
                 first_name,
                 last_name,
                 hashedPassword,
-                user_type,
+                'user',
                 user_phone,
                 avatar_config ? JSON.stringify(avatar_config) : null,
                 notification_settings ? JSON.stringify(notification_settings) : null,

@@ -41,7 +41,10 @@ export function WorkshopPromptsPage() {
     }
     const userId = decodedToken?.user_id;
     const [isAdmin, setIsAdmin] = useState(false);
-    const [allResponses, setAllResponses] = useState(null);
+    const [responseSnapshot, setResponseSnapshot] = useState({ promptId: null, rows: null });
+    const allResponses = String(responseSnapshot.promptId) === String(promptId)
+        ? responseSnapshot.rows
+        : null;
     const [currentUserResponseId, setCurrentUserResponseId] = useState(null);
     const [currentUserName, setCurrentUserName] = useState("");
     const [RSVPStatus, setRSVPStatus] = useState(undefined);
@@ -208,6 +211,7 @@ export function WorkshopPromptsPage() {
       }, [promptsList, promptIndex]);
 
     useEffect(() => {
+        let cancelled = false;
         
         const fetchResponse = async () => {
             
@@ -227,6 +231,7 @@ export function WorkshopPromptsPage() {
                         }
                     }
                 )
+                if (cancelled) return;
 
                 if (isAdmin || RSVPStatus || moduleStatus === 'completed') {
 
@@ -239,9 +244,10 @@ export function WorkshopPromptsPage() {
                             }
                         }
                     )
+                    if (cancelled) return;
 
                     const responsesData = allResponsesResponse.data || [];
-                    setAllResponses(responsesData);
+                    setResponseSnapshot({ promptId, rows: responsesData });
 		            console.log(responsesData);
 
                     // Locate the current user's response row (if any)
@@ -269,6 +275,7 @@ export function WorkshopPromptsPage() {
                     setResponseData([]);
 		        }
             } catch (error) {
+                if (cancelled) return;
                 console.log(`Front End Error: ${error}`);
                 setPromptMode('edit');
                 setResponseData([]);
@@ -276,6 +283,7 @@ export function WorkshopPromptsPage() {
         }
 
         fetchResponse();
+        return () => { cancelled = true; };
     }, [promptId, isAdmin, accessToken, workshopId, moduleId, RSVPStatus]);
 
     //Debugging Next Button Persistence BEGIN
@@ -477,18 +485,19 @@ export function WorkshopPromptsPage() {
                      }
                  } else {
                     try {
-                        const rsvpCreate = await axios.post(
+                        await axios.post(
                             `${import.meta.env.VITE_API_URL}/workshops/rsvp/create`,
                             {user_id: userId, workshop_id: workshopId},
                             { headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${accessToken}`}}
                         );
+                        setRSVPEarned(true);
                     } catch (error) {
                         console.error(`Front End Error: ${error}`);
+                        setRSVPEarned(false);
                     }
                     setNextModulePath(null);
                     setRSVPPath(`/workshops/${workshopId}/rsvp/${userId}`);
                     console.log(RSVPPath);
-                    setRSVPEarned(true);
                     setEndOfPrompts(true)
                 }
              } catch (error) {
@@ -553,6 +562,7 @@ export function WorkshopPromptsPage() {
                 currentUserResponseId={currentUserResponseId}
                 currentUserName={currentUserName}
                 dotColor={dotColor}
+                moduleStatus={moduleStatus}
               />
             );
         }

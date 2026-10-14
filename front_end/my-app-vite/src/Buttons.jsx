@@ -4,6 +4,8 @@ import { DragElement, ArrowSVG, Star, BackArrowSVG, CheckBox, LockSVG, EyeSVG, F
 import classNames from 'classnames';
 import { motion } from 'framer-motion';
 import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
+import { Lock } from 'lucide-react';
+import { LockedTooltip } from './components/ui/locked-tooltip.jsx';
 
 // Shared textarea autosize hook: adjusts height to fit content whenever `value` changes.
 export function useAutosizeTextArea(textareaRef, value) {
@@ -986,24 +988,53 @@ export function AttendeeAvatarStrip({ attendees, currentUserId }) {
   );
 }
 
-export function WorkshopCard({ workshopName, workshopLocation, workshopDate, workshopDescription, workshopPublic, decoration }) {
+export function WorkshopCard({
+  workshopName,
+  workshopLocation,
+  workshopDate,
+  workshopDescription,
+  workshopPublic,
+  decoration,
+  locationLocked = false,
+  pastWorkshop = false,
+  actions = null,
+  showArrow = true,
+}) {
   const locationLabel = workshopPublic != null
     ? `${workshopLocation} (${workshopPublic ? 'Public' : 'In Studio'})`
     : workshopLocation;
 
   return (
     <>
-      <div className="workshopCardContainer">
+      <div className={`workshopCardContainer ${actions ? 'workshopCardContainer--actions' : ''}`.trim()}>
         <div>
           <h1 className="workshopCardName">{workshopName}</h1>
           <WhenWhereRow icon={<ClockIcon size={14} />} label={workshopDate} />
-          <WhenWhereRow icon={<LocationIcon size={14} />} label={locationLabel} />
+          {locationLocked ? (
+            <LockedTooltip
+              className="publicWorkshopLocationTooltip"
+              interactive
+              message={pastWorkshop ? 'Workshop location is not public.' : (
+                <span>
+                  <Link to="/login" className="lockedTooltipRegisterLink">Log In</Link>
+                  {" or "}
+                  <Link to="/register" className="lockedTooltipRegisterLink">Sign Up</Link>
+                  {" to view location"}
+                </span>
+              )}
+            >
+              <div className="publicWorkshopLockedLocation" tabIndex={0} aria-label={pastWorkshop ? 'Workshop location not public' : 'Log in to view workshop location'}>
+                <LocationIcon size={14} />
+                <Lock size={13} strokeWidth={1.8} aria-hidden="true" />
+              </div>
+            </LockedTooltip>
+          ) : (
+            <WhenWhereRow icon={<LocationIcon size={14} />} label={locationLabel} />
+          )}
           <span id="workshopCardDescription">{workshopDescription}</span>
         </div>
 
-        <div>
-          <ArrowSVG />
-        </div>
+        {actions ? <div className="publicWorkshopCardActions">{actions}</div> : showArrow ? <div><ArrowSVG /></div> : null}
 
         {decoration && <div className="cardDecoration">{decoration}</div>}
       </div>

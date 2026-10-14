@@ -6,6 +6,8 @@ import { randomUUID } from 'crypto';
 import rateLimit from 'express-rate-limit';
 import notificationQueue from './queues/notificationQueue.js';
 import { ensureWorkshopRsvpForCompletedPrompts } from './services/rsvpService.js';
+import { getPromptContext } from './services/workshopAccessPolicy.js';
+import { verifyGuestWorkshopToken } from './services/guestWorkshopLinks.js';
 import {
   getMCAnalytics,
   getCLAnalytics,
@@ -15,7 +17,6 @@ import {
   getSampleRaterAnalytics,
   getNotationAnalytics,
 } from './services/analyticsService.js';
-import { getPromptAIAnalysis } from './services/aiAnalysisService.js';
 
 export const homepageRouter = express.Router();
 
@@ -54,6 +55,10 @@ function extractPublicResponseText(rawContent) {
       if (value.notationResponse) collect(value.notationResponse);
       if (value.optionLabel) collect(value.optionLabel);
       if (value.keyName) collect(value.keyName);
+      if (value.rating != null) {
+        const rating = Number(value.rating);
+        if (Number.isFinite(rating) && rating >= 1 && rating <= 5) collect(rating);
+      }
       if (Array.isArray(value.options)) {
         value.options
           .filter((option) => option?.selected)
@@ -65,11 +70,6 @@ function extractPublicResponseText(rawContent) {
   collect(parsed);
   const text = parts.join(' ').replace(/\s+/g, ' ').trim();
   return text.length > 180 ? `${text.slice(0, 177)}...` : text;
-}
-
-function parseResponseContent(rawContent) {
-  if (typeof rawContent !== 'string') return rawContent;
-  try { return JSON.parse(rawContent); } catch { return rawContent; }
 }
 
 async function getPublicAnalyticsForPrompt(promptId, templateId) {
@@ -94,6 +94,92 @@ const responseLimiter = rateLimit({
   message: { error: 'Too many submissions from this IP. Please try again later.' },
 });
 
+const guestProgressLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const guestLinkLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+homepageRouter.post('/guest-progress', guestProgressLimiter, async (req, res) => {
+  const guest = verifyGuestWorkshopToken(req.body?.guestToken, process.env.ACCESS_TOKEN_SECRET);
+  if (!guest) return res.status(403).json({ error: 'This continuation link has expired or is invalid.' });
+
+  try {
+    const [[user]] = await connection.query(
+      'SELECT user_id, email, user_type FROM users WHERE user_id = ? AND email = ? LIMIT 1',
+      [guest.userId, guest.email]
+    );
+    if (!user || user.user_type !== 'guest') {
+      return res.status(403).json({ error: 'This guest link is no longer available.' });
+    }
+    const [rows] = await connection.query(
+      `SELECT wp.workshop_prompt_id AS promptId, wp.prompt_template_id AS templateId,
+              wm.workshop_module_id AS moduleId, wr.workshop_response_content AS content
+       FROM workshop_responses wr
+       JOIN workshop_prompts wp ON wp.workshop_prompt_id = wr.workshop_prompt_id
+       JOIN workshop_modules wm ON wm.workshop_module_id = wp.workshop_module_id
+       WHERE wr.user_id = ? AND wm.workshop_id = ?`,
+      [guest.userId, guest.workshopId]
+    );
+    const [[rsvp]] = await connection.query(
+      'SELECT 1 FROM workshop_rsvps WHERE user_id = ? AND workshop_id = ? LIMIT 1',
+      [guest.userId, guest.workshopId]
+    );
+    return res.json({ workshopId: guest.workshopId, email: user.email, rsvpEarned: Boolean(rsvp), responses: rows.map((row) => {
+      let content = row.content;
+      if (typeof content === 'string') {
+        try { content = JSON.parse(content); } catch { /* Plain text response. */ }
+      }
+      return { ...row, content };
+    }) });
+  } catch (error) {
+    console.error('Guest progress error:', error.message);
+    return res.status(500).json({ error: 'Could not load workshop progress.' });
+  }
+});
+
+homepageRouter.post('/guest-link', guestLinkLimiter, async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const workshopId = Number(req.body?.workshopId);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !Number.isInteger(workshopId) || workshopId <= 0) {
+    return res.status(400).json({ error: 'Valid email and workshopId are required.' });
+  }
+
+  try {
+    const [[guest]] = await connection.query(
+      `SELECT u.user_id
+       FROM users u
+       JOIN workshop_responses wr ON wr.user_id = u.user_id
+       JOIN workshop_prompts wp ON wp.workshop_prompt_id = wr.workshop_prompt_id
+       JOIN workshop_modules wm ON wm.workshop_module_id = wp.workshop_module_id
+       WHERE u.email = ? AND u.user_type = 'guest' AND wm.workshop_id = ?
+       LIMIT 1`,
+      [email, workshopId]
+    );
+    if (guest) {
+      const [[rsvp]] = await connection.query(
+        'SELECT 1 FROM workshop_rsvps WHERE user_id = ? AND workshop_id = ? LIMIT 1',
+        [guest.user_id, workshopId]
+      );
+      await notificationQueue.add('guestRegistrationInvite', {
+        userId: guest.user_id, email, workshopId, rsvpEarned: Boolean(rsvp),
+      });
+    }
+    return res.json({ message: 'If this email has saved workshop work, a fresh link is on its way.' });
+  } catch (error) {
+    console.error('Guest link request error:', error.message);
+    return res.status(500).json({ error: 'Could not request a new link.' });
+  }
+});
+
 /**
  * GET /api/homepage/feed
  *
@@ -106,19 +192,48 @@ const responseLimiter = rateLimit({
  *   - communityStats   – aggregate counts for social proof
  *   - sampleAnalytics  – chart-ready data for the analytics showcase
  */
-homepageRouter.get('/feed', async (_req, res) => {
+homepageRouter.get('/feed', async (req, res) => {
   try {
     // ---------- Current Workshop + Public-Visible Modules + Prompts ----------
-    const [workshopRows] = await connection.query(`
+    const requestedWorkshopId = Number(req.query.workshopId);
+    const hasRequestedWorkshop = Number.isInteger(requestedWorkshopId) && requestedWorkshopId > 0;
+    if (req.query.workshopId != null && !hasRequestedWorkshop) {
+      return res.status(400).json({ error: 'Valid workshopId is required.' });
+    }
+    const defaultWorkshopSelectionSql = `
       SELECT DISTINCT w.workshop_id, w.workshop_name, w.workshop_description,
-             w.workshop_date, w.workshop_location
+             w.workshop_date,
+             (w.workshop_date > NOW()) AS is_upcoming,
+             (w.workshop_location IS NOT NULL AND TRIM(w.workshop_location) != '') AS has_workshop_location
       FROM workshops w
       JOIN workshop_modules wm ON w.workshop_id = wm.workshop_id
       WHERE wm.workshop_module_status != 'pending'
-        AND w.workshop_date >= CURDATE()
+        AND w.workshop_date > NOW()
       ORDER BY w.workshop_date ASC, w.workshop_id DESC
       LIMIT 1
-    `);
+    `;
+    const workshopSelectionSql = hasRequestedWorkshop
+      ? `
+          SELECT DISTINCT w.workshop_id, w.workshop_name, w.workshop_description,
+                 w.workshop_date,
+                 (w.workshop_date > NOW()) AS is_upcoming,
+                 (w.workshop_location IS NOT NULL AND TRIM(w.workshop_location) != '') AS has_workshop_location
+          FROM workshops w
+          LEFT JOIN showcases s ON w.showcase_id = s.showcase_id
+          JOIN workshop_modules wm ON wm.workshop_id = w.workshop_id
+          WHERE w.workshop_id = ?
+            AND wm.workshop_module_status != 'pending'
+            AND (w.workshop_date > NOW() OR s.showcase_id IS NOT NULL)
+          LIMIT 1
+        `
+      : defaultWorkshopSelectionSql;
+    let [workshopRows] = await connection.query(
+      workshopSelectionSql,
+      hasRequestedWorkshop ? [requestedWorkshopId] : []
+    );
+    if (hasRequestedWorkshop && workshopRows.length === 0) {
+      return res.status(404).json({ error: 'Public workshop preview not found.' });
+    }
 
     let currentWorkshop = null;
     let openModules = [];
@@ -132,7 +247,7 @@ homepageRouter.get('/feed', async (_req, res) => {
         workshopName: ws.workshop_name,
         workshopDescription: ws.workshop_description,
         workshopDate: ws.workshop_date,
-        workshopLocation: ws.workshop_location,
+        hasWorkshopLocation: Boolean(ws.has_workshop_location),
       };
 
       // Fetch all non-pending modules for this workshop
@@ -150,8 +265,7 @@ homepageRouter.get('/feed', async (_req, res) => {
         [promptRows] = await connection.query(`
           SELECT wp.workshop_prompt_id, wp.workshop_module_id,
                  wp.prompt_template_id, wp.workshop_prompt_options,
-                 wp.workshop_prompt_reference,
-                 wp.workshop_prompt_admin_analysis
+                 wp.workshop_prompt_reference
           FROM workshop_prompts wp
           WHERE wp.workshop_module_id IN (?)
           ORDER BY wp.workshop_prompt_id ASC
@@ -173,7 +287,6 @@ homepageRouter.get('/feed', async (_req, res) => {
           templateId: p.prompt_template_id,
           options: opts,
           reference: p.workshop_prompt_reference,
-          adminAnalysis: p.workshop_prompt_admin_analysis || '',
         });
       }
 
@@ -184,7 +297,19 @@ homepageRouter.get('/feed', async (_req, res) => {
         prompts: promptsByModule[m.workshop_module_id] || [],
       }));
 
-      openModules = publicModules.filter((module) => module.moduleStatus === 'open');
+      openModules = publicModules
+        .filter((module) => module.moduleStatus === 'open')
+        .map((module) => ({
+          moduleId: module.moduleId,
+          moduleName: module.moduleName,
+          moduleStatus: 'open',
+          prompts: module.prompts.map((prompt) => ({
+            promptId: prompt.promptId,
+            templateId: prompt.templateId,
+            options: prompt.options,
+            reference: prompt.reference,
+          })),
+        }));
 
       const previewModules = publicModules.filter((module) =>
         ['processing', 'completed'].includes(module.moduleStatus)
@@ -197,7 +322,6 @@ homepageRouter.get('/feed', async (_req, res) => {
             wm.workshop_module_id,
             wp.workshop_prompt_id,
             wp.prompt_template_id,
-            wr.workshop_response_id,
             wr.workshop_response_content,
             wr.workshop_response_created
           FROM workshop_responses wr
@@ -217,47 +341,32 @@ homepageRouter.get('/feed', async (_req, res) => {
           if (!responsesByModule[row.workshop_module_id]) {
             responsesByModule[row.workshop_module_id] = [];
           }
-          if (!responsesByPrompt[row.workshop_prompt_id]) {
-            responsesByPrompt[row.workshop_prompt_id] = [];
-          }
+          if (!responsesByPrompt[row.workshop_prompt_id]) responsesByPrompt[row.workshop_prompt_id] = [];
           if (responsesByModule[row.workshop_module_id].length < 6) {
             responsesByModule[row.workshop_module_id].push({
               promptId: row.workshop_prompt_id,
               templateId: row.prompt_template_id,
               text,
-              created: row.workshop_response_created,
             });
           }
-          responsesByPrompt[row.workshop_prompt_id].push({
-            workshop_response_id: row.workshop_response_id,
-            workshop_prompt_id: row.workshop_prompt_id,
-            workshop_response_content: parseResponseContent(row.workshop_response_content),
-            workshop_response_acceptance: 1,
-            workshop_response_created: row.workshop_response_created,
-          });
+          if (responsesByPrompt[row.workshop_prompt_id].length < 6) {
+            responsesByPrompt[row.workshop_prompt_id].push({ text });
+          }
         }
 
         publicPreviewModules = await Promise.all(previewModules.map(async (module) => {
           const prompts = await Promise.all(module.prompts.map(async (prompt) => {
-            const [analytics, aiAnalysis] = await Promise.all([
-              getPublicAnalyticsForPrompt(prompt.promptId, prompt.templateId).catch((error) => {
-                console.error('Public analytics preview error:', error.message);
-                return null;
-              }),
-              getPromptAIAnalysis(prompt.promptId).catch((error) => {
-                console.error('Public AI preview error:', error.message);
-                return null;
-              }),
-            ]);
+            const analytics = await getPublicAnalyticsForPrompt(prompt.promptId, prompt.templateId).catch((error) => {
+              console.error('Public analytics preview error:', error.message);
+              return null;
+            });
 
             return {
               promptId: prompt.promptId,
               templateId: prompt.templateId,
               options: prompt.options,
               reference: prompt.reference,
-              adminAnalysis: prompt.adminAnalysis,
               analytics,
-              aiAnalysis,
               responses: responsesByPrompt[prompt.promptId] || [],
             };
           }));
@@ -279,16 +388,31 @@ homepageRouter.get('/feed', async (_req, res) => {
         const firstPrompt = firstMod.prompts[0];
         firstPromptPath = `/workshops/${ws.workshop_id}/modules/${firstMod.moduleId}/prompts/${firstPrompt.promptId}`;
       }
+
+      if (hasRequestedWorkshop) {
+        if (!ws.is_upcoming) {
+          const openReadOnlyModules = openModules.map((module) => ({
+            ...module,
+            prompts: module.prompts.map((prompt) => ({
+              ...prompt,
+              analytics: null,
+              responses: [],
+            })),
+          }));
+          publicPreviewModules = [...openReadOnlyModules, ...publicPreviewModules]
+            .sort((a, b) => a.moduleId - b.moduleId);
+          openModules = [];
+          firstPromptPath = null;
+        }
+      }
     }
 
     // ---------- Recent Responses (typewriter ticker) ----------
     const [recentRows] = await connection.query(`
       SELECT
-        u.first_name,
         wr.workshop_response_content,
         wr.workshop_response_created
       FROM workshop_responses wr
-      JOIN users u ON wr.user_id = u.user_id
       JOIN workshop_prompts wp ON wr.workshop_prompt_id = wp.workshop_prompt_id
       WHERE wr.workshop_response_acceptance = 1
         AND wp.prompt_template_id IN (4, 8)
@@ -316,9 +440,7 @@ homepageRouter.get('/feed', async (_req, res) => {
       if (text.length > 140) text = text.slice(0, 137) + '…';
 
       return {
-        name: r.first_name,
         text,
-        created: r.workshop_response_created,
       };
     }).filter((r) => r.text.length > 0);
 
@@ -423,9 +545,9 @@ homepageRouter.get('/feed', async (_req, res) => {
       openModules,
       publicPreviewModules,
       firstPromptPath,
-      recentResponses,
+      recentResponses: hasRequestedWorkshop ? [] : recentResponses,
       communityStats,
-      sampleAnalytics,
+      sampleAnalytics: hasRequestedWorkshop ? null : sampleAnalytics,
     });
   } catch (error) {
     console.error('Homepage feed error:', error);
@@ -444,22 +566,75 @@ homepageRouter.get('/feed', async (_req, res) => {
  */
 homepageRouter.post('/responses', responseLimiter, async (req, res) => {
   try {
-    const { email, workshopId, responses } = req.body;
-
-    if (!email || !Array.isArray(responses) || responses.length === 0) {
-      return res.status(400).json({ error: 'email and responses[] are required.' });
+    const { email, workshopId, responses, guestToken } = req.body;
+    const guest = guestToken
+      ? verifyGuestWorkshopToken(guestToken, process.env.ACCESS_TOKEN_SECRET)
+      : null;
+    if (guestToken && (!guest || Number(workshopId) !== guest.workshopId)) {
+      return res.status(403).json({ error: 'This continuation link has expired or is invalid.' });
     }
+
+    if ((!email && !guest) || !Array.isArray(responses) || responses.length === 0) {
+      return res.status(400).json({ error: 'Email or guest link and responses[] are required.' });
+    }
+
+    const recipientEmail = guest?.email || email.trim().toLowerCase();
 
     // Basic email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+    if (!emailRegex.test(recipientEmail)) {
       return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
+    const normalizedWorkshopId = Number(workshopId);
+    if (!Number.isInteger(normalizedWorkshopId) || normalizedWorkshopId <= 0) {
+      return res.status(400).json({ error: 'Valid workshopId is required.' });
+    }
+    const [currentRows] = await connection.query(
+      `SELECT DISTINCT w.workshop_id, w.workshop_date
+       FROM workshops w
+       JOIN workshop_modules wm ON wm.workshop_id = w.workshop_id
+       WHERE wm.workshop_module_status != 'pending' AND w.workshop_date > NOW()
+       ORDER BY w.workshop_date ASC, w.workshop_id DESC LIMIT 1`
+    );
+    if (Number(currentRows[0]?.workshop_id) !== normalizedWorkshopId) {
+      const [[selectedWorkshop]] = await connection.query(
+        `SELECT w.workshop_id
+         FROM workshops w
+         JOIN workshop_modules wm ON wm.workshop_id = w.workshop_id
+         WHERE w.workshop_id = ? AND w.workshop_date > NOW()
+           AND wm.workshop_module_status = 'open'
+         LIMIT 1`,
+        [normalizedWorkshopId]
+      );
+      if (!selectedWorkshop) {
+        return res.status(409).json({ error: 'Only upcoming public workshops accept preview responses.' });
+      }
+    }
+
+    const seenPromptIds = new Set();
+    const validatedResponses = [];
+    for (const response of responses) {
+      const promptId = Number(response?.promptId);
+      if (!Number.isInteger(promptId) || promptId <= 0 || response.content == null || seenPromptIds.has(promptId)) {
+        return res.status(400).json({ error: 'Each response must identify a distinct prompt and include content.' });
+      }
+      const prompt = await getPromptContext(connection, promptId);
+      if (!prompt || Number(prompt.workshopId) !== normalizedWorkshopId
+          || (response.moduleId != null && Number(response.moduleId) !== Number(prompt.moduleId))) {
+        return res.status(400).json({ error: 'A response does not belong to this workshop.' });
+      }
+      if (prompt.moduleStatus !== 'open') {
+        return res.status(409).json({ error: 'A preview module is no longer open for responses.' });
+      }
+      seenPromptIds.add(promptId);
+      validatedResponses.push({ promptId, templateId: Number(prompt.templateId), content: response.content });
     }
 
     // 1. Check if user with this email already exists
     const [existingRows] = await connection.query(
       'SELECT user_id, user_type FROM users WHERE email = ? LIMIT 1',
-      [email.trim().toLowerCase()]
+      [recipientEmail]
     );
 
     let userId;
@@ -474,20 +649,24 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
           message: 'An account with this email already exists. Please log in to save your responses.',
         });
       }
+      if (guest && Number(existing.user_id) !== guest.userId) {
+        return res.status(403).json({ error: 'This continuation link does not match the guest.' });
+      }
 
       // Returning guest: reuse their user_id
       userId = existing.user_id;
       statusLabel = 'appended';
     } else {
       // 2. Create a new guest user
-      const emailPrefix = email.split('@')[0] || 'Guest';
+      if (guest) return res.status(403).json({ error: 'This guest link is no longer available.' });
+      const emailPrefix = recipientEmail.split('@')[0] || 'Guest';
       const guestUsername = `guest_${randomUUID().slice(0, 8)}`;
       const tempPassword = await bcrypt.hash(randomUUID(), SALT_ROUNDS);
 
       const [insertResult] = await connection.query(
         `INSERT INTO users (username, email, first_name, last_name, user_password, user_type, user_phone)
          VALUES (?, ?, ?, ?, ?, 'guest', '0000000000')`,
-        [guestUsername, email.trim().toLowerCase(), emailPrefix, '', tempPassword]
+        [guestUsername, recipientEmail, emailPrefix, '', tempPassword]
       );
 
       userId = insertResult.insertId;
@@ -496,16 +675,20 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
 
     // 3. Batch-insert responses (with dedup for returning guests)
     let insertedCount = 0;
-    for (const r of responses) {
+    const savedPromptIds = [];
+    const skippedPromptIds = [];
+    for (const r of validatedResponses) {
       const { promptId, templateId, content } = r;
-      if (!promptId || content == null) continue;
 
       // Check for existing response from this user for this prompt
       const [dupCheck] = await connection.query(
         'SELECT 1 FROM workshop_responses WHERE user_id = ? AND workshop_prompt_id = ? LIMIT 1',
         [userId, promptId]
       );
-      if (dupCheck.length > 0) continue;
+      if (dupCheck.length > 0) {
+        skippedPromptIds.push(promptId);
+        continue;
+      }
 
       const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
       const autoAccept = [1, 3, 6, 7, 9].includes(Number(templateId)) ? 1 : 0;
@@ -517,42 +700,55 @@ homepageRouter.post('/responses', responseLimiter, async (req, res) => {
         [userId, promptId, contentStr, autoAccept]
       );
       insertedCount++;
+      savedPromptIds.push(promptId);
     }
 
     // 4. Check if guest has completed all prompts → auto-RSVP
-    if (workshopId) {
+    let rsvpResult = null;
+    if (validatedResponses.length > 0) {
       try {
-        const rsvpResult = await ensureWorkshopRsvpForCompletedPrompts({
+        rsvpResult = await ensureWorkshopRsvpForCompletedPrompts({
           connection,
           notificationQueue,
           userId,
-          workshopId,
+          workshopId: normalizedWorkshopId,
+          notifyOnCreate: false,
         });
         if (rsvpResult.created) {
           console.log(`[homepage] auto-rsvp created: userId=${userId}, workshopId=${workshopId}`);
         }
       } catch (rsvpErr) {
-        console.error('RSVP check error (non-fatal):', rsvpErr.message);
+        console.error('RSVP check error:', rsvpErr.message);
+        throw rsvpErr;
       }
     }
 
     // 5. Enqueue registration invite email
-    try {
-      await notificationQueue.add('guestRegistrationInvite', {
-        userId,
-        email: email.trim().toLowerCase(),
-      });
-      console.log(`[queue] enqueued: queue=notification, jobName=guestRegistrationInvite, userId=${userId}`);
-    } catch (notifErr) {
-      console.error('Failed to enqueue guestRegistrationInvite:', notifErr.message);
+    if (insertedCount > 0 || rsvpResult?.created) {
+      try {
+        await notificationQueue.add('guestRegistrationInvite', {
+          userId,
+          email: recipientEmail,
+          workshopId: normalizedWorkshopId,
+          rsvpEarned: Boolean(rsvpResult?.eligible),
+        });
+        console.log(`[queue] enqueued: queue=notification, jobName=guestRegistrationInvite, userId=${userId}`);
+      } catch (notifErr) {
+        console.error('Failed to enqueue guestRegistrationInvite:', notifErr.message);
+      }
     }
 
-    console.log(`[homepage] guest responses: email=${email}, userId=${userId}, status=${statusLabel}, insertedCount=${insertedCount}`);
+    console.log(`[homepage] guest responses: email=${recipientEmail}, userId=${userId}, status=${statusLabel}, insertedCount=${insertedCount}`);
     return res.status(201).json({
       status: statusLabel,
       userId,
       insertedCount,
-      message: statusLabel === 'created'
+      savedPromptIds,
+      skippedPromptIds,
+      rsvpEarned: Boolean(rsvpResult?.eligible),
+      message: insertedCount === 0
+        ? 'These responses were already saved.'
+        : statusLabel === 'created'
         ? 'Responses saved! Check your email to complete your account.'
         : 'Additional responses saved to your guest account.',
     });

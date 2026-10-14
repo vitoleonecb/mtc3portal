@@ -40,6 +40,7 @@ import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AnswerBar } from "./components/ui/glowing-bar-vertical-chart.jsx";
+import { normalizeResponseItems } from './utils/responseContent.js';
 
 // Shared helpers for DnD token display
 function prettyTokenLabel(key) {
@@ -652,7 +653,9 @@ export function ResponseProcessor({
   currentUserResponseId,
   currentUserName,
   dotColor = 'rgb(210, 164, 120)',
+  moduleStatus = null,
   publicPreview = false,
+  publicResponseCount = 0,
   publicAnalyticsData = null,
   publicAiAnalysisData = null,
   publicAdminAnalysis = "",
@@ -793,6 +796,14 @@ export function ResponseProcessor({
         setAiAnalysisError("");
         return;
       }
+      // AI analysis is produced only for these templates after the open phase.
+      if (moduleStatus === 'open' || ![4, 6, 8].includes(Number(templateId))) {
+        setAiAnalysisData(null);
+        setAiAnalysisText("");
+        setAiAnalysisLoading(false);
+        setAiAnalysisError("");
+        return;
+      }
       if (!promptId) return;
       setAiAnalysisLoading(true);
       setAiAnalysisError("");
@@ -884,7 +895,7 @@ export function ResponseProcessor({
     return () => {
       cancelled = true;
     };
-  }, [promptId, templateId, accessToken, publicPreview, publicAnalyticsData, publicAiAnalysisData]);
+  }, [promptId, templateId, accessToken, moduleStatus, publicPreview, publicAnalyticsData, publicAiAnalysisData]);
 
   const renderCharts = () => {
     switch (templateType) {
@@ -1023,7 +1034,7 @@ export function ResponseProcessor({
 
   return (
     <>
-      <Heading1 text={visibleResponses.length > 0 ? "Community Responses" : "Community Responses Coming Soon"} />
+      <Heading1 text={visibleResponses.length > 0 || (publicPreview && publicResponseCount > 0) ? "Community Responses" : "Community Responses Coming Soon"} />
       <div className="ProcessorContainer">
         {renderCharts()}
 
@@ -1214,11 +1225,12 @@ export function ProcessorCard({
   };
 
   const renderContent = () => {
+    const responseItems = normalizeResponseItems(response_content);
     switch (templateId) {
       case 3:
         return (
           <div>
-            {response_content.map((q, qIdx) => (
+            {responseItems.map((q, qIdx) => (
               <div key={qIdx}>
                 {q.questionText && (
                   <strong className="QuestionProcessing">
@@ -1371,7 +1383,7 @@ export function ProcessorCard({
       case 4:
         return (
           <div>
-            {response_content.map((e, idx) => (
+            {responseItems.map((e, idx) => (
               <div key={idx}>
                 <strong className="QuestionProcessing">{e.questionText}</strong>
                 <p>{e.answer}</p>
@@ -1388,13 +1400,29 @@ export function ProcessorCard({
           </div>
         );
 
-      case 7:
+      case 7: {
+        const rawRating = (() => {
+          if (Array.isArray(response_content)) {
+            const entry = response_content.find((item) => item?.rating != null);
+            return entry?.rating;
+          }
+          if (response_content && typeof response_content === "object") {
+            return response_content.rating;
+          }
+          return response_content;
+        })();
+        const numericRating = Number(rawRating);
+        const rating = Number.isFinite(numericRating) && numericRating >= 1 && numericRating <= 5
+          ? numericRating
+          : null;
+
         return (
           <div>
             <strong className="QuestionProcessing">Rating:</strong>
-            <p>{response_content.rating} / 5</p>
+            <p>{rating ?? "—"} / 5</p>
           </div>
         );
+      }
 
       default:
         return <p>Template type not yet supported.</p>;

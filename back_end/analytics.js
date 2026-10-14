@@ -2,10 +2,12 @@ import express from "express";
 import {authenticateTokenAdmin, authenticateToken, connection} from './app.js';
 import { getMCAnalytics, getCLAnalytics, getDragAndDropAnalytics, getShortResponseAnalytics, getDropDownAnalytics, getSampleRaterAnalytics, getNotationAnalytics } from "./services/analyticsService.js";
 import { getPromptAIAnalysis } from "./services/aiAnalysisService.js";
+import { requireCommunityAccess } from "./services/workshopAccessPolicy.js";
 
 export const analyticsRouter = express.Router();
+const communityAccess = (req, res, next) => requireCommunityAccess(connection)(req, res, next);
 
-analyticsRouter.get("/multiplechoice/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/multiplechoice/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const promptId = req.params.promptId;
         const analytics = await getMCAnalytics(promptId);
@@ -16,7 +18,7 @@ analyticsRouter.get("/multiplechoice/:promptId", authenticateToken, async (req, 
     }
 });
 
-analyticsRouter.get("/checklist/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/checklist/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const promptId = req.params.promptId;
         const analytics = await getCLAnalytics(promptId);
@@ -27,7 +29,7 @@ analyticsRouter.get("/checklist/:promptId", authenticateToken, async (req, res) 
     }
 });
 
-analyticsRouter.get("/draganddrop/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/draganddrop/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const { promptId } = req.params;
         const analytics = await getDragAndDropAnalytics(promptId);
@@ -38,7 +40,7 @@ analyticsRouter.get("/draganddrop/:promptId", authenticateToken, async (req, res
     }
 });
 
-analyticsRouter.get("/shortresponse/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/shortresponse/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const { promptId } = req.params;
         const analytics = await getShortResponseAnalytics(promptId);
@@ -49,7 +51,7 @@ analyticsRouter.get("/shortresponse/:promptId", authenticateToken, async (req, r
     }
 });
 
-analyticsRouter.get("/dropdown/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/dropdown/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const { promptId } = req.params;
         const analytics = await getDropDownAnalytics(promptId);
@@ -60,7 +62,7 @@ analyticsRouter.get("/dropdown/:promptId", authenticateToken, async (req, res) =
     }
 });
 
-analyticsRouter.get("/samplerater/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/samplerater/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const { promptId } = req.params;
         const analytics = await getSampleRaterAnalytics(promptId);
@@ -71,7 +73,7 @@ analyticsRouter.get("/samplerater/:promptId", authenticateToken, async (req, res
     }
 });
 
-analyticsRouter.get("/notation/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/notation/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const { promptId } = req.params;
         const analytics = await getNotationAnalytics(promptId);
@@ -84,7 +86,7 @@ analyticsRouter.get("/notation/:promptId", authenticateToken, async (req, res) =
 
 // AI-driven, non-prescriptive analysis bundle for a prompt
 // Exposed to any authenticated user (not admin-only).
-analyticsRouter.get("/ai/:promptId", authenticateToken, async (req, res) => {
+analyticsRouter.get("/ai/:promptId", authenticateToken, communityAccess, async (req, res) => {
     try {
         const { promptId } = req.params;
         const analysis = await getPromptAIAnalysis(promptId);

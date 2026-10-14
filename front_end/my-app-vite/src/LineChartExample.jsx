@@ -21,10 +21,8 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-export function GlowingLineChart({ analyticsData = {}, promptId, dotColor = 'rgb(210,164,120)' }) {
+export function GlowingLineChart({ analyticsData = {}, dotColor = 'rgb(210,164,120)' }) {
   const timeSeries = analyticsData.timeSeries ?? {};
-
-  console.log(`LineChart promptId=${promptId} timeSeries=${JSON.stringify(timeSeries)}`);
 
   if (Object.keys(timeSeries).length === 0) return null;
 

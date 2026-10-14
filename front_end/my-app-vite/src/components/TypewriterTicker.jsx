@@ -20,7 +20,7 @@ function TypewriterSlot({ item }) {
     setDisplayed("");
     setPhase("typing");
 
-    const full = `${item.name}: "${item.text}"`;
+    const full = `"${item.text}"`;
     let i = 0;
 
     const typeTimer = setInterval(() => {
